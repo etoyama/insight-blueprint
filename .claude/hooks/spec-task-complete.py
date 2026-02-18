@@ -24,50 +24,50 @@ Claude Code の PostToolUse フックとして使用。
   }
 """
 
+import json
+import os
 import subprocess
 import sys
-import os
-import json
 from datetime import datetime
 
 
 def run_tests() -> tuple[bool, str]:
     """テストを実行して結果を返す"""
     result = subprocess.run(
-        ['uv', 'run', 'pytest', '--tb=short', '-q'],
+        ["uv", "run", "pytest", "--tb=short", "-q"],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
     )
     return result.returncode == 0, result.stdout + result.stderr
 
 
 def log_completion(spec_id: str, task_id: str, test_output: str) -> None:
     """実装ログを記録"""
-    log_dir = '.spec-workflow/logs'
+    log_dir = ".spec-workflow/logs"
     os.makedirs(log_dir, exist_ok=True)
-    
+
     log_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'spec_id': spec_id,
-        'task_id': task_id,
-        'status': 'completed',
-        'test_output_summary': test_output[:500]
+        "timestamp": datetime.now().isoformat(),
+        "spec_id": spec_id,
+        "task_id": task_id,
+        "status": "completed",
+        "test_output_summary": test_output[:500],
     }
-    
-    log_file = os.path.join(log_dir, 'task-completions.jsonl')
-    with open(log_file, 'a') as f:
-        f.write(json.dumps(log_entry) + '\n')
+
+    log_file = os.path.join(log_dir, "task-completions.jsonl")
+    with open(log_file, "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
 
 
 def main():
-    spec_id = os.environ.get('ACTIVE_SPEC_ID')
-    task_id = os.environ.get('ACTIVE_TASK_ID')
-    
+    spec_id = os.environ.get("ACTIVE_SPEC_ID")
+    task_id = os.environ.get("ACTIVE_TASK_ID")
+
     if not spec_id or not task_id:
         # スペックタスクが設定されていない場合は何もしない
         return
-    
+
     # テスト実行
     try:
         all_passed, output = run_tests()
@@ -77,14 +77,18 @@ def main():
     except FileNotFoundError:
         # pytest が見つからない場合はスキップ
         return
-    
+
     if all_passed:
-        print(f"\n✅ 全テスト通過!")
+        print("\n✅ 全テスト通過!")
         print(f"   Spec: {spec_id} / Task: {task_id}")
-        print(f"\n📋 次のアクション:")
-        print(f"   spec-workflow ダッシュボード(http://localhost:5000)でタスクを完了マークしてください")
-        print(f"   または Claude に 'タスク {task_id} を完了マークして' と伝えてください\n")
-        
+        print("\n📋 次のアクション:")
+        print(
+            "   spec-workflow ダッシュボード(http://localhost:5000)でタスクを完了マークしてください"
+        )
+        print(
+            f"   または Claude に 'タスク {task_id} を完了マークして' と伝えてください\n"
+        )
+
         # ログ記録
         log_completion(spec_id, task_id, output)
     else:
@@ -92,5 +96,5 @@ def main():
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

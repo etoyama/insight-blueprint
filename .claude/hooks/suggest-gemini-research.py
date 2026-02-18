@@ -88,7 +88,7 @@ def main():
                         "**Recommended**: Use Task tool with subagent_type='general-purpose' "
                         "to consult Gemini and save results to .claude/docs/research/. "
                         "(Direct call OK for quick questions: `gemini -p '...' 2>/dev/null`)"
-                    )
+                    ),
                 }
             }
             print(json.dumps(output))
