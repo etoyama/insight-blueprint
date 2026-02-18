@@ -96,6 +96,25 @@ CLI (cli.py)
 - No locking needed for v1 (single-user, atomic writes prevent corruption)
 - `importlib.resources.files()` for skill path resolution in installed packages
 
+## Spec ID Convention
+
+Spec IDs (e.g., `SPEC-1`, `SPEC-2`) **must be consistent** across all documents:
+
+| Document | Location | Example |
+|----------|----------|---------|
+| Spec requirements | `.spec-workflow/specs/<spec-id>/requirements.md` | `SPEC-1` |
+| Spec design | `.spec-workflow/specs/<spec-id>/design.md` | `SPEC-1` |
+| Spec tasks | `.spec-workflow/specs/<spec-id>/tasks.md` | `SPEC-1` |
+| Steering: structure.md | `## Spec-to-Module Mapping` table | `SPEC-1` |
+| Steering: tech.md | `## Key MCP Tools` section header | `SPEC-1` |
+| Code comments | Module docstrings, inline comments | `# SPEC-1` |
+
+**Rules:**
+- ID format: `SPEC-<N>` (uppercase, sequential integer)
+- Never rename a Spec ID after the spec is approved
+- When referencing a spec in code, use `# SPEC-N: <brief description>`
+- New steering documents that are spec-scoped must include the corresponding Spec ID in their header metadata
+
 ## Spec-to-Module Mapping
 
 | Spec | Modules Created |
