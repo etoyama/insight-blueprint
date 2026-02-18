@@ -39,6 +39,23 @@
 - **Skills**: bundled at `src/insight_blueprint/_skills/`, copied to `.claude/skills/` on init
 - **Path resolution**: `importlib.resources.files()` for installed package paths
 
+## Development Methodology
+
+### TDD (t-wada style)
+- Follow the Red-Green-Refactor cycle strictly
+  1. **Red**: Write a failing test that describes the desired behavior
+  2. **Green**: Write the minimum code to make the test pass (no more)
+  3. **Refactor**: Clean up code while keeping all tests green
+- Tests are specifications — write tests to define behavior, not to verify implementation
+- One failing test at a time; never write production code without a failing test
+- Reference: [t-wada/power-assert](https://github.com/power-assert-js/power-assert), TDD talks by @t-wada
+
+### YAGNI (You Aren't Gonna Need It)
+- Do not add functionality until it is actually required
+- Implement the simplest solution that satisfies the current requirement
+- Defer abstractions until there are 3+ concrete use cases (rule of three)
+- Delete speculative code; dead code is worse than no code
+
 ## Quality Tools
 
 | Tool | Purpose |
