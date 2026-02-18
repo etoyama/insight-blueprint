@@ -9,10 +9,9 @@ All agents (Claude Code, subagents, Codex, Gemini) can read this log.
 """
 
 import json
-import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 LOG_DIR = Path(__file__).parent.parent / "logs"
@@ -115,7 +114,7 @@ def main() -> None:
 
     # Create log entry
     entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "tool": tool,
         "model": model,
         "prompt": truncate_text(prompt),
