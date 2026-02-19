@@ -58,3 +58,6 @@ logs/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# spec-workflow approval state (runtime, managed by dashboard)
+.spec-workflow/approvals/

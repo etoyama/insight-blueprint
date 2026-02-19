@@ -8,29 +8,54 @@
 - スペック間の依存関係は requirements.md に明記
 
 ### 2. 要件ドキュメント (requirements.md)
+
+テンプレート: `.spec-workflow/templates/requirements-template.md`
+
 必須セクション:
-- `## User Stories` - As a..., I want..., So that...
-- `## Functional Requirements` - 機能要件リスト
-- `## Non-Functional Requirements` - 性能・セキュリティ・可用性
-- `## Acceptance Criteria` - テスト可能な受け入れ条件
-- `## Out of Scope` - 対象外の機能（明示的に除外）
+- `## Introduction` - 機能の目的と価値（2〜4文）
+- `## Alignment with Product Vision` - product.md のゴールとの対応（3つのポイント）
+- `## Requirements` — 要件クラスタごとのネスト構造、各クラスタに必須:
+  - `**User Story:**` As a [role], I want [feature], so that [benefit]
+  - 機能要件 (FR-N) の箇条書き
+  - `#### Acceptance Criteria` — WHEN/THEN/SHALL フォーマット
+- `## Non-Functional Requirements` — 5つのサブセクション必須:
+  - Code Architecture and Modularity
+  - Performance
+  - Security
+  - Reliability
+  - Usability
+- `## Out of Scope` （推奨: テンプレートには無いが有用なため追加を許可）
 
 ### 3. 設計ドキュメント (design.md)
+
+テンプレート: `.spec-workflow/templates/design-template.md`
+
 必須セクション:
-- `## Architecture` - システム構成図
-- `## Data Model` - エンティティと関係
-- `## API Design` - エンドポイント定義
-- `## Error Handling` - エラー種別と対処方針
-- `## Testing Strategy` - テストレベルと方針
+- `## Overview` - 機能のシステム内の位置づけ（2〜3文）
+- `## Steering Document Alignment` — サブセクション必須:
+  - Technical Standards (tech.md)
+  - Project Structure (structure.md)
+- `## Code Reuse Analysis` — Existing Components to Leverage + Integration Points
+- `## Architecture` — Modular Design Principles サブセクション必須
+- `## Components and Interfaces` — コンポーネントごとに Purpose / Interfaces / Dependencies / Reuses
+- `## Data Models` - データ構造
+- `## Error Handling` - 番号付きシナリオ、各シナリオに Handling + User Impact
+- `## Testing Strategy` — Unit Testing / Integration Testing / End-to-End Testing
 
 ### 4. タスク設計
+
+テンプレート: `.spec-workflow/templates/tasks-template.md`
+
 - タスクIDは `<major>.<minor>` 形式（例: 1.1, 1.2, 2.1）
 - 1タスクの実装時間目安: 1〜3時間
 - 各タスクに明示する情報:
-  - `title`: 動詞始まりの短い説明（例: "Implement JWT token generation"）
-  - `description`: 実装の詳細と技術的考慮事項
-  - `acceptance_criteria`: テスト可能な完了条件（箇条書き）
-  - `dependencies`: 先行タスクのID
+  - `File:` 作成・変更するファイルパス
+  - 実装の詳細行
+  - `Purpose:` このタスクが存在する理由（1文）
+  - `_Leverage:_` 再利用する既存コードパス
+  - `_Requirements:_` FR-N、NFR-N の参照
+  - `_Prompt:_` Role: ... | Task: ... | Restrictions: ... | Success: ...
+- **注意**: acceptance_criteria はタスクに書かない（ACs は requirements.md に属する）
 
 ### 5. Approval フロー
 - スペック完成前に実装を開始しない

@@ -70,7 +70,7 @@
 ## Key MCP Tools (14 total)
 
 ### Design Tools (SPEC-1)
-- `create_analysis_design(title, hypothesis, data_sources, metrics)` → design YAML
+- `create_analysis_design(title, hypothesis_statement, hypothesis_background, parent_id?)` → design YAML
 - `get_analysis_design(design_id)` → AnalysisDesign model
 - `list_analysis_designs(status?)` → list with filters
 
