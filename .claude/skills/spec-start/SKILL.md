@@ -7,6 +7,15 @@ description: Creates structured specifications through multi-agent collaboration
 
 Creates comprehensive specifications through orchestrated collaboration between Claude, Codex, Gemini, and spec-workflow-mcp.
 
+## Template Reference
+
+Always read templates before composing spec documents:
+- Requirements: `.spec-workflow/templates/requirements-template.md`
+- Design: `.spec-workflow/templates/design-template.md`
+- Tasks: `.spec-workflow/templates/tasks-template.md`
+
+Use the template's exact section names and structure as the skeleton.
+
 ## When to Use
 
 Use this skill when:
@@ -30,14 +39,27 @@ Save output to `.claude/docs/research/<feature-name>-research.md`
 
 ### Step 2: Requirements Gathering (Claude)
 
+Before writing requirements, read `.spec-workflow/templates/requirements-template.md`.
+
 Interview user to define:
-1. **User Stories**: Who uses this and why
-2. **Functional Requirements**: What it must do
-3. **Non-Functional Requirements**: Performance, security, scalability
-4. **Constraints**: Integration points, technology limitations
-5. **Acceptance Criteria**: Definition of Done
+1. **Introduction**: Feature purpose and value (2-4 sentences)
+2. **Alignment with Product Vision**: How this supports goals in product.md (3 key points)
+3. **Requirements** (group per cluster — each cluster must contain):
+   - User Story: As a [role], I want [feature], so that [benefit]
+   - Functional Requirements (FR-N): Specific behaviors the system must exhibit
+   - Acceptance Criteria: WHEN [event] THEN [system] SHALL [response]
+4. **Non-Functional Requirements** (5 subsections):
+   - Code Architecture and Modularity
+   - Performance
+   - Security
+   - Reliability
+   - Usability
+5. **Out of Scope**: Features explicitly excluded from this spec
 
 ### Step 3: Create Requirements (spec-workflow MCP)
+
+Before composing content, read `.spec-workflow/templates/requirements-template.md`
+and follow its exact section names and nesting structure.
 
 Call MCP tools:
 ```
@@ -59,33 +81,48 @@ Save to `.claude/docs/DESIGN.md`
 
 ### Step 5: Create Design Document (spec-workflow MCP)
 
+Before composing content, read `.spec-workflow/templates/design-template.md`
+and follow its exact section names and nesting structure.
+
 Generate design incorporating Codex analysis:
 ```
 create_design(spec_id="...", content="...")
 ```
 
 Include:
-- System architecture
-- Data models
-- API design
-- Error handling strategy
-- Testing approach
+- Overview: 2-3 sentences describing the feature's place in the system
+- Steering Document Alignment: technical standards (tech.md) + project structure (structure.md)
+- Code Reuse Analysis: existing components to leverage + integration points
+- Architecture: overall patterns + Modular Design Principles subsection
+- Components and Interfaces: per-component with Purpose / Interfaces / Dependencies / Reuses
+- Data Models: data structures
+- Error Handling: numbered scenarios each with Handling + User Impact
+- Testing Strategy: Unit Testing, Integration Testing, End-to-End Testing
 
 Output: `.spec-workflow/specs/<feature-name>/design.md`
 
 ### Step 6: Task Breakdown
 
+Before composing tasks, read `.spec-workflow/templates/tasks-template.md`
+and follow its field structure.
+
 Decompose design into implementation tasks:
 ```
-create_tasks(spec_id="...", tasks=[
-  {"id": "1.1", "title": "...", "description": "...", "acceptance_criteria": [...]},
-  ...
-])
+create_tasks(spec_id="...", tasks=[...])
 ```
+
+Task format per item:
+- [ ] N.M Task title
+  - File: path(s) to create/modify
+  - Implementation detail lines
+  - Purpose: one sentence explaining why this task exists
+  - _Leverage: existing code paths to reuse_
+  - _Requirements: FR-N, NFR-N references_
+  - _Prompt: Role: ... | Task: ... | Restrictions: ... | Success: ..._
 
 Task design principles:
 - 1 task = 1-3 hours of work
-- Clear acceptance criteria for each
+- Tasks within requirements.md (ACs belong there, not in tasks.md)
 - Explicit dependencies between tasks
 - Include test implementation
 
@@ -110,11 +147,14 @@ After approval, use `/tdd --spec <spec-id> <task-id>` to begin implementation.
 ## Completion Checklist
 
 Before requesting approval:
-- [ ] User stories clearly documented
-- [ ] Acceptance criteria testable
-- [ ] Non-functional requirements defined
-- [ ] Design includes architecture diagram
-- [ ] All tasks have dependency information
+- [ ] requirements.md follows requirements-template.md section structure
+- [ ] design.md follows design-template.md section structure
+- [ ] tasks.md uses Purpose/Leverage/Requirements/Prompt fields
+- [ ] Introduction and Product Vision alignment documented
+- [ ] Acceptance criteria in WHEN/THEN/SHALL format
+- [ ] Non-functional requirements cover all 5 subsections
+- [ ] Design includes Modular Design Principles
+- [ ] All tasks have Purpose and Prompt fields
 - [ ] Approval obtained via dashboard
 
 ## Integration Points

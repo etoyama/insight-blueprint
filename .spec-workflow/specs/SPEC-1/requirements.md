@@ -8,36 +8,47 @@
 
 ---
 
-## User Stories
+## Introduction
 
-### US-1: First-Run Setup
-As a data scientist using Claude Code,
-I want to run `uvx insight-blueprint --project /path/to/analysis` once,
-So that the `.insight/` directory is initialized and Claude Code can immediately call MCP tools.
+SPEC-1 establishes the core foundation of insight-blueprint — a zero-install MCP server
+that data scientists can launch with a single `uvx insight-blueprint --project /path` command.
+It covers CLI entry point, `.insight/` directory initialization, Pydantic data models,
+atomic YAML persistence, and three MCP tools for managing hypothesis-driven analysis design
+documents. After SPEC-1 is complete, Claude Code can call `create_analysis_design()`,
+`get_analysis_design()`, and `list_analysis_designs()` to persist and retrieve structured
+YAML documents without manual file system access.
 
-### US-2: Create Analysis Design via Claude
-As a data scientist,
-I want Claude to call `create_analysis_design()` with my hypothesis,
-So that a structured YAML file is saved to `.insight/designs/` and I can reference it later.
+## Alignment with Product Vision
 
-### US-3: Retrieve and List Designs
-As a data scientist,
-I want Claude to call `get_analysis_design(design_id)` or `list_analysis_designs()`,
-So that I can review existing hypotheses without opening the filesystem manually.
+This spec directly enables the three core product goals defined in `product.md`:
 
----
+- **Lightweight analysis design docs**: Provides the `create_analysis_design()` MCP tool
+  and YAML storage layer that Claude Code uses to persist structured hypothesis documents
+  without the heavy overhead of spec-driven development workflows.
+- **Zero-install distribution**: Implements the `uvx insight-blueprint --project /path`
+  entry point and `.mcp.json` registration so data scientists can start an MCP-enabled
+  EDA session without a manual install step.
+- **Spec Roadmap foundation**: All subsequent specs (SPEC-2 through SPEC-5) extend the
+  modules and patterns established here; SPEC-1 is a prerequisite for every later spec.
 
-## Functional Requirements
+## Requirements
 
-### FR-1: CLI Entry Point
-- `uvx insight-blueprint --project <path>` starts the MCP server
-- `--project` defaults to current working directory if omitted
-- `--headless` flag suppresses browser opening (for automated/CI use)
-- Exits with a meaningful error message if the project path does not exist
+### Requirement 1: CLI起動とプロジェクト初期化
 
-### FR-2: Project Initialization
-- Creates `.insight/` directory structure on first run (idempotent — safe to call multiple times)
-- Directory structure:
+**User Story:** As a data scientist using Claude Code, I want to run
+`uvx insight-blueprint --project /path/to/analysis` once and have `.insight/` initialized
+and Claude Code ready to call MCP tools immediately, so that I can start my EDA session
+without manual setup.
+
+**FR-1: CLI Entry Point**
+- `uvx insight-blueprint --project <path>` で MCP server を起動する
+- `--project` を省略した場合はカレントディレクトリをデフォルトとする
+- `--headless` flag でブラウザ起動を抑制する（自動化・CI 用途）
+- project path が存在しない場合、意味のあるエラーメッセージを表示して終了する
+
+**FR-2: Project 初期化**
+- 初回実行時に `.insight/` ディレクトリ構造を作成する（idempotent — 複数回実行しても安全）
+- ディレクトリ構造:
   ```
   .insight/
   ├── config.yaml
@@ -49,12 +60,27 @@ So that I can review existing hypotheses without opening the filesystem manually
       ├── review_rules.yaml
       └── analysis_rules.yaml
   ```
-- Copies `.claude/skills/` templates on first run (only if `.claude/skills/analysis-design/` does not exist)
-- Registers `.mcp.json` at project root if not already present
+- 初回実行時に `.claude/skills/` テンプレートをコピーする（`.claude/skills/analysis-design/` が存在しない場合のみ）
+- `.mcp.json` を project root に登録する（未登録の場合のみ）
 
-### FR-3: Pydantic Data Models
-- `AnalysisDesign` model with fields:
-  - `id: str` — auto-generated (e.g., `H01`, `H02`)
+#### Acceptance Criteria
+
+1. WHEN `uvx insight-blueprint --project /path` is executed THEN `.insight/` directory is created and MCP server starts in stdio mode
+2. WHEN `--project` is omitted THEN current directory is used as project root
+3. WHEN `--project /nonexistent` is specified THEN an error message is printed and the process exits with code 1
+4. WHEN `uvx insight-blueprint` is run twice on the same project THEN data is not corrupted (idempotent initialization)
+
+### Requirement 2: 分析設計の管理
+
+**User Story:** As a data scientist, I want Claude to call `create_analysis_design()` with
+my hypothesis details and have a structured YAML file saved to `.insight/designs/`, and
+then retrieve or list those designs via `get_analysis_design()` and `list_analysis_designs()`
+without manually opening the file system, so that I can manage multiple hypotheses efficiently
+during an EDA session.
+
+**FR-3: 分析設計データモデル**
+- `AnalysisDesign` は以下のフィールドを持つ:
+  - `id: str` — 自動生成（例: `H01`, `H02`）
   - `title: str`
   - `hypothesis_statement: str`
   - `hypothesis_background: str`
@@ -63,109 +89,86 @@ So that I can review existing hypotheses without opening the filesystem manually
   - `metrics: dict`
   - `created_at: datetime`
   - `updated_at: datetime`
-- `DesignStatus` enum
-- All models must be importable from `insight_blueprint.models`
+- `DesignStatus` は `draft`, `active`, `supported`, `rejected`, `inconclusive` の5値を取る
 
-### FR-4: YAML Storage Layer
-- `yaml_store.py` reads/writes YAML using ruamel.yaml (preserves comments)
-- All writes are atomic: `tempfile.mkstemp()` + `os.replace()`
-- `project.py` manages `.insight/` directory paths (no hardcoded paths)
+**FR-4: YAML ストレージ**
+- 分析設計書は `.insight/designs/` ディレクトリに YAML 形式で永続化されること
+- YAML ファイルにはアナリストが手動で追記したコメントが保持されること
+- プロジェクトパスは実行時パラメータとして受け取り、コードにハードコードしないこと
 
-### FR-5: Core Design Service
-- `core/designs.py` implements:
-  - `create_design(title, hypothesis_statement, hypothesis_background, parent_id?) → AnalysisDesign`
-    - Auto-generates `id` as `H{N:02d}` (next sequential ID)
-    - Sets `status = "draft"`
-    - Saves to `.insight/designs/{id}_hypothesis.yaml`
-  - `get_design(design_id) → AnalysisDesign | None`
-  - `list_designs(status?: DesignStatus) → list[AnalysisDesign]`
-    - Returns all designs if `status` is None, filtered otherwise
+**FR-5: 分析設計 CRUD**
+- 分析設計の作成:
+  - `title`, `hypothesis_statement`, `hypothesis_background`, `parent_id?` を受け取り `AnalysisDesign` を返す
+  - `id` は `H{N:02d}` 形式で連番自動採番（H01, H02, ...）
+  - 初期 `status` は `draft`
+  - `.insight/designs/{id}_hypothesis.yaml` として保存される
+- 分析設計の取得:
+  - `design_id` を受け取り対応する `AnalysisDesign` を返す
+  - 存在しない場合は `None` を返す
+- 分析設計の一覧:
+  - オプションの `status` フィルタを受け取り、一致する `AnalysisDesign` のリストを返す
+  - `status` が指定されない場合はすべての設計を返す
+- CRUD 操作はプロジェクトパスを引数として受け取り、複数プロジェクト間でデータが混在しないこと
 
-### FR-6: MCP Tools (3 tools)
-- Registered via fastmcp `@mcp.tool()` decorator in `server.py`
+**FR-6: MCP Tools（3 tools）**
+- Claude が呼び出せる MCP tool として以下の3つを提供すること:
 - `create_analysis_design(title, hypothesis_statement, hypothesis_background, parent_id?) → dict`
-  - Returns `{id, title, status, message}`
+  - `{id, title, status, message}` を返却
 - `get_analysis_design(design_id) → dict`
-  - Returns full AnalysisDesign as dict
-  - Returns error dict if not found
+  - `AnalysisDesign` を dict として返却
+  - 見つからない場合は error dict を返却
 - `list_analysis_designs(status?) → dict`
-  - Returns `{designs: [...], count: int}`
-- All tools are async-compatible (fastmcp handles event loop)
+  - `{designs: [...], count: int}` を返却
+- すべての tool は非同期 I/O に対応すること
 
----
+#### Acceptance Criteria
+
+1. WHEN `create_analysis_design()` is called with valid inputs THEN `{"id": "H01", "status": "draft", ...}` is returned and a YAML file is saved at `.insight/designs/H01_hypothesis.yaml`
+2. WHEN `get_analysis_design("H01")` is called THEN the same data that was saved is returned
+3. WHEN `get_analysis_design("H99")` is called for a non-existent design THEN an error dict is returned (not an exception)
+4. WHEN `list_analysis_designs(status="draft")` is called THEN only designs with `status == "draft"` are returned and `count` matches the number of results
+5. WHEN a YAML write crashes mid-write THEN the original YAML file is preserved (no partial write)
 
 ## Non-Functional Requirements
 
-### NFR-1: Performance
-- CLI startup (from cold `uvx`) completes in < 5 seconds (excluding first-run uvx download)
-- `create_analysis_design()` completes in < 100ms (local YAML write)
-- `list_analysis_designs()` completes in < 200ms for up to 100 designs
+### Code Architecture and Modularity
 
-### NFR-2: Reliability
-- All YAML writes are atomic — no partial writes on crash
-- Idempotent initialization — running `uvx insight-blueprint` twice does not corrupt data
+- **Single Responsibility Principle**: Each file handles one specific concern (`cli.py` = entry point, `server.py` = MCP tools, `core/designs.py` = business logic, `storage/yaml_store.py` = YAML I/O)
+- **Three-Layer Separation**: CLI → Core → Storage; MCP tools delegate to `DesignService`; `DesignService` delegates to `yaml_store.py`; no cross-layer skipping
+- **One-Directional Dependencies**: Dependency direction is CLI → MCP → Core → Storage; no reverse dependencies allowed
+- **Type Annotations Required**: All functions must have complete type annotations; `ty check` must pass with no errors
+- **Code Quality**: `ruff check` passes (line-length 88); `pytest` coverage for `core/` and `storage/` is 80% or higher
 
-### NFR-3: Package Distribution
-- `uvx insight-blueprint` works without any prior installation
-- Python >=3.11 required
-- Single `uv add insight-blueprint` installs all runtime dependencies
+### Performance
 
-### NFR-4: Code Quality
-- ruff check passes (line-length 88)
-- ty check passes (all functions have type annotations)
-- pytest coverage >= 80% for `core/` and `storage/` modules
+- CLI startup (`uvx` cold start) completes within 5 seconds (excluding first-time `uvx` package download)
+- `create_analysis_design()` completes within 100ms (local YAML write)
+- `list_analysis_designs()` completes within 200ms for up to 100 designs
 
----
+### Security
 
-## Acceptance Criteria
+- No hardcoded secrets, API keys, or credentials in source code
+- Project path is validated to exist before any initialization proceeds; paths are resolved to absolute via `Path.resolve()`
+- Error messages do not expose internal stack traces or file system structure to MCP clients
 
-### AC-1: CLI Starts MCP Server
-```
-$ uvx insight-blueprint --project /tmp/test-project
-# → creates /tmp/test-project/.insight/ directory
-# → prints "insight-blueprint MCP server started"
-# → mcp.run() blocks and waits for MCP protocol messages
-```
+### Reliability
 
-### AC-2: MCP Tool Round-Trip
-```python
-# Claude calls:
-result = await create_analysis_design(
-    title="Foreign population vs crime rate",
-    hypothesis_statement="No positive correlation between...",
-    hypothesis_background="...",
-)
-# → result["id"] == "H01"
-# → .insight/designs/H01_hypothesis.yaml exists
-# → get_analysis_design("H01") returns the same data
-```
+- All YAML writes are atomic — `tempfile.mkstemp()` + `os.replace()` ensures no partial write on crash
+- Initialization is idempotent — `uvx insight-blueprint` run multiple times does not corrupt data or duplicate files
+- `uvx insight-blueprint` works without pre-installation; Python >=3.11 is required; all runtime dependencies are installable via `uv add insight-blueprint`
 
-### AC-3: List with Status Filter
-```python
-designs = await list_analysis_designs(status="draft")
-# → returns only designs with status == "draft"
-# → count matches the number of draft designs
-```
+### Usability
 
-### AC-4: Atomic Write Safety
-- Simulating a crash during YAML write (e.g., kill -9) does not produce corrupted YAML
-- YAML file is either the previous version or the new version — never partial
+- `--help` output clearly describes all options and expected behavior
+- Error messages for invalid inputs (e.g., missing project path) include actionable guidance for the analyst
+- MCP tool docstrings are human-readable so Claude can accurately describe tool behavior to users
 
-### AC-5: Tests Pass
-```bash
-poe test  # pytest -v
-# → all tests pass
-# → coverage >= 80% for core/ and storage/
-```
+## Out of Scope
 
----
-
-## Out of Scope (SPEC-1)
-
-- Data catalog (SPEC-2)
-- Review workflow (SPEC-3)
-- WebUI dashboard (SPEC-4)
-- PyPI publishing (SPEC-5)
-- SQLite FTS5 index (SPEC-2)
-- FastAPI web server (SPEC-4)
-- `update_analysis_design()` MCP tool (SPEC-3, as part of review workflow)
+- データカタログ（SPEC-2）
+- レビューワークフロー（SPEC-3）
+- WebUI ダッシュボード（SPEC-4）
+- PyPI 公開（SPEC-5）
+- SQLite FTS5 index（SPEC-2）
+- FastAPI web server（SPEC-4）
+- `update_analysis_design()` MCP tool（SPEC-3、review workflow の一部）
