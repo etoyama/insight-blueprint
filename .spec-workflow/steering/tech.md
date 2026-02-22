@@ -37,6 +37,7 @@
 - **Registration**: `.mcp.json` at project root (`claude mcp add --scope project`)
 - **Timeout**: `MCP_TIMEOUT=10000` (first run downloads uvx package)
 - **Skills**: bundled at `src/insight_blueprint/_skills/`, copied to `.claude/skills/` on init
+  - All bundled SKILL.md files must include YAML frontmatter per `.claude/rules/skill-format.md`
 - **Path resolution**: `importlib.resources.files()` for installed package paths
 
 ## Development Methodology

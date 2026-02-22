@@ -1,4 +1,32 @@
-# claude-code-orchestra
+# insight-blueprint
+
+MCP server for data scientists using Claude Code. Manage hypothesis-driven analysis design documents with structured YAML persistence.
+
+## Installation
+
+```bash
+# Zero-install with uvx (recommended)
+uvx insight-blueprint --project /path/to/analysis
+
+# Or install permanently
+uv tool install insight-blueprint
+```
+
+## Quick Start
+
+```bash
+# 1. Start the MCP server for your analysis project
+uvx insight-blueprint --project /path/to/my-analysis
+
+# 2. In Claude Code, the following MCP tools are available:
+# - create_analysis_design(title, hypothesis_statement, hypothesis_background, theme_id?)
+# - get_analysis_design(design_id)
+# - list_analysis_designs(status?)
+```
+
+---
+
+## claude-code-orchestra
 
 ![Claude Code Orchestra](./summary.png)
 

@@ -794,7 +794,7 @@ When `uvx insight-blueprint --project /path` is run:
 1. Parse CLI args, resolve project directory
 2. Initialize .insight/ (create subdirs + default YAML if first run)
 3. Copy _skills/ → .claude/skills/ (skip if already present)
-4. Register MCP server in .claude/settings.json (skip if already registered)
+4. Merge/register MCP server in project `.mcp.json` (skip if `insight-blueprint` already registered)
 5. Rebuild SQLite FTS index from YAML files
 6. Start FastAPI + uvicorn in background thread (port 3000, 127.0.0.1)
 7. Open browser at http://localhost:3000 (webbrowser.open, 1s delay)
@@ -1007,6 +1007,8 @@ in the project catalog, including schema and domain knowledge.
 | Single process (MCP + WebUI) | Simple deployment; one `uvx` command | Separate processes (complex), WebUI optional flag |
 | **uvx (PyPI) for distribution** | Data scientists are Python-native; no Node.js dependency required | npx (npm) — common in MCP ecosystem but foreign to DS audience |
 | **Extend existing YAML format** | Preserve `hypothesis`, `metrics`, `chart`, `next_action`, `parent` from open-data-analysis; EDA iteration must stay lightweight | Full redesign — would break compatibility and increase overhead |
+| **Hypothesis enrichment can proceed before data-catalog schema finalization** | `metrics`/`explanatory` `data_source` can stay as plain string IDs (e.g., e-Stat table IDs). Later catalog linkage can be additive (optional `catalog_source_id`/validation) without breaking existing design files. | Block on SPEC-2 first (delays analyst workflow), or tightly couple to catalog model now (premature) |
+| **Design tool contract: create accepts rich optional fields; update supports patch** | New fields (`metrics` structured, `explanatory`, `chart`, `next_action`) should be accepted at create-time for one-shot authoring. A dedicated `update_analysis_design` patch tool is still required for iterative EDA refinement. | Create-only (forces full rewrites), update-only expansion (awkward initial authoring UX) |
 | **Status: draft→active→supported/rejected/inconclusive** | Matches EDA reality (hypotheses pivot, not get "approved"); fewer states = less ceremony | draft→submitted→approved→in_analysis→completed — too formal for EDA |
 | **Skills written in English** | Portability for OSS contributors; consistent with Claude Code skill ecosystem | Japanese — limits international adoption of skills |
 | React + Vite bundled in wheel | Standard pattern for Python+JS apps | Separate frontend server (complex), HTMX (limited interactivity) |
@@ -1072,6 +1074,13 @@ in the project catalog, including schema and domain knowledge.
 
 6. **YAML concurrency (MCP + WebUI writing same files)**: Resolved for v1 — use atomic writes (`tempfile` + `os.replace()`) to prevent corruption. Both MCP tools and FastAPI endpoints share the same `core/` service layer, so writes are serialized within the single process.
 
+7. **Project initialization strategy (`init_project`)**:
+   - **Recommendation**: Use per-item idempotent initialization, not a single "directory exists" guard.
+   - **Template install**: Copy bundled `templates/skills/analysis-design/` into `.claude/skills/analysis-design/` only when absent (never overwrite). Do not use symlinks.
+   - **MCP registration**: Merge into existing project `.mcp.json` and upsert only `mcpServers["insight-blueprint"]`.
+   - **Portability**: If `.mcp.json` stores absolute machine-specific paths, keep it out of git (or generate per-machine).
+   - **Failure model**: `init_project` should be safe to rerun after partial failures and complete missing artifacts on the next run.
+
 ---
 
 ## 11. Dependency Summary
@@ -1089,3 +1098,19 @@ in the project catalog, including schema and domain knowledge.
 > **Upgrade path**: If `mcp`'s built-in FastMCP proves insufficient, switch to standalone
 > `fastmcp` package. Change: `from mcp.server.fastmcp import FastMCP` -> `from fastmcp import FastMCP`.
 > Gains: automatic Pydantic model -> JSON Schema, `ctx.info()` client logging, built-in Inspector UI.
+
+---
+
+## 12. Changelog
+
+- **2026-02-22**: Recorded hypothesis enrichment sequencing decision (SPEC-1 vs SPEC-2).
+  - Confirmed `chart`/`next_action`/`explanatory` do not require finalized catalog schema.
+  - Adopted additive strategy: keep `data_source` as `str` now; add catalog reference/validation later without breaking changes.
+  - Tooling direction: `create_analysis_design` should accept rich optional fields now, and `update_analysis_design` should be added for patch updates.
+  - Spec tracking recommendation: handle as SPEC-1 amendment (or SPEC-1.1), keep data-catalog scope in SPEC-2.
+
+- **2026-02-21**: Recorded SPEC-1 initialization design guidance.
+  - Startup sequence updated to project `.mcp.json` registration (merge/upsert).
+  - Confirmed template distribution strategy: copy-once (no overwrite), no symlink.
+  - Confirmed idempotency scope: per-file/per-directory checks to recover from partial init.
+  - Added portability note: absolute project paths in `.mcp.json` are machine-specific.
