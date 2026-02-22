@@ -61,6 +61,9 @@ without manual setup.
       └── analysis_rules.yaml
   ```
 - 初回実行時に `.claude/skills/` テンプレートをコピーする（`.claude/skills/analysis-design/` が存在しない場合のみ）
+  - バンドルされたテンプレートは Claude Code スキル仕様に準拠した YAML frontmatter を含むこと:
+    `name`, `description`（Claude の自動検出用トリガーフレーズを含む）、
+    `disable-model-invocation: true`, `argument-hint`
 - `.mcp.json` を project root に登録する（未登録の場合のみ）
 
 #### Acceptance Criteria
@@ -69,6 +72,7 @@ without manual setup.
 2. WHEN `--project` is omitted THEN current directory is used as project root
 3. WHEN `--project /nonexistent` is specified THEN an error message is printed and the process exits with code 1
 4. WHEN `uvx insight-blueprint` is run twice on the same project THEN data is not corrupted (idempotent initialization)
+5. WHEN `.claude/skills/analysis-design/SKILL.md` is copied to the project THEN it contains valid YAML frontmatter with `name`, `description`, `disable-model-invocation`, and `argument-hint` fields per Claude Code skill specification
 
 ### Requirement 2: 分析設計の管理
 
@@ -80,7 +84,11 @@ during an EDA session.
 
 **FR-3: 分析設計データモデル**
 - `AnalysisDesign` は以下のフィールドを持つ:
-  - `id: str` — 自動生成（例: `H01`, `H02`）
+  - `id: str` — 自動生成（例: `FP-H01`, `FP-H02`）
+  - `theme_id: str` — テーマ識別子（例: "FP", "TX"、省略時は "DEFAULT"）
+    - 許容パターン: `[A-Z][A-Z0-9]*`（英大文字で始まり、英大文字・数字のみ）
+    - 最大長: 8文字を推奨（制約は任意）
+    - 不正値は `ValueError` を raise する
   - `title: str`
   - `hypothesis_statement: str`
   - `hypothesis_background: str`
@@ -98,10 +106,12 @@ during an EDA session.
 
 **FR-5: 分析設計 CRUD**
 - 分析設計の作成:
-  - `title`, `hypothesis_statement`, `hypothesis_background`, `parent_id?` を受け取り `AnalysisDesign` を返す
-  - `id` は `H{N:02d}` 形式で連番自動採番（H01, H02, ...）
+  - `title`, `hypothesis_statement`, `hypothesis_background`, `parent_id?`, `theme_id?` を受け取り `AnalysisDesign` を返す
+  - `id` は `{THEME_ID}-H{N:02d}` 形式で採番（テーマ内の既存 ID の最大 N + 1。削除後も衝突しない）
+  - `theme_id` 省略時は `"DEFAULT"` を使用
+  - `theme_id` は `[A-Z][A-Z0-9]*` パターンに一致すること。一致しない場合は `ValueError` を raise する（MCP layer では error dict に変換）
   - 初期 `status` は `draft`
-  - `.insight/designs/{id}_hypothesis.yaml` として保存される
+  - `.insight/designs/{id}_hypothesis.yaml` として保存される（例: `FP-H01_hypothesis.yaml`）
 - 分析設計の取得:
   - `design_id` を受け取り対応する `AnalysisDesign` を返す
   - 存在しない場合は `None` を返す
@@ -112,7 +122,7 @@ during an EDA session.
 
 **FR-6: MCP Tools（3 tools）**
 - Claude が呼び出せる MCP tool として以下の3つを提供すること:
-- `create_analysis_design(title, hypothesis_statement, hypothesis_background, parent_id?) → dict`
+- `create_analysis_design(title, hypothesis_statement, hypothesis_background, parent_id?, theme_id?) → dict`
   - `{id, title, status, message}` を返却
 - `get_analysis_design(design_id) → dict`
   - `AnalysisDesign` を dict として返却
@@ -123,11 +133,12 @@ during an EDA session.
 
 #### Acceptance Criteria
 
-1. WHEN `create_analysis_design()` is called with valid inputs THEN `{"id": "H01", "status": "draft", ...}` is returned and a YAML file is saved at `.insight/designs/H01_hypothesis.yaml`
-2. WHEN `get_analysis_design("H01")` is called THEN the same data that was saved is returned
-3. WHEN `get_analysis_design("H99")` is called for a non-existent design THEN an error dict is returned (not an exception)
+1. WHEN `create_analysis_design()` is called with valid inputs THEN `{"id": "FP-H01", "status": "draft", ...}` is returned and a YAML file is saved at `.insight/designs/FP-H01_hypothesis.yaml`
+2. WHEN `get_analysis_design("FP-H01")` is called THEN the same data that was saved is returned
+3. WHEN `get_analysis_design("FP-H99")` is called for a non-existent design THEN an error dict is returned (not an exception)
 4. WHEN `list_analysis_designs(status="draft")` is called THEN only designs with `status == "draft"` are returned and `count` matches the number of results
 5. WHEN a YAML write crashes mid-write THEN the original YAML file is preserved (no partial write)
+6. WHEN `create_analysis_design()` is called with an invalid theme_id (e.g., "fp", "FP/X", "12") THEN an error dict is returned with a message indicating the invalid theme_id
 
 ## Non-Functional Requirements
 

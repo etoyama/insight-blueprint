@@ -1,0 +1,103 @@
+"""Project initialization -- idempotent .insight/ directory setup."""
+
+import importlib.resources
+import json
+import os
+import shutil
+import tempfile
+from pathlib import Path
+
+from insight_blueprint.storage.yaml_store import write_yaml
+
+
+def init_project(project_path: Path) -> None:
+    """Initialize .insight/ directory and project infrastructure.
+
+    Idempotent: safe to call multiple times without data corruption.
+    Does NOT wire server._service -- that is done in cli.py.
+    """
+    _create_insight_dirs(project_path)
+    _copy_skills_template(project_path)
+    _register_mcp_server(project_path)
+
+
+def _create_insight_dirs(project_path: Path) -> None:
+    """Create .insight/ directory tree idempotently."""
+    insight = project_path / ".insight"
+
+    # Create directories
+    (insight / "designs").mkdir(parents=True, exist_ok=True)
+    (insight / "catalog" / "knowledge").mkdir(parents=True, exist_ok=True)
+    (insight / "rules").mkdir(parents=True, exist_ok=True)
+
+    # Create config.yaml (only if absent)
+    config_path = insight / "config.yaml"
+    if not config_path.exists():
+        write_yaml(config_path, {"schema_version": 1})
+
+    # Create stub files (only if absent)
+    sources_path = insight / "catalog" / "sources.yaml"
+    if not sources_path.exists():
+        write_yaml(sources_path, {"sources": []})
+
+    review_rules = insight / "rules" / "review_rules.yaml"
+    if not review_rules.exists():
+        write_yaml(review_rules, {"rules": []})
+
+    analysis_rules = insight / "rules" / "analysis_rules.yaml"
+    if not analysis_rules.exists():
+        write_yaml(analysis_rules, {"rules": []})
+
+
+def _copy_skills_template(project_path: Path) -> None:
+    """Copy bundled _skills/analysis-design/ to .claude/skills/ (first run only)."""
+    dest = project_path / ".claude" / "skills" / "analysis-design"
+    if dest.exists():
+        return  # Never overwrite user customizations
+
+    # Access bundled template via importlib.resources
+    pkg_files = importlib.resources.files("insight_blueprint")
+    src = pkg_files / "_skills" / "analysis-design"
+
+    # Copy the template directory
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(str(src), str(dest))
+
+
+def _register_mcp_server(project_path: Path) -> None:
+    """Upsert insight-blueprint into project .mcp.json (preserve other servers)."""
+    mcp_json_path = project_path / ".mcp.json"
+
+    # Load existing .mcp.json or start fresh
+    if mcp_json_path.exists():
+        with mcp_json_path.open("r", encoding="utf-8") as f:
+            config = json.load(f)
+    else:
+        config = {}
+
+    if "mcpServers" not in config:
+        config["mcpServers"] = {}
+
+    # Upsert insight-blueprint entry
+    config["mcpServers"]["insight-blueprint"] = {
+        "command": "uvx",
+        "args": ["insight-blueprint", "--project", str(project_path.resolve())],
+        "env": {
+            "PYTHONUNBUFFERED": "1",
+            "MCP_TIMEOUT": "10000",
+        },
+    }
+
+    # Atomic write
+    fd, tmp_path = tempfile.mkstemp(dir=project_path, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp_path, mcp_json_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise

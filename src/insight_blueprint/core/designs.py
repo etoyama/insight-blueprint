@@ -1,0 +1,123 @@
+"""Analysis design CRUD business logic."""
+
+import re
+from pathlib import Path
+
+from insight_blueprint.models.common import now_jst
+from insight_blueprint.models.design import AnalysisDesign, DesignStatus
+from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
+
+
+class DesignService:
+    """Service for managing analysis design documents."""
+
+    def __init__(self, project_path: Path) -> None:
+        self._designs_dir = project_path / ".insight" / "designs"
+
+    def create_design(
+        self,
+        title: str,
+        hypothesis_statement: str,
+        hypothesis_background: str,
+        parent_id: str | None = None,
+        theme_id: str = "DEFAULT",
+        metrics: dict | None = None,
+        explanatory: list[dict] | None = None,
+        chart: list[dict] | None = None,
+        next_action: dict | None = None,
+    ) -> AnalysisDesign:
+        """Create a new analysis design.
+
+        Raises:
+            ValueError: If theme_id does not match [A-Z][A-Z0-9]*
+        """
+        if not THEME_ID_PATTERN.match(theme_id):
+            raise ValueError(
+                f"Invalid theme_id '{theme_id}': must match [A-Z][A-Z0-9]*"
+            )
+
+        next_n = self._next_id_number(theme_id)
+        design_id = f"{theme_id}-H{next_n:02d}"
+
+        design = AnalysisDesign(
+            id=design_id,
+            theme_id=theme_id,
+            title=title,
+            hypothesis_statement=hypothesis_statement,
+            hypothesis_background=hypothesis_background,
+            parent_id=parent_id,
+            metrics=metrics or {},
+            explanatory=explanatory or [],
+            chart=chart or [],
+            next_action=next_action,
+        )
+
+        file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
+        write_yaml(file_path, design.model_dump(mode="json"))
+
+        return design
+
+    def update_design(self, design_id: str, **fields: object) -> AnalysisDesign | None:
+        """Partially update an existing design.
+
+        Only provided fields are updated. updated_at is always refreshed.
+        Returns None if design_id not found.
+        """
+        design = self.get_design(design_id)
+        if design is None:
+            return None
+        updated = design.model_copy(update={**fields, "updated_at": now_jst()})
+        file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
+        write_yaml(file_path, updated.model_dump(mode="json"))
+        return updated
+
+    def get_design(self, design_id: str) -> AnalysisDesign | None:
+        """Get a design by ID. Returns None if not found."""
+        file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
+        data = read_yaml(file_path)
+        if not data:
+            return None
+        return AnalysisDesign(**data)
+
+    def list_designs(self, status: DesignStatus | None = None) -> list[AnalysisDesign]:
+        """List all designs, optionally filtered by status.
+
+        Returns designs sorted by filename ascending (ID order).
+        """
+        if not self._designs_dir.exists():
+            return []
+
+        files = sorted(self._designs_dir.glob("*_hypothesis.yaml"))
+
+        designs = []
+        for file_path in files:
+            data = read_yaml(file_path)
+            if not data:
+                continue
+            design = AnalysisDesign(**data)
+            if status is None or design.status == status:
+                designs.append(design)
+
+        return designs
+
+    def _next_id_number(self, theme_id: str) -> int:
+        """Get next ID number using max-N+1 strategy to avoid collisions."""
+        if not self._designs_dir.exists():
+            return 1
+
+        prefix = f"{theme_id}-H"
+        max_n = 0
+
+        for file_path in self._designs_dir.glob(f"{prefix}*_hypothesis.yaml"):
+            stem = file_path.stem  # e.g., "FP-H01_hypothesis"
+            id_part = stem.replace("_hypothesis", "")  # e.g., "FP-H01"
+            try:
+                n_str = id_part[len(prefix) :]  # e.g., "01"
+                n = int(n_str)
+                max_n = max(max_n, n)
+            except (ValueError, IndexError):
+                continue
+
+        return max_n + 1

@@ -1,0 +1,116 @@
+---
+name: analysis-design
+description: |
+  Guides Claude through creating analysis design documents for hypothesis-driven EDA.
+  Use when the user wants to create, manage, or review analysis designs.
+  Triggers: "仮説を立てたい", "分析設計を作りたい", "create analysis design",
+  "新しい仮説", "hypothesis document".
+disable-model-invocation: true
+argument-hint: "[theme_id]"
+---
+
+# /analysis-design — Analysis Design Builder
+
+Guides Claude through creating a lightweight analysis design document using
+insight-blueprint MCP tools. Follows the hypothesis-driven EDA workflow.
+
+## When to Use
+- Starting a new exploratory analysis (user wants to formalize a hypothesis)
+- Deriving a sub-hypothesis after a parent hypothesis is rejected
+- Reviewing or listing existing analysis designs
+
+## When NOT to Use
+- Browsing the data catalog (future: `/data-explorer` skill)
+- General EDA discussion without intent to persist a design document
+
+## Workflow
+
+### Step 1: Check Current State
+Call `list_analysis_designs()` to understand existing designs:
+- Note existing theme IDs (e.g., "FP", "TX")
+- Check if a `parent_id` should be referenced
+
+### Step 2: Gather Hypothesis Details
+
+Interview the user for required fields:
+
+| Field | Required | Description | Example |
+|-------|----------|-------------|---------|
+| `title` | Yes | Short descriptive title | "Foreign population vs crime rate" |
+| `hypothesis_statement` | Yes | Testable statement | "No positive correlation exists between..." |
+| `hypothesis_background` | Yes | Context and motivation (free-form, multi-line) | Background reasoning |
+| `theme_id` | No | Uppercase identifier — defaults to "DEFAULT" | "FP", "TX", "ECON" |
+| `parent_id` | No | Parent design ID if this is derived | "FP-H01" |
+| `metrics` | No | Verification metric definition dict | `{target: "crime_rate_per_100k", data_source: {crime: "0000010111"}, grouping: [...], filter: "...", aggregation: "mean", comparison: "..."}` |
+| `explanatory` | No | List of explanatory variable dicts | `[{name: "foreign_ratio", description: "外国人比率", data_source: "0000010101", time_points: "2012-2022"}]` |
+| `chart` | No | List of visualization definition dicts | `[{type: "scatter", description: "FP ratio vs crime rate", x: "foreign_ratio", y: "crime_rate"}]` |
+| `next_action` | No | Branch definition after hypothesis test | `{if_supported: "...", if_rejected: {reason: "...", pivot: "..."}}` |
+
+If the user passed `$ARGUMENTS`, use it as `theme_id` (validate format first).
+
+### Step 3: Create the Design
+
+```
+create_analysis_design(
+    title="<title>",
+    hypothesis_statement="<statement>",
+    hypothesis_background="<background>",
+    theme_id="<theme_id or DEFAULT>",
+    parent_id=<"FP-H01" or None>,
+    metrics=<dict or None>,
+    explanatory=<list[dict] or None>,
+    chart=<list[dict] or None>,
+    next_action=<dict or None>,
+)
+```
+
+Expected success response:
+```json
+{"id": "FP-H01", "title": "...", "status": "draft", "message": "Analysis design 'FP-H01' created successfully."}
+```
+
+### Step 3b: Update an Existing Design (optional)
+
+To add or modify fields on an already-created design, use `update_analysis_design()`:
+
+```
+update_analysis_design(
+    design_id="FP-H01",
+    next_action={"if_supported": "パネルFEへ進む", "if_rejected": {"reason": "相関なし", "pivot": "時系列分析"}},
+)
+```
+
+Only provided fields are updated; all others remain unchanged.
+
+### Step 4: Confirm and Suggest Next Steps
+- Show the returned `id` (e.g., "FP-H01") to the user
+- Confirm the YAML file location: `.insight/designs/FP-H01_hypothesis.yaml`
+- Suggest next steps: refine the hypothesis, add `chart` / `next_action`, or proceed to analysis
+
+## MCP Tool Reference
+
+| Tool | Purpose | Key Parameters |
+|------|---------|----------------|
+| `list_analysis_designs(status?)` | List existing designs | `status`: draft \| active \| supported \| rejected \| inconclusive |
+| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
+| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `status?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
+| `get_analysis_design(design_id)` | Retrieve a specific design | `design_id`: str (e.g., "FP-H01") |
+
+## theme_id Rules
+
+- Must match `[A-Z][A-Z0-9]*` (uppercase letter first, then uppercase letters or digits)
+- Valid: `"FP"`, `"TX"`, `"ECON"`, `"DEFAULT"`, `"FP2"`
+- Invalid: `"fp"` (lowercase), `"FP/X"` (slash), `"1FP"` (starts with digit)
+- On invalid input, the MCP tool returns an error dict — ask the user to correct it
+
+## Error Handling
+
+| Error Response | Cause | Action |
+|----------------|-------|--------|
+| `{"error": "Invalid theme_id 'fp': must match [A-Z][A-Z0-9]*"}` | Invalid theme_id format | Ask user for a valid uppercase theme_id |
+| `{"error": "Design 'FP-H99' not found"}` | Non-existent design_id | Confirm ID via `list_analysis_designs()` |
+
+## Language Rules
+- Respond to users in **Japanese**
+- Hypothesis text follows the user's language (usually Japanese)
+- Code, IDs, tool names, and YAML fields stay in English
