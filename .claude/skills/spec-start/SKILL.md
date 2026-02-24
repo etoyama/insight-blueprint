@@ -134,7 +134,19 @@ request_approval(spec_id="...", message="Specification complete, ready for revie
 
 Dashboard at http://localhost:5000 for review/approval.
 
-After approval, use `/tdd --spec <spec-id> <task-id>` to begin implementation.
+After approval, choose an implementation strategy:
+
+**Option A: Parallel (Agent Teams — 推奨)**
+```
+/team-implement --spec <spec-id>
+```
+Then: `/team-review --spec <spec-id>` for parallel review.
+
+**Option B: Sequential (Single-Task TDD)**
+```
+/tdd --spec <spec-id> <task-id>
+```
+Execute tasks individually in dependency order.
 
 ## Context Management
 
@@ -156,13 +168,23 @@ Before requesting approval:
 - [ ] Design includes Modular Design Principles
 - [ ] All tasks have Purpose and Prompt fields
 - [ ] Approval obtained via dashboard
+- [ ] Post-approval pipeline documented (team-implement → team-review)
 
-## Integration Points
+## Post-Approval Pipeline
+
+```
+/spec-start → /team-implement --spec <id> → /team-review --spec <id>
+                        ↓ (alternative)
+               /tdd --spec <id> <task-id>
+```
 
 **Triggers next workflows:**
-- After approval → `/tdd --spec <id>` for implementation
-- During development → `/checkpointing` for state persistence
-- Post-implementation → `update_task_status` via dashboard
+- After approval → `/team-implement --spec <id>` for parallel implementation
+- After implementation → `/team-review --spec <id>` for parallel review
+- Between sessions → `/checkpointing` for state persistence
+
+**Single-task alternative:**
+- `/tdd --spec <id> <task-id>` for sequential task execution
 
 **Collaborating agents:**
 - Gemini: Technical research, pattern discovery

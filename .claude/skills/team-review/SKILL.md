@@ -4,6 +4,8 @@ description: |
   Parallel code review using Agent Teams. Spawns specialized reviewers
   (security, quality, test coverage) to review implementation from
   different perspectives simultaneously. Run after implementation.
+  Use --spec <spec-id> for spec-workflow mode (adds Requirements Reviewer).
+argument-hint: "[--spec <spec-id>]"
 metadata:
   short-description: Parallel review with Agent Teams
 ---
@@ -134,6 +136,8 @@ Spawn reviewers:
    - Priority: High / Medium / Low
 
    Save report to .claude/docs/research/review-tests-{feature}.md"
+
+> **Spec-workflow mode**: `--spec <spec-id>` を指定した場合、[references/spec-workflow-mode.md](references/spec-workflow-mode.md) の Requirements Reviewer も追加で起動する。
 
 Wait for all reviewers to complete.
 ```
