@@ -45,13 +45,28 @@ Claude Code (Orchestrator)   ← You are here
 
 ### Phase 2: Implementation
 
+**Option A: Parallel (Agent Teams — 推奨)**
+```
+/team-implement --spec <spec-id>
+```
+
+**Option B: Sequential (Single-Task TDD)**
 ```
 /tdd --spec <spec-id> <task-id>
 ```
 
-8. **Subagents**（並列）→ タスク単位のRed-Green-Refactorサイクル
+8. タスク実装（並列 or 逐次）
 9. テスト完了後 **spec-workflow MCP** でタスクステータス更新
 10. `/checkpointing` でセッション状態を保存
+
+### Phase 3: Review
+
+```
+/team-review --spec <spec-id>
+```
+
+11. **Agent Teams** → セキュリティ・品質・テスト・要件の並列レビュー
+12. レビュー結果に基づいて修正
 
 ---
 
@@ -94,6 +109,7 @@ Use for: bug fixes, UI adjustments, small features (< 1 day, < 5 files).
 ### `/spec-start` — Spec-Driven Development
 spec-workflow-mcp + マルチエージェント協調でスペックを作成。
 Use for: new features, architecture changes (1+ days, 5+ files, approval required).
+Pipeline: `/spec-start` → `/team-implement --spec <id>` → `/team-review --spec <id>`
 詳細: `.claude/skills/spec-start/SKILL.md`
 
 **Migration:** Use `/migrate-to-spec` to convert `/startproject` work into formal spec.

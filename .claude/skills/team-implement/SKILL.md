@@ -3,14 +3,19 @@ name: team-implement
 description: |
   Parallel implementation using Agent Teams. Spawns teammates per module/layer,
   each owning separate files to avoid conflicts. Uses shared task list with
-  dependencies for autonomous coordination. Run after /startproject plan approval.
+  dependencies for autonomous coordination.
+  Run after /startproject plan approval or /spec-start dashboard approval.
+  Use --spec <spec-id> for spec-workflow mode.
+argument-hint: "[--spec <spec-id>]"
 metadata:
   short-description: Parallel implementation with Agent Teams
 ---
 
 # Team Implement
 
-**Agent Teams による並列実装。`/startproject` で承認された計画に基づいて実行する。**
+**Agent Teams による並列実装。`/startproject` または `/spec-start` の承認済み計画に基づいて実行する。**
+
+> **Spec-workflow mode**: `--spec <spec-id>` を指定した場合、[references/spec-workflow-mode.md](references/spec-workflow-mode.md) を読んでから実行する。
 
 ## Prerequisites
 
@@ -198,7 +203,8 @@ poe all
 - coverage: {N}%
 
 ### 次のステップ
-`/team-review` で並列レビューを実行してください
+- `/team-review` で並列レビューを実行してください
+- Spec-workflow mode: `/team-review --spec <spec-id>`
 ```
 
 ### Cleanup
