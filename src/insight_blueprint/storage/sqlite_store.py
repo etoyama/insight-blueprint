@@ -45,7 +45,7 @@ def _open_connection(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def _build_source_content(source: dict) -> str:
+def build_source_content(source: dict) -> str:
     """Build searchable content string from a source metadata dict."""
     parts = [source.get("description", "")]
     for col in source.get("columns", []):
@@ -79,7 +79,7 @@ def build_index(
 
             rows: list[tuple[str, str, str, str]] = []
             for src in sources:
-                content = _build_source_content(src)
+                content = build_source_content(src)
                 rows.append(("source", src["id"], src.get("name", ""), content))
 
             for entry in knowledge:

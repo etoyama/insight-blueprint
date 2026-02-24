@@ -9,6 +9,7 @@ import pytest
 from insight_blueprint.storage.sqlite_store import (
     _open_connection,
     build_index,
+    build_source_content,
     delete_source_documents,
     insert_document,
     replace_source_documents,
@@ -19,6 +20,34 @@ from insight_blueprint.storage.sqlite_store import (
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
     return tmp_path / "test_fts.db"
+
+
+class TestBuildSourceContent:
+    def test_builds_from_description_and_columns(self) -> None:
+        source = {
+            "description": "Sales data",
+            "columns": [
+                {"name": "amount", "description": "Transaction amount"},
+                {"name": "date", "description": "Transaction date"},
+            ],
+        }
+        result = build_source_content(source)
+        assert result == "Sales data amount Transaction amount date Transaction date"
+
+    def test_handles_empty_columns(self) -> None:
+        source = {"description": "No columns", "columns": []}
+        assert build_source_content(source) == "No columns"
+
+    def test_handles_missing_keys(self) -> None:
+        assert build_source_content({}) == ""
+
+    def test_handles_columns_with_missing_fields(self) -> None:
+        source = {
+            "description": "Partial",
+            "columns": [{"name": "col1"}, {"description": "desc only"}],
+        }
+        result = build_source_content(source)
+        assert result == "Partial col1   desc only"
 
 
 class TestBuildIndex:
