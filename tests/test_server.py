@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import insight_blueprint.server as server_module
+from insight_blueprint.core.catalog import CatalogService
 from insight_blueprint.core.designs import DesignService
 
 
@@ -167,3 +168,293 @@ def test_update_analysis_design_mcp_updates_status(initialized_server: Path) -> 
         )
     )
     assert result["status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# Catalog MCP tools tests (SPEC-2 Tasks 3.1 + 3.2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_catalog_service() -> None:
+    """Reset server._catalog_service before each test."""
+    original = server_module._catalog_service
+    yield  # type: ignore[misc]
+    server_module._catalog_service = original
+
+
+@pytest.fixture
+def initialized_catalog_server(tmp_project: Path) -> Path:
+    """Set up server with both DesignService and CatalogService."""
+    server_module._service = DesignService(tmp_project)
+    server_module._catalog_service = CatalogService(tmp_project)
+    # Build empty FTS5 index so search works
+    server_module._catalog_service.rebuild_index()
+    return tmp_project
+
+
+# -- get_catalog_service guard --
+
+
+def test_get_catalog_service_raises_when_not_initialized() -> None:
+    server_module._catalog_service = None
+    with pytest.raises(RuntimeError, match="CatalogService not initialized"):
+        server_module.get_catalog_service()
+
+
+# -- add_catalog_entry (Task 3.1) --
+
+
+def test_add_catalog_entry_returns_success_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="test-src",
+            name="Test Source",
+            type="csv",
+            description="A test CSV source",
+            connection={"file_path": "data.csv"},
+            columns=[{"name": "year", "type": "integer", "description": "Year"}],
+        )
+    )
+    assert result["id"] == "test-src"
+    assert result["type"] == "csv"
+    assert "message" in result
+
+
+def test_add_catalog_entry_duplicate_returns_error_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="dup-src",
+            name="First",
+            type="csv",
+            description="First source",
+            connection={},
+        )
+    )
+    result = asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="dup-src",
+            name="Second",
+            type="csv",
+            description="Duplicate",
+            connection={},
+        )
+    )
+    assert "error" in result
+    assert "already exists" in result["error"]
+
+
+def test_add_catalog_entry_invalid_type_returns_error_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="bad-type",
+            name="Bad",
+            type="parquet",
+            description="Bad type",
+            connection={},
+        )
+    )
+    assert "error" in result
+    assert "parquet" in result["error"]
+
+
+# -- update_catalog_entry (Task 3.1) --
+
+
+def test_update_catalog_entry_patches_fields(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="upd-src",
+            name="Original",
+            type="csv",
+            description="Original desc",
+            connection={},
+        )
+    )
+    result = asyncio.run(
+        server_module.update_catalog_entry(
+            source_id="upd-src",
+            name="Updated Name",
+        )
+    )
+    assert result["name"] == "Updated Name"
+    assert result["description"] == "Original desc"  # unchanged
+
+
+def test_update_catalog_entry_missing_returns_error_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.update_catalog_entry(source_id="missing", name="X")
+    )
+    assert "error" in result
+    assert "missing" in result["error"]
+
+
+# -- get_table_schema (Task 3.1) --
+
+
+def test_get_table_schema_returns_columns(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="schema-src",
+            name="Schema Test",
+            type="api",
+            description="Schema test source",
+            connection={"base_url": "https://api.example.com"},
+            columns=[
+                {"name": "year", "type": "integer", "description": "Year"},
+                {"name": "pop", "type": "integer", "description": "Population"},
+            ],
+            primary_key=["year"],
+            row_count_estimate=1000,
+        )
+    )
+    result = asyncio.run(server_module.get_table_schema("schema-src"))
+    assert result["source_id"] == "schema-src"
+    assert len(result["columns"]) == 2
+    assert result["primary_key"] == ["year"]
+    assert result["row_count_estimate"] == 1000
+
+
+def test_get_table_schema_missing_returns_error_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(server_module.get_table_schema("nonexistent"))
+    assert "error" in result
+
+
+# -- search_catalog (Task 3.2) --
+
+
+def test_search_catalog_returns_results_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="search-src",
+            name="Population Data",
+            type="csv",
+            description="Japanese population statistics for analysis",
+            connection={},
+        )
+    )
+    # Rebuild so FTS5 has the data
+    server_module._catalog_service.rebuild_index()
+    result = asyncio.run(server_module.search_catalog(query="population"))
+    assert "results" in result
+    assert "count" in result
+    assert result["count"] >= 1
+
+
+def test_search_catalog_empty_returns_zero_count(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(server_module.search_catalog(query="zzzznonexistent"))
+    assert result["count"] == 0
+    assert result["results"] == []
+
+
+def test_search_catalog_with_source_type_filter(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="csv-s",
+            name="CSV Data",
+            type="csv",
+            description="CSV data source with population info",
+            connection={},
+        )
+    )
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="api-s",
+            name="API Data",
+            type="api",
+            description="API data source with population info",
+            connection={},
+        )
+    )
+    server_module._catalog_service.rebuild_index()
+    result = asyncio.run(
+        server_module.search_catalog(query="population", source_type="csv")
+    )
+    for r in result["results"]:
+        assert r["source_id"] == "csv-s"
+
+
+# -- get_domain_knowledge (Task 3.2) --
+
+
+def test_get_domain_knowledge_returns_entries(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="dk-src",
+            name="DK Source",
+            type="csv",
+            description="Source with knowledge",
+            connection={},
+        )
+    )
+    result = asyncio.run(server_module.get_domain_knowledge("dk-src"))
+    assert result["source_id"] == "dk-src"
+    assert "entries" in result
+    assert "count" in result
+
+
+def test_get_domain_knowledge_missing_returns_error_dict(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(server_module.get_domain_knowledge("nonexistent"))
+    assert "error" in result
+
+
+def test_get_domain_knowledge_with_category_filter(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="cat-src",
+            name="Cat Source",
+            type="csv",
+            description="Category test",
+            connection={},
+        )
+    )
+    result = asyncio.run(
+        server_module.get_domain_knowledge("cat-src", category="caution")
+    )
+    assert result["source_id"] == "cat-src"
+    assert result["count"] == 0  # No knowledge entries yet
+
+
+def test_get_domain_knowledge_invalid_category_returns_error(
+    initialized_catalog_server: Path,
+) -> None:
+    asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="inv-src",
+            name="Invalid Cat",
+            type="csv",
+            description="Invalid cat test",
+            connection={},
+        )
+    )
+    result = asyncio.run(
+        server_module.get_domain_knowledge("inv-src", category="invalid_cat")
+    )
+    assert "error" in result
+    assert "invalid_cat" in result["error"]

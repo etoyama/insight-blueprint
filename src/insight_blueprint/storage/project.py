@@ -35,10 +35,11 @@ def _create_insight_dirs(project_path: Path) -> None:
     if not config_path.exists():
         write_yaml(config_path, {"schema_version": 1})
 
-    # Create stub files (only if absent)
-    sources_path = insight / "catalog" / "sources.yaml"
-    if not sources_path.exists():
-        write_yaml(sources_path, {"sources": []})
+    # Create catalog/sources/ directory (per-source YAML files live here)
+    (insight / "catalog" / "sources").mkdir(parents=True, exist_ok=True)
+
+    # Create .sqlite/ directory for FTS5 databases
+    (insight / ".sqlite").mkdir(parents=True, exist_ok=True)
 
     review_rules = insight / "rules" / "review_rules.yaml"
     if not review_rules.exists():
@@ -50,18 +51,17 @@ def _create_insight_dirs(project_path: Path) -> None:
 
 
 def _copy_skills_template(project_path: Path) -> None:
-    """Copy bundled _skills/analysis-design/ to .claude/skills/ (first run only)."""
-    dest = project_path / ".claude" / "skills" / "analysis-design"
-    if dest.exists():
-        return  # Never overwrite user customizations
-
-    # Access bundled template via importlib.resources
+    """Copy bundled _skills/ to .claude/skills/ (first run only per skill)."""
     pkg_files = importlib.resources.files("insight_blueprint")
-    src = pkg_files / "_skills" / "analysis-design"
+    skills_to_copy = ["analysis-design", "catalog-register"]
 
-    # Copy the template directory
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(str(src), str(dest))
+    for skill_name in skills_to_copy:
+        dest = project_path / ".claude" / "skills" / skill_name
+        if dest.exists():
+            continue  # Never overwrite user customizations
+        src = pkg_files / "_skills" / skill_name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(str(src), str(dest))
 
 
 def _register_mcp_server(project_path: Path) -> None:

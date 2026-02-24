@@ -1,5 +1,24 @@
 """Pydantic models for insight-blueprint."""
 
+from insight_blueprint.models.catalog import (
+    ColumnSchema,
+    DataSource,
+    DomainKnowledge,
+    DomainKnowledgeEntry,
+    KnowledgeCategory,
+    KnowledgeImportance,
+    SourceType,
+)
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
 
-__all__ = ["AnalysisDesign", "DesignStatus"]
+__all__ = [
+    "AnalysisDesign",
+    "ColumnSchema",
+    "DataSource",
+    "DesignStatus",
+    "DomainKnowledge",
+    "DomainKnowledgeEntry",
+    "KnowledgeCategory",
+    "KnowledgeImportance",
+    "SourceType",
+]

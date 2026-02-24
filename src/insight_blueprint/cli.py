@@ -38,5 +38,14 @@ def main(project: str | None, headless: bool) -> None:
 
     server_module._service = DesignService(project_path)
 
+    # Wire CatalogService into server module
+    from insight_blueprint.core.catalog import CatalogService
+
+    catalog_service = CatalogService(project_path)
+    server_module._catalog_service = catalog_service
+
+    # Rebuild FTS5 search index from YAML files
+    catalog_service.rebuild_index()
+
     # Start MCP server (MUST be last -- blocks main thread)
     mcp.run()

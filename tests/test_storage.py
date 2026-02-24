@@ -71,14 +71,20 @@ def test_init_project_creates_directory_structure(tmp_path: Path) -> None:
     assert (insight / "rules").is_dir()
 
 
-def test_init_project_creates_catalog_sources_yaml(tmp_path: Path) -> None:
-    """catalog/sources.yaml exists after init."""
+def test_init_project_creates_sources_directory(tmp_path: Path) -> None:
+    """catalog/sources/ directory exists after init."""
     _init_project(tmp_path)
 
-    sources = tmp_path / ".insight" / "catalog" / "sources.yaml"
-    assert sources.exists()
-    data = read_yaml(sources)
-    assert data["sources"] == []
+    sources_dir = tmp_path / ".insight" / "catalog" / "sources"
+    assert sources_dir.is_dir()
+
+
+def test_init_project_creates_sqlite_dir(tmp_path: Path) -> None:
+    """.sqlite/ directory exists after init."""
+    _init_project(tmp_path)
+
+    sqlite_dir = tmp_path / ".insight" / ".sqlite"
+    assert sqlite_dir.is_dir()
 
 
 def test_init_project_creates_catalog_knowledge_dir(tmp_path: Path) -> None:
@@ -201,15 +207,25 @@ def test_init_project_partial_recovery(tmp_path: Path) -> None:
     _init_project(tmp_path)
 
     # Simulate partial failure: remove some artifacts
-    (tmp_path / ".insight" / "catalog" / "sources.yaml").unlink()
     (tmp_path / ".insight" / "rules" / "review_rules.yaml").unlink()
+    (tmp_path / ".insight" / "rules" / "analysis_rules.yaml").unlink()
 
     # Re-run init
     _init_project(tmp_path)
 
     # Missing artifacts should be recreated
-    assert (tmp_path / ".insight" / "catalog" / "sources.yaml").exists()
     assert (tmp_path / ".insight" / "rules" / "review_rules.yaml").exists()
+    assert (tmp_path / ".insight" / "rules" / "analysis_rules.yaml").exists()
 
     # Existing artifacts should still be there
     assert (tmp_path / ".insight" / "config.yaml").exists()
+    assert (tmp_path / ".insight" / "catalog" / "sources").is_dir()
+
+
+def test_init_project_copies_catalog_register_skill(tmp_path: Path) -> None:
+    """.claude/skills/catalog-register/ is created on first run."""
+    _init_project(tmp_path)
+
+    skill_dir = tmp_path / ".claude" / "skills" / "catalog-register"
+    assert skill_dir.is_dir()
+    assert (skill_dir / "SKILL.md").exists()
