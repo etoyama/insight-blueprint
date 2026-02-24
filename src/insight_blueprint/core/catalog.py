@@ -13,6 +13,7 @@ from insight_blueprint.models.catalog import (
 from insight_blueprint.models.common import now_jst
 from insight_blueprint.storage.sqlite_store import (
     build_index,
+    build_source_content,
     insert_document,
     replace_source_documents,
     search_index,
@@ -53,7 +54,12 @@ class CatalogService:
 
         # FTS5 incremental insert (failure must not crash add_source)
         try:
-            content = self._build_source_content(source)
+            content = build_source_content(
+                {
+                    "description": source.description,
+                    "columns": source.schema_info.get("columns", []),
+                }
+            )
             insert_document(self._db_path, "source", source.id, source.name, content)
         except Exception as exc:
             logger.warning("FTS5 insert failed for source '%s': %s", source.id, exc)
@@ -121,7 +127,12 @@ class CatalogService:
 
         # Atomic FTS5 re-index
         try:
-            content = self._build_source_content(updated)
+            content = build_source_content(
+                {
+                    "description": updated.description,
+                    "columns": updated.schema_info.get("columns", []),
+                }
+            )
             rows = [
                 {
                     "doc_type": "source",
@@ -204,12 +215,3 @@ class CatalogService:
                     )
 
         build_index(self._db_path, source_dicts, knowledge_dicts)
-
-    @staticmethod
-    def _build_source_content(source: DataSource) -> str:
-        """Build searchable content string from a DataSource."""
-        parts = [source.description]
-        for col_data in source.schema_info.get("columns", []):
-            parts.append(col_data.get("name", ""))
-            parts.append(col_data.get("description", ""))
-        return " ".join(parts)
