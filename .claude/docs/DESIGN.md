@@ -1103,6 +1103,24 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-02-24**: Recorded SPEC-2 revised design review (incremental FTS5 updates during session).
+  - **Write ordering**: Keep YAML as source-of-truth and perform YAML commit first, then best-effort FTS mutation. Never write FTS first.
+  - **Self-healing index**: Persist index state (`healthy/degraded`) and schedule opportunistic `rebuild_index()` when incremental update fails or startup skipped FTS.
+  - **Update atomicity in SQLite**: For `update_source`, execute `DELETE + INSERT` in a single SQLite transaction to avoid transient no-row windows.
+  - **Connection model**: Keep short-lived per-operation SQLite connections for v1 simplicity and thread safety; use WAL + busy_timeout; revisit persistent connection only if profiling shows overhead.
+  - **Capability guard**: Gate all incremental ops behind the same `fts_enabled` capability decided at startup (and revalidated on first failure), with no-op fallback when disabled.
+  - **External edit consistency**: Document that manual YAML edits can stale FTS until next startup rebuild; recommend restart/reindex after bulk or out-of-band edits.
+  - **Incremental test strategy**: Add focused sqlite_store unit tests (insert/delete/update transaction behavior) and service integration tests for crash/failure recovery and stale-index rebuild.
+
+- **2026-02-24**: Recorded SPEC-2 (data-catalog) design review guidance.
+  - **FTS5 availability**: Detect with `SELECT sqlite_compileoption_used('ENABLE_FTS5')` at service initialization, then fail-soft on actual `CREATE VIRTUAL TABLE`/`MATCH` with `sqlite3.OperationalError` handling.
+  - **Search fallback**: Add optional fallback path using a plain `catalog_search_fallback` table with normalized text and parameterized `LIKE` search when FTS5 is unavailable.
+  - **MATCH safety**: Do not interpolate raw user query. Escape embedded quotes and bind the full MATCH phrase as a SQL parameter (e.g., `WHERE docs MATCH ?`).
+  - **YAML concurrent writes**: Keep `tempfile + os.replace` and add per-source lock files (`.lock` via `fcntl`/`msvcrt` abstraction) to avoid last-write-wins races in rapid consecutive updates.
+  - **Schema evolution**: Introduce per-file `schema_version`, alias-based rename support, and explicit migration functions for breaking changes (especially field removals/renames).
+  - **Index rebuild performance**: Keep full rebuild as default for small catalogs, but add startup heuristic (`<=500` full rebuild, `>500` incremental by mtime/hash) and store index metadata.
+  - **Japanese+English search**: Default to FTS5 `tokenize='trigram'` for mixed-language recall; allow configurable tokenizer override to `unicode61`/`icu` when available.
+
 - **2026-02-22**: Recorded hypothesis enrichment sequencing decision (SPEC-1 vs SPEC-2).
   - Confirmed `chart`/`next_action`/`explanatory` do not require finalized catalog schema.
   - Adopted additive strategy: keep `data_source` as `str` now; add catalog reference/validation later without breaking changes.
