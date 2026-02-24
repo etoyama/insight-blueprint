@@ -36,8 +36,12 @@ _DELETE_BY_SOURCE = "DELETE FROM catalog_fts WHERE source_id = ?"
 def _open_connection(db_path: Path) -> sqlite3.Connection:
     """Open a SQLite connection with WAL mode and busy timeout."""
     conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+    except Exception:
+        conn.close()
+        raise
     return conn
 
 
@@ -68,33 +72,32 @@ def build_index(
             source_id, title, content.
     """
     try:
-        conn = sqlite3.connect(str(db_path))
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn = _open_connection(db_path)
+        try:
+            conn.execute(_DROP_FTS_TABLE)
+            conn.execute(_CREATE_FTS_TABLE)
 
-        conn.execute(_DROP_FTS_TABLE)
-        conn.execute(_CREATE_FTS_TABLE)
+            rows: list[tuple[str, str, str, str]] = []
+            for src in sources:
+                content = _build_source_content(src)
+                rows.append(("source", src["id"], src.get("name", ""), content))
 
-        rows: list[tuple[str, str, str, str]] = []
-        for src in sources:
-            content = _build_source_content(src)
-            rows.append(("source", src["id"], src.get("name", ""), content))
-
-        for entry in knowledge:
-            rows.append(
-                (
-                    "knowledge",
-                    entry.get("source_id", ""),
-                    entry.get("title", ""),
-                    entry.get("content", ""),
+            for entry in knowledge:
+                rows.append(
+                    (
+                        "knowledge",
+                        entry.get("source_id", ""),
+                        entry.get("title", ""),
+                        entry.get("content", ""),
+                    )
                 )
-            )
 
-        if rows:
-            conn.executemany(_INSERT_ROW, rows)
+            if rows:
+                conn.executemany(_INSERT_ROW, rows)
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
     except OperationalError as exc:
         logger.warning("build_index failed: %s", exc)
 
@@ -124,20 +127,21 @@ def search_index(
 
     try:
         conn = _open_connection(db_path)
-        sanitized = '"' + query.replace('"', '""') + '"'
-        cursor = conn.execute(_SEARCH_QUERY, (sanitized, limit))
-        results = [
-            {
-                "doc_type": row[0],
-                "source_id": row[1],
-                "title": row[2],
-                "snippet": row[3],
-                "rank": row[4],
-            }
-            for row in cursor.fetchall()
-        ]
-        conn.close()
-        return results
+        try:
+            sanitized = '"' + query.replace('"', '""') + '"'
+            cursor = conn.execute(_SEARCH_QUERY, (sanitized, limit))
+            return [
+                {
+                    "doc_type": row[0],
+                    "source_id": row[1],
+                    "title": row[2],
+                    "snippet": row[3],
+                    "rank": row[4],
+                }
+                for row in cursor.fetchall()
+            ]
+        finally:
+            conn.close()
     except OperationalError as exc:
         logger.warning("search_index failed: %s", exc)
         return []
@@ -161,9 +165,11 @@ def insert_document(
     """
     try:
         conn = _open_connection(db_path)
-        conn.execute(_INSERT_ROW, (doc_type, source_id, title, content))
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(_INSERT_ROW, (doc_type, source_id, title, content))
+            conn.commit()
+        finally:
+            conn.close()
     except OperationalError as exc:
         logger.warning("insert_document failed: %s", exc)
 
@@ -177,9 +183,11 @@ def delete_source_documents(db_path: Path, source_id: str) -> None:
     """
     try:
         conn = _open_connection(db_path)
-        conn.execute(_DELETE_BY_SOURCE, (source_id,))
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(_DELETE_BY_SOURCE, (source_id,))
+            conn.commit()
+        finally:
+            conn.close()
     except OperationalError as exc:
         logger.warning("delete_source_documents failed: %s", exc)
 
@@ -200,19 +208,24 @@ def replace_source_documents(
     """
     try:
         conn = _open_connection(db_path)
-        conn.execute("BEGIN IMMEDIATE")
-        conn.execute(_DELETE_BY_SOURCE, (source_id,))
-        for row in rows:
-            conn.execute(
-                _INSERT_ROW,
-                (
-                    row["doc_type"],
-                    row["source_id"],
-                    row["title"],
-                    row["content"],
-                ),
-            )
-        conn.execute("COMMIT")
-        conn.close()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(_DELETE_BY_SOURCE, (source_id,))
+            for row in rows:
+                conn.execute(
+                    _INSERT_ROW,
+                    (
+                        row["doc_type"],
+                        row["source_id"],
+                        row["title"],
+                        row["content"],
+                    ),
+                )
+            conn.execute("COMMIT")
+        except OperationalError:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     except OperationalError as exc:
         logger.warning("replace_source_documents failed: %s", exc)

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from insight_blueprint.storage.sqlite_store import (
+    _open_connection,
     build_index,
     delete_source_documents,
     insert_document,
@@ -268,3 +269,92 @@ class TestIncrementalOps:
         insert_document(db_path, "source", "s1", "T", "C")
         delete_source_documents(db_path, "s1")
         replace_source_documents(db_path, "s1", [])
+
+
+class TestConnectionCleanup:
+    """Tests for connection leak fixes (Issue #5)."""
+
+    def test_open_connection_closes_on_pragma_failure(self, tmp_path: Path) -> None:
+        """_open_connection closes the connection if PRAGMA execution fails."""
+        db_path = tmp_path / "pragma_fail.db"
+        with patch("insight_blueprint.storage.sqlite_store.sqlite3") as mock_sqlite3:
+            mock_conn = mock_sqlite3.connect.return_value
+            # First PRAGMA call raises
+            mock_conn.execute.side_effect = sqlite3.OperationalError("disk I/O error")
+            with pytest.raises(sqlite3.OperationalError):
+                _open_connection(db_path)
+            mock_conn.close.assert_called_once()
+
+    def test_build_index_closes_conn_on_error(self, tmp_path: Path) -> None:
+        """build_index closes connection when an operation fails."""
+        db_path = tmp_path / "build_fail.db"
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            mock_conn.execute.side_effect = sqlite3.OperationalError("table error")
+            build_index(db_path, [], [])
+            mock_conn.close.assert_called_once()
+
+    def test_search_index_closes_conn_on_error(self, db_path: Path) -> None:
+        """search_index closes connection when query execution fails."""
+        # Create a valid DB so the early-return guard passes
+        build_index(db_path, [], [])
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            mock_conn.execute.side_effect = sqlite3.OperationalError("query error")
+            results = search_index(db_path, "test")
+            assert results == []
+            mock_conn.close.assert_called_once()
+
+    def test_insert_document_closes_conn_on_error(self, db_path: Path) -> None:
+        """insert_document closes connection when insert fails."""
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            mock_conn.execute.side_effect = sqlite3.OperationalError("insert error")
+            insert_document(db_path, "source", "s1", "T", "C")
+            mock_conn.close.assert_called_once()
+
+    def test_delete_source_documents_closes_conn_on_error(self, db_path: Path) -> None:
+        """delete_source_documents closes connection when delete fails."""
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            mock_conn.execute.side_effect = sqlite3.OperationalError("delete error")
+            delete_source_documents(db_path, "s1")
+            mock_conn.close.assert_called_once()
+
+    def test_replace_source_documents_closes_conn_on_error(self, db_path: Path) -> None:
+        """replace_source_documents closes connection when operation fails."""
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            mock_conn.execute.side_effect = sqlite3.OperationalError("replace error")
+            replace_source_documents(db_path, "s1", [])
+            mock_conn.close.assert_called_once()
+
+    def test_replace_source_documents_rollback_on_error(self, db_path: Path) -> None:
+        """replace_source_documents rolls back the transaction on error."""
+        with patch(
+            "insight_blueprint.storage.sqlite_store._open_connection"
+        ) as mock_open:
+            mock_conn = mock_open.return_value
+            # BEGIN IMMEDIATE succeeds, then DELETE raises
+            call_count = 0
+
+            def execute_side_effect(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:  # BEGIN IMMEDIATE
+                    return None
+                raise sqlite3.OperationalError("disk I/O error")
+
+            mock_conn.execute.side_effect = execute_side_effect
+            replace_source_documents(db_path, "s1", [])
+            mock_conn.rollback.assert_called_once()
