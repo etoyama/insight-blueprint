@@ -118,7 +118,23 @@ Spawn teammates:
    - Run ruff check after each file change
    - Communicate with other teammates if you need interface changes
 
-   When done with each task, mark it completed in the task list."
+   After completing EACH task (MANDATORY):
+   1. Mark task [x] in the task list
+   2. Call the log-implementation MCP tool:
+      mcp__spec-workflow__log-implementation with:
+      - specName: '<spec-id>'
+      - taskId: '<task-id>' (e.g., '1.1', '2.1')
+      - summary: Brief description of what was implemented
+      - filesModified: ['path/to/modified.py', ...]
+      - filesCreated: ['path/to/new.py', ...]
+      - statistics: { linesAdded: N, linesRemoved: N }
+      - artifacts: {
+          functions: [{ name, purpose, location, signature, isExported }],
+          classes: [{ name, purpose, location, methods, isExported }],
+          apiEndpoints: [{ method, path, purpose, location }],
+          // Include all relevant artifact types
+        }
+   3. Do NOT skip step 2. Implementation logs prevent duplicate code."
 
 2. **Tester** (optional but recommended)
    Prompt: "You are the Tester for project: {feature}.
