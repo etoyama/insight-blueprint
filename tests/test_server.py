@@ -522,6 +522,21 @@ def test_get_review_service_raises_when_not_initialized() -> None:
         server_module.get_review_service()
 
 
+def test_get_rules_service_raises_when_not_initialized() -> None:
+    server_module._rules_service = None
+    with pytest.raises(RuntimeError, match="RulesService not initialized"):
+        server_module.get_rules_service()
+
+
+# -- design_id validation --
+
+
+def test_invalid_design_id_rejected(initialized_server: Path) -> None:
+    result = asyncio.run(server_module.get_analysis_design("../etc/passwd"))
+    assert "error" in result
+    assert "Invalid design_id" in result["error"]
+
+
 # -- submit_for_review tool --
 
 

@@ -197,7 +197,7 @@ class ReviewService:
                     title=content[:80],
                     content=content,
                     category=category,
-                    source=f"Review comment on {design_id}",
+                    source=f"review:{comment.id}@{design_id}",
                     affects_columns=list(scope),
                 )
                 entries.append(entry)
@@ -235,16 +235,28 @@ class ReviewService:
 
         write_yaml(ek_path, data)
 
-        # Update ReviewComment.extracted_knowledge
+        # Update ReviewComment.extracted_knowledge per comment
         if saved:
-            saved_keys = [e.key for e in saved]
-            reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
-            reviews_data = read_yaml(reviews_path)
-            if reviews_data and "comments" in reviews_data:
-                for comment_data in reviews_data["comments"]:
-                    ek_list = comment_data.get("extracted_knowledge", [])
-                    ek_list.extend(saved_keys)
-                    comment_data["extracted_knowledge"] = ek_list
-                write_yaml(reviews_path, reviews_data)
+            # Build comment_id -> [keys] mapping from entry source field
+            comment_keys: dict[str, list[str]] = {}
+            for entry in saved:
+                # source format: "review:{comment_id}@{design_id}"
+                if entry.source.startswith("review:") and "@" in entry.source:
+                    comment_id = entry.source[len("review:") : entry.source.index("@")]
+                    comment_keys.setdefault(comment_id, []).append(entry.key)
+
+            if comment_keys:
+                reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
+                reviews_data = read_yaml(reviews_path)
+                if reviews_data and "comments" in reviews_data:
+                    for comment_data in reviews_data["comments"]:
+                        keys_for_comment = comment_keys.get(
+                            comment_data.get("id", ""), []
+                        )
+                        if keys_for_comment:
+                            ek_list = comment_data.get("extracted_knowledge", [])
+                            ek_list.extend(keys_for_comment)
+                            comment_data["extracted_knowledge"] = ek_list
+                    write_yaml(reviews_path, reviews_data)
 
         return saved

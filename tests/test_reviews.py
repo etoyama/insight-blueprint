@@ -393,3 +393,41 @@ class TestSaveExtractedKnowledge:
         assert len(comments) == 1
         assert len(comments[0].extracted_knowledge) > 0
         assert comments[0].extracted_knowledge[0] == entries[0].key
+
+    def test_save_extracted_assigns_keys_to_correct_comment(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """Regression: keys must only be added to originating comment, not all."""
+        # Comment 1: request changes (returns to active)
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_comment(
+            active_design.id,
+            "caution: null check needed",
+            "active",
+        )
+        # Comment 2: supported
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_comment(
+            active_design.id,
+            "definition: MAU means monthly active users",
+            "supported",
+        )
+
+        entries = review_service.extract_domain_knowledge(active_design.id)
+        assert len(entries) == 2
+
+        review_service.save_extracted_knowledge(active_design.id, entries)
+
+        comments = review_service.list_comments(active_design.id)
+        assert len(comments) == 2
+
+        # Comment 1 should only have the key from its own entry
+        assert len(comments[0].extracted_knowledge) == 1
+        assert comments[0].extracted_knowledge[0] == entries[0].key
+
+        # Comment 2 should only have the key from its own entry
+        assert len(comments[1].extracted_knowledge) == 1
+        assert comments[1].extracted_knowledge[0] == entries[1].key
