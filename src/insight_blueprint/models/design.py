@@ -13,6 +13,7 @@ class DesignStatus(StrEnum):
 
     draft = "draft"
     active = "active"
+    pending_review = "pending_review"
     supported = "supported"
     rejected = "rejected"
     inconclusive = "inconclusive"
@@ -31,6 +32,7 @@ class AnalysisDesign(BaseModel):
     metrics: dict = Field(default_factory=dict)
     explanatory: list[dict] = Field(default_factory=list)
     chart: list[dict] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list)
     next_action: dict | None = None
     created_at: datetime = Field(default_factory=now_jst)
     updated_at: datetime = Field(default_factory=now_jst)

@@ -8,6 +8,8 @@ import pytest
 import insight_blueprint.server as server_module
 from insight_blueprint.core.catalog import CatalogService
 from insight_blueprint.core.designs import DesignService
+from insight_blueprint.core.reviews import ReviewService
+from insight_blueprint.core.rules import RulesService
 
 
 @pytest.fixture(autouse=True)
@@ -458,3 +460,283 @@ def test_get_domain_knowledge_invalid_category_returns_error(
     )
     assert "error" in result
     assert "invalid_cat" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Review workflow MCP tools tests (SPEC-3 Tasks 4.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_review_service() -> None:
+    """Reset server._review_service before each test."""
+    original = server_module._review_service
+    yield  # type: ignore[misc]
+    server_module._review_service = original
+
+
+@pytest.fixture(autouse=True)
+def _reset_rules_service() -> None:
+    """Reset server._rules_service before each test."""
+    original = server_module._rules_service
+    yield  # type: ignore[misc]
+    server_module._rules_service = original
+
+
+@pytest.fixture
+def initialized_review_server(tmp_project: Path) -> Path:
+    """Set up server with all services for review workflow testing."""
+    design_service = DesignService(tmp_project)
+    catalog_service = CatalogService(tmp_project)
+    catalog_service.rebuild_index()
+    server_module._service = design_service
+    server_module._catalog_service = catalog_service
+    server_module._review_service = ReviewService(tmp_project, design_service)
+    server_module._rules_service = RulesService(tmp_project, catalog_service)
+    return tmp_project
+
+
+def _create_active_design(theme_id: str = "FP") -> str:
+    """Helper to create a design and move it to active status."""
+    result = asyncio.run(
+        server_module.create_analysis_design(
+            title="Test Design",
+            hypothesis_statement="Test hypothesis",
+            hypothesis_background="Test background",
+            theme_id=theme_id,
+        )
+    )
+    design_id = result["id"]
+    asyncio.run(
+        server_module.update_analysis_design(design_id=design_id, status="active")
+    )
+    return design_id
+
+
+# -- get_review_service / get_rules_service guards --
+
+
+def test_get_review_service_raises_when_not_initialized() -> None:
+    server_module._review_service = None
+    with pytest.raises(RuntimeError, match="ReviewService not initialized"):
+        server_module.get_review_service()
+
+
+# -- submit_for_review tool --
+
+
+def test_submit_for_review_tool_success(initialized_review_server: Path) -> None:
+    design_id = _create_active_design()
+    result = asyncio.run(server_module.submit_for_review(design_id))
+    assert result["design_id"] == design_id
+    assert result["status"] == "pending_review"
+    assert "message" in result
+
+
+def test_submit_for_review_tool_non_active_error(
+    initialized_review_server: Path,
+) -> None:
+    create_result = asyncio.run(
+        server_module.create_analysis_design(
+            title="Draft",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+        )
+    )
+    result = asyncio.run(server_module.submit_for_review(create_result["id"]))
+    assert "error" in result
+
+
+def test_submit_for_review_tool_not_found(
+    initialized_review_server: Path,
+) -> None:
+    result = asyncio.run(server_module.submit_for_review("NONEXIST-H99"))
+    assert "error" in result
+    assert "not found" in result["error"]
+
+
+# -- save_review_comment tool --
+
+
+def test_save_review_comment_tool_success(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    asyncio.run(server_module.submit_for_review(design_id))
+    result = asyncio.run(
+        server_module.save_review_comment(
+            design_id=design_id,
+            comment="Good analysis",
+            status="supported",
+        )
+    )
+    assert result["design_id"] == design_id
+    assert result["status_after"] == "supported"
+    assert "comment_id" in result
+    assert "message" in result
+
+
+def test_save_review_comment_tool_invalid_status(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    asyncio.run(server_module.submit_for_review(design_id))
+    result = asyncio.run(
+        server_module.save_review_comment(
+            design_id=design_id,
+            comment="Bad",
+            status="pending_review",
+        )
+    )
+    assert "error" in result
+
+
+def test_save_review_comment_tool_not_found(
+    initialized_review_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.save_review_comment(
+            design_id="NONEXIST-H99",
+            comment="Ghost",
+            status="supported",
+        )
+    )
+    assert "error" in result
+    assert "not found" in result["error"]
+
+
+# -- extract_domain_knowledge tool --
+
+
+def test_extract_domain_knowledge_tool_preview(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    asyncio.run(server_module.submit_for_review(design_id))
+    asyncio.run(
+        server_module.save_review_comment(
+            design_id=design_id,
+            comment="caution: watch for nulls",
+            status="supported",
+        )
+    )
+    # Re-submit to pending_review for extraction
+    asyncio.run(
+        server_module.update_analysis_design(design_id=design_id, status="active")
+    )
+    result = asyncio.run(server_module.extract_domain_knowledge(design_id))
+    assert result["design_id"] == design_id
+    assert "entries" in result
+    assert result["count"] >= 1
+    assert "message" in result
+
+
+# -- save_extracted_knowledge tool --
+
+
+def test_save_extracted_knowledge_tool_success(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    asyncio.run(server_module.submit_for_review(design_id))
+    asyncio.run(
+        server_module.save_review_comment(
+            design_id=design_id,
+            comment="caution: watch for nulls",
+            status="supported",
+        )
+    )
+    asyncio.run(
+        server_module.update_analysis_design(design_id=design_id, status="active")
+    )
+    preview = asyncio.run(server_module.extract_domain_knowledge(design_id))
+    entries = preview["entries"]
+
+    result = asyncio.run(
+        server_module.save_extracted_knowledge(
+            design_id=design_id,
+            entries=entries,
+        )
+    )
+    assert result["design_id"] == design_id
+    assert result["count"] >= 1
+    assert "message" in result
+
+
+def test_save_extracted_knowledge_tool_invalid_entries(
+    initialized_review_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.save_extracted_knowledge(
+            design_id="FP-H01",
+            entries=[{"invalid": "data"}],
+        )
+    )
+    assert "error" in result
+
+
+# -- get_project_context tool --
+
+
+def test_get_project_context_tool(initialized_review_server: Path) -> None:
+    result = asyncio.run(server_module.get_project_context())
+    assert "sources" in result
+    assert "knowledge_entries" in result
+    assert "rules" in result
+    assert "total_sources" in result
+    assert "total_knowledge" in result
+    assert "total_rules" in result
+
+
+# -- suggest_cautions tool --
+
+
+def test_suggest_cautions_tool_with_matches(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    asyncio.run(server_module.submit_for_review(design_id))
+    asyncio.run(
+        server_module.save_review_comment(
+            design_id=design_id,
+            comment="table: test_data\ncaution: watch for nulls",
+            status="supported",
+        )
+    )
+    asyncio.run(
+        server_module.update_analysis_design(design_id=design_id, status="active")
+    )
+    preview = asyncio.run(server_module.extract_domain_knowledge(design_id))
+    asyncio.run(
+        server_module.save_extracted_knowledge(
+            design_id=design_id,
+            entries=preview["entries"],
+        )
+    )
+    result = asyncio.run(server_module.suggest_cautions(table_names="test_data"))
+    assert result["count"] >= 1
+    assert len(result["cautions"]) >= 1
+
+
+def test_suggest_cautions_tool_no_matches(
+    initialized_review_server: Path,
+) -> None:
+    result = asyncio.run(server_module.suggest_cautions(table_names="nonexistent"))
+    assert result["count"] == 0
+    assert result["cautions"] == []
+
+
+# -- pending_review guard on update_analysis_design --
+
+
+def test_update_design_rejects_pending_review(
+    initialized_review_server: Path,
+) -> None:
+    design_id = _create_active_design()
+    result = asyncio.run(
+        server_module.update_analysis_design(
+            design_id=design_id, status="pending_review"
+        )
+    )
+    assert "error" in result
+    assert "submit_for_review" in result["error"]

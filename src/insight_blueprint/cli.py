@@ -47,5 +47,17 @@ def main(project: str | None, headless: bool) -> None:
     # Rebuild FTS5 search index from YAML files
     catalog_service.rebuild_index()
 
+    # Wire ReviewService into server module
+    from insight_blueprint.core.reviews import ReviewService
+
+    review_service = ReviewService(project_path, server_module._service)
+    server_module._review_service = review_service
+
+    # Wire RulesService into server module
+    from insight_blueprint.core.rules import RulesService
+
+    rules_service = RulesService(project_path, catalog_service)
+    server_module._rules_service = rules_service
+
     # Start MCP server (MUST be last -- blocks main thread)
     mcp.run()

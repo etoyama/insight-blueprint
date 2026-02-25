@@ -62,7 +62,7 @@
 
 ---
 
-- [ ] 1.1 Extend DesignStatus and add source_ids to AnalysisDesign
+- [x] 1.1 Extend DesignStatus and add source_ids to AnalysisDesign
   - File: `src/insight_blueprint/models/design.py`, `tests/test_review_models.py`
   - Add `pending_review = "pending_review"` to `DesignStatus(StrEnum)`
   - Add `source_ids: list[str] = Field(default_factory=list)` to `AnalysisDesign`
@@ -75,7 +75,7 @@
   - _Requirements: FR-1, FR-3_
   - _Prompt: Role: Python Developer with Pydantic expertise | Task: Extend DesignStatus enum with pending_review and add source_ids field to AnalysisDesign, writing tests first per TDD | Restrictions: Additive changes only — do not modify existing enum values or fields. Backward-compatible (existing YAML without source_ids must load) | Success: 3 tests pass, existing SPEC-1 design tests still pass, ty check passes_
 
-- [ ] 1.2 Create ReviewComment model and update re-exports
+- [x] 1.2 Create ReviewComment model and update re-exports
   - File: `src/insight_blueprint/models/review.py` (NEW), `src/insight_blueprint/models/__init__.py`, `tests/test_review_models.py`
   - Create `ReviewComment(BaseModel)` with fields: id, design_id, comment, reviewer, status_after, created_at, extracted_knowledge
   - Update `models/__init__.py` to re-export `ReviewComment`
@@ -89,7 +89,7 @@
   - _Requirements: FR-2_
   - _Prompt: Role: Python Developer with Pydantic expertise | Task: Create ReviewComment model in new models/review.py file with all specified fields and defaults, update __init__.py re-exports, writing tests first per TDD | Restrictions: Only ReviewComment in this file (no Rule model). Follow existing model patterns (now_jst default, Field defaults) | Success: 4 tests pass, total 7 model tests pass, ruff + ty pass_
 
-- [ ] 2.1 Implement ReviewService core operations (submit, comment, list)
+- [x] 2.1 Implement ReviewService core operations (submit, comment, list)
   - File: `src/insight_blueprint/core/reviews.py` (NEW), `tests/test_reviews.py` (NEW), `tests/conftest.py`
   - Create `ReviewService(project_path, design_service)` with:
     - `VALID_REVIEW_TRANSITIONS` dict as single source of truth
@@ -106,7 +106,7 @@
   - _Requirements: FR-4, FR-5, FR-6_
   - _Prompt: Role: Python Developer with DDD and TDD expertise | Task: Implement ReviewService with submit_for_review, save_review_comment, list_comments. Define VALID_REVIEW_TRANSITIONS as source of truth. Write 13 tests first per TDD | Restrictions: Delegate to DesignService for design operations — no direct YAML manipulation of design files. Atomic writes via write_yaml. Do not implement extract/save knowledge in this task | Success: 13 tests pass, status transitions enforced, comments persisted to {design_id}_reviews.yaml_
 
-- [ ] 2.2 Implement extract_domain_knowledge and save_extracted_knowledge
+- [x] 2.2 Implement extract_domain_knowledge and save_extracted_knowledge
   - File: `src/insight_blueprint/core/reviews.py`, `tests/test_reviews.py`
   - Add to `ReviewService`:
     - `extract_domain_knowledge(design_id)` — keyword-based extraction with regex prefix detection, NFKC normalization, `table:` annotation scoping, `design.source_ids` default scope. Returns preview (NOT persisted)
@@ -119,7 +119,7 @@
   - _Requirements: FR-7a, FR-7b, FR-8_
   - _Prompt: Role: Python Developer with regex and text processing expertise | Task: Implement extract_domain_knowledge (preview) and save_extracted_knowledge (persist) in ReviewService. Use regex prefix detection (case-insensitive), NFKC normalization, table: annotation scoping with design.source_ids fallback. Write 9 tests first per TDD | Restrictions: extract returns preview only — no persistence. save persists to rules/extracted_knowledge.yaml using DomainKnowledge wrapper (source_id: "review"). Duplicate keys skipped. Scope priority: table: annotation > design.source_ids > [] | Success: 9 tests pass, total 22 ReviewService tests pass, all 4 categories extracted, scoping works correctly_
 
-- [ ] 3.1 Implement RulesService (get_project_context, suggest_cautions)
+- [x] 3.1 Implement RulesService (get_project_context, suggest_cautions)
   - File: `src/insight_blueprint/core/rules.py` (NEW), `tests/test_rules.py` (NEW)
   - Create `RulesService(project_path, catalog_service)` with:
     - `get_project_context()` — aggregate catalog sources + catalog knowledge + extracted knowledge + rules YAML content
@@ -132,7 +132,7 @@
   - _Requirements: FR-12, FR-13_
   - _Prompt: Role: Python Developer with data aggregation expertise | Task: Implement RulesService with get_project_context and suggest_cautions. get_project_context aggregates all knowledge sources. suggest_cautions uses unified affects_columns matching. Write 10 tests first per TDD | Restrictions: Read-only access to catalog via CatalogService interface. Unified matching strategy — no content keyword fallback. Unscoped entries (affects_columns=[]) excluded from suggest_cautions | Success: 10 tests pass, project context aggregates all sources correctly, caution matching is accurate with no false positives_
 
-- [ ] 4.1 Add 6 MCP tools to server.py and pending_review guard
+- [x] 4.1 Add 6 MCP tools to server.py and pending_review guard
   - File: `src/insight_blueprint/server.py`, `tests/test_server.py`
   - Add module-level references: `_review_service`, `_rules_service`
   - Add guard functions: `get_review_service()`, `get_rules_service()`
@@ -152,7 +152,7 @@
   - _Requirements: FR-9, FR-10, FR-11a, FR-11b, FR-12, FR-13_
   - _Prompt: Role: Python Developer with MCP/FastMCP expertise | Task: Add 6 MCP tools and pending_review guard to server.py. Follow existing tool patterns (error dict, guard functions). Write 14 tests with mocked services first per TDD | Restrictions: Tools must delegate to ReviewService/RulesService — no business logic in server.py. Follow existing error dict pattern. Mock services in tests (not YAML) | Success: 14 tests pass, 6 tools registered on FastMCP instance, pending_review guard blocks direct status set, existing server tests still pass_
 
-- [ ] 4.2 Wire services in cli.py and update init_project
+- [x] 4.2 Wire services in cli.py and update init_project
   - File: `src/insight_blueprint/cli.py`, `src/insight_blueprint/storage/project.py`, `tests/test_storage.py`
   - In `cli.py`: import and instantiate `ReviewService(project_path, design_service)` and `RulesService(project_path, catalog_service)`, wire to `server._review_service` and `server._rules_service` before `mcp.run()`
   - In `storage/project.py`: extend `init_project()` / `_create_insight_dirs()` to create `.insight/rules/extracted_knowledge.yaml` with `{source_id: "review", entries: []}` if absent
@@ -164,7 +164,7 @@
   - _Requirements: FR-14, FR-15_
   - _Prompt: Role: Python Developer with CLI integration expertise | Task: Wire ReviewService and RulesService in cli.py (after DesignService/CatalogService, before mcp.run). Update init_project to create extracted_knowledge.yaml. Write 2 tests first per TDD | Restrictions: Follow existing wiring order. Idempotent init — do not overwrite existing extracted_knowledge.yaml. Services wired after their dependencies | Success: 2 tests pass, existing init tests still pass, services available at startup_
 
-- [ ] 5.1 Full round-trip integration test and regression verification
+- [x] 5.1 Full round-trip integration test and regression verification
   - File: `tests/test_integration.py`
   - Add `test_review_full_round_trip`: create_design → update(active) → submit_for_review → save_review_comment → extract_domain_knowledge → save_extracted_knowledge → get_project_context → suggest_cautions
   - Verify existing `test_full_round_trip` and `test_catalog_full_round_trip` still pass
