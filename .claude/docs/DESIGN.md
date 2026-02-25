@@ -1103,6 +1103,46 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-02-26**: Full SPEC-3 (review-workflow) technical risk analysis via Codex.
+
+  ### Risk Analysis Summary
+
+  | # | Risk | Severity | Mitigation | Complexity |
+  |---|------|----------|-----------|-----------|
+  | 1 | **ReviewService -> DesignService cross-dependency** increases coupling | Medium | Depend only on `get_design`/`update_design` interface. Consider Protocol/port injection for testability. Keep transition logic in ReviewService. | M |
+  | 2 | **DesignStatus enum extension** (`pending_review`) may break existing tests | Medium | Update server.py status description strings, test expected values, and list_analysis_designs filter docs in one atomic commit. Keep enum values in single definition. | S |
+  | 3 | **Review comment append pattern** — `{design_id}_reviews.yaml` uses read-modify-write via yaml_store (full-file overwrite, not true append). Race condition if MCP + WebUI write concurrently. | High | For v1 single-user: acceptable with atomic `os.replace`. For future multi-user: add per-design file lock or optimistic concurrency (revision token). Document the limitation. | M |
+  | 4 | **Keyword-based extraction heuristics** — case sensitivity, Unicode normalization (NFKC), multi-line comments, lines with multiple keywords, prefix stripping | Medium | Use regex-based prefix detection (case-insensitive). Apply NFKC normalization before matching. Process by block (not raw line split). Add duplicate key check. Accept imperfect recall for v1 (out-of-scope: LLM extraction). | M |
+  | 5 | **get_project_context file aggregation cost** — reads all `catalog/knowledge/*.yaml` + `extracted_knowledge.yaml` | Medium | Acceptable for v1 (<100 sources). For future scale: add mtime-based cache. Monitor in NFR perf tests (500ms target for 100 sources + 500 entries). | M |
+  | 6 | **suggest_cautions vocabulary mismatch** — DomainKnowledgeEntry.affects_columns vs Rule.affects_tables vs free-text content keyword match | High | Define canonical matching strategy: (a) catalog entries match by `affects_columns` field, (b) extracted knowledge matches by keyword search in `content` field against table_names. Document the dual-strategy explicitly. Consider normalizing to `affects_entities` in future. | M |
+  | 7 | **Status transition validation gaps** — existing `update_analysis_design` tool can bypass review workflow by setting status directly | High | Add transition matrix as single-source-of-truth (dict/set in models or service). Block `pending_review` in generic `update_analysis_design`. Only `submit_for_review` can set `pending_review`; only `save_review_comment` can transition away. Add CAS-style guard (check current status before write). | M |
+
+  ### Overall Assessment
+  - **Implementation Complexity**: **L** (Large) — Feature additions are medium-sized, but state transition integrity, backward compatibility with existing tests, and dual-knowledge-source aggregation make the test surface heavy.
+  - **Estimated Effort**: 3-4 days for a thorough TDD implementation.
+
+  ### Recommended Implementation Order
+  1. **DesignStatus extension + transition matrix** — Foundation for all review operations. Single validator/guard module. Update existing test expectations.
+  2. **models/rules.py** — ReviewComment + Rule models. Pure data models, no dependencies.
+  3. **core/reviews.py** — ReviewService skeleton: `submit_for_review`, `save_review_comment`, `list_comments`. Depends on DesignService + yaml_store.
+  4. **core/reviews.py** — `extract_domain_knowledge` with regex-based heuristics + NFKC normalization.
+  5. **core/rules.py** — RulesService: `get_project_context`, `suggest_cautions`. Depends on CatalogService + yaml_store.
+  6. **server.py** — 5 new MCP tools + restrict `update_analysis_design` from setting `pending_review`.
+  7. **cli.py + project.py** — Wire ReviewService/RulesService. Create `extracted_knowledge.yaml` in init.
+  8. **Regression tests** — Verify existing SPEC-1/SPEC-2 tests pass with DesignStatus extension.
+
+  ### Alternative Approaches Considered
+  1. **Inline reviews in design YAML** (instead of separate `_reviews.yaml`) — Better integrity but design file grows unbounded. Rejected: separate file is cleaner.
+  2. **Append-only JSONL for review comments** — Avoids read-modify-write race entirely. Rejected for v1: YAML consistency preferred, single-user is acceptable.
+  3. **SQLite for extracted knowledge** — Better query performance for `suggest_cautions`. Rejected for v1: YAML-first philosophy. Can add FTS5 indexing later.
+
+- **2026-02-25**: Initial SPEC-3 risk assessment recorded.
+  - **Status machine enforcement**: Add explicit transition matrix (`active -> pending_review -> supported/rejected/inconclusive/active`) and block direct terminal-state updates via generic patch tools.
+  - **Concurrency safety for review writes**: For `save_review_comment`, avoid blind read-modify-write races by introducing per-design locking or optimistic concurrency checks (`updated_at` / revision token).
+  - **Cross-service dependency boundary**: Keep `ReviewService` orchestration-level dependency on `DesignService`, but depend on a minimal protocol interface to reduce coupling and simplify tests.
+  - **Knowledge schema alignment**: Normalize `suggest_cautions` target matching by defining canonical table/column mapping rules between `affects_columns` and extracted knowledge metadata.
+  - **Heuristic extraction robustness**: Normalize Unicode/case and parse review text by block (not raw line-only split) to improve Japanese/English keyword extraction stability.
+
 - **2026-02-24**: Recorded SPEC-2 revised design review (incremental FTS5 updates during session).
   - **Write ordering**: Keep YAML as source-of-truth and perform YAML commit first, then best-effort FTS mutation. Never write FTS first.
   - **Self-healing index**: Persist index state (`healthy/degraded`) and schedule opportunistic `rebuild_index()` when incremental update fails or startup skipped FTS.
