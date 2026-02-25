@@ -9,12 +9,16 @@ from fastmcp import FastMCP
 if TYPE_CHECKING:
     from insight_blueprint.core.catalog import CatalogService
     from insight_blueprint.core.designs import DesignService
+    from insight_blueprint.core.reviews import ReviewService
+    from insight_blueprint.core.rules import RulesService
 
 mcp = FastMCP("insight-blueprint")
 
 # Module-level service references, set by cli.py before mcp.run()
 _service: DesignService | None = None
 _catalog_service: CatalogService | None = None
+_review_service: ReviewService | None = None
+_rules_service: RulesService | None = None
 
 
 def get_service() -> DesignService:
@@ -37,6 +41,28 @@ def get_catalog_service() -> CatalogService:
     if _catalog_service is None:
         raise RuntimeError("CatalogService not initialized. Call init_project() first.")
     return _catalog_service
+
+
+def get_review_service() -> ReviewService:
+    """Get the initialized ReviewService.
+
+    Raises:
+        RuntimeError: If ReviewService has not been wired yet.
+    """
+    if _review_service is None:
+        raise RuntimeError("ReviewService not initialized. Call init_project() first.")
+    return _review_service
+
+
+def get_rules_service() -> RulesService:
+    """Get the initialized RulesService.
+
+    Raises:
+        RuntimeError: If RulesService has not been wired yet.
+    """
+    if _rules_service is None:
+        raise RuntimeError("RulesService not initialized. Call init_project() first.")
+    return _rules_service
 
 
 @mcp.tool()
@@ -116,6 +142,11 @@ async def update_analysis_design(
         if v is not None
     }
     if status is not None:
+        if status == DesignStatus.pending_review.value:
+            return {
+                "error": "Cannot set status to 'pending_review' directly. "
+                "Use submit_for_review() instead."
+            }
         try:
             updates["status"] = DesignStatus(status)
         except ValueError:
@@ -322,4 +353,151 @@ async def get_domain_knowledge(
         "source_id": dk.source_id,
         "entries": [e.model_dump(mode="json") for e in dk.entries],
         "count": len(dk.entries),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Review workflow MCP tools (SPEC-3 Task 4.1)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def submit_for_review(design_id: str) -> dict:
+    """Submit an analysis design for review.
+
+    Transitions the design from 'active' to 'pending_review'.
+    Only designs in 'active' status can be submitted.
+
+    Returns: dict with design_id, status, message on success; {error} on failure
+    """
+    svc = get_review_service()
+    try:
+        result = svc.submit_for_review(design_id)
+    except ValueError as e:
+        return {"error": str(e)}
+    if result is None:
+        return {"error": f"Design '{design_id}' not found"}
+    return {
+        "design_id": result.id,
+        "status": result.status.value,
+        "message": f"Design '{design_id}' submitted for review.",
+    }
+
+
+@mcp.tool()
+async def save_review_comment(
+    design_id: str,
+    comment: str,
+    status: str,
+    reviewer: str = "analyst",
+) -> dict:
+    """Save a review comment and transition the design status.
+
+    The design must be in 'pending_review' status. Valid post-review statuses:
+    active (request changes), supported, rejected, inconclusive.
+
+    Returns: dict with comment_id, design_id, status_after, message
+    """
+    svc = get_review_service()
+    try:
+        result = svc.save_review_comment(design_id, comment, status, reviewer)
+    except ValueError as e:
+        return {"error": str(e)}
+    if result is None:
+        return {"error": f"Design '{design_id}' not found"}
+    return {
+        "comment_id": result.id,
+        "design_id": result.design_id,
+        "status_after": result.status_after.value,
+        "message": f"Review comment saved. Design status: {result.status_after.value}.",
+    }
+
+
+@mcp.tool()
+async def extract_domain_knowledge(design_id: str) -> dict:
+    """Extract domain knowledge from review comments as preview.
+
+    Returns extracted entries for user review before persistence.
+    Call save_extracted_knowledge() to persist confirmed entries.
+
+    Returns: dict with design_id, entries, count, message
+    """
+    svc = get_review_service()
+    try:
+        entries = svc.extract_domain_knowledge(design_id)
+    except ValueError as e:
+        return {"error": str(e)}
+    return {
+        "design_id": design_id,
+        "entries": [e.model_dump(mode="json") for e in entries],
+        "count": len(entries),
+        "message": f"Extracted {len(entries)} knowledge entries (preview).",
+    }
+
+
+@mcp.tool()
+async def save_extracted_knowledge(
+    design_id: str,
+    entries: list[dict],
+) -> dict:
+    """Persist user-confirmed knowledge entries to extracted_knowledge.yaml.
+
+    Call extract_domain_knowledge() first to get preview entries,
+    then pass confirmed (optionally adjusted) entries here.
+
+    Args:
+        design_id: The design ID the entries were extracted from
+        entries: List of dicts with keys: key, content, category, affects_columns
+
+    Returns: dict with design_id, saved_entries, count, message
+    """
+    from insight_blueprint.models.catalog import DomainKnowledgeEntry
+
+    svc = get_review_service()
+    try:
+        parsed_entries = [DomainKnowledgeEntry(**e) for e in entries]
+    except Exception as e:
+        return {"error": f"Invalid entry format: {e}"}
+    try:
+        saved = svc.save_extracted_knowledge(design_id, parsed_entries)
+    except ValueError as e:
+        return {"error": str(e)}
+    return {
+        "design_id": design_id,
+        "saved_entries": [e.model_dump(mode="json") for e in saved],
+        "count": len(saved),
+        "message": f"Saved {len(saved)} knowledge entries.",
+    }
+
+
+@mcp.tool()
+async def get_project_context() -> dict:
+    """Get aggregated project context including all domain knowledge.
+
+    Returns sources, knowledge entries, rules, and counts from
+    both catalog and review-extracted knowledge.
+    """
+    svc = get_rules_service()
+    return svc.get_project_context()
+
+
+@mcp.tool()
+async def suggest_cautions(table_names: str) -> dict:
+    """Suggest cautions for the given table/source names.
+
+    Searches all domain knowledge entries (catalog and extracted) by
+    matching affects_columns against provided table names.
+
+    Args:
+        table_names: Comma-separated string of table/source names
+
+    Returns: dict with table_names, cautions, count
+    """
+    svc = get_rules_service()
+    names = [t.strip() for t in table_names.split(",") if t.strip()]
+    cautions = svc.suggest_cautions(names)
+    return {
+        "table_names": names,
+        "cautions": cautions,
+        "count": len(cautions),
     }

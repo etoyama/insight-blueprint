@@ -10,6 +10,7 @@ from insight_blueprint.models.catalog import (
     SourceType,
 )
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
+from insight_blueprint.models.review import ReviewComment
 
 __all__ = [
     "AnalysisDesign",
@@ -20,5 +21,6 @@ __all__ = [
     "DomainKnowledgeEntry",
     "KnowledgeCategory",
     "KnowledgeImportance",
+    "ReviewComment",
     "SourceType",
 ]

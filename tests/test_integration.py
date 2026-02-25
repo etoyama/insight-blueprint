@@ -4,6 +4,8 @@ from pathlib import Path
 
 from insight_blueprint.core.catalog import CatalogService
 from insight_blueprint.core.designs import DesignService
+from insight_blueprint.core.reviews import ReviewService
+from insight_blueprint.core.rules import RulesService
 from insight_blueprint.models.catalog import DataSource, SourceType
 from insight_blueprint.models.design import DesignStatus
 from insight_blueprint.storage.project import init_project
@@ -129,3 +131,72 @@ def test_catalog_full_round_trip(tmp_path: Path) -> None:
     assert service.get_source("nonexistent") is None
     assert service.get_schema("nonexistent") is None
     assert service.get_knowledge("nonexistent") is None
+
+
+def test_review_full_round_trip(tmp_path: Path) -> None:
+    """Integration test: submit → comment → extract → save → context → cautions."""
+    # 1. Init project
+    init_project(tmp_path)
+    design_service = DesignService(tmp_path)
+    review_service = ReviewService(tmp_path, design_service)
+    catalog_service = CatalogService(tmp_path)
+    rules_service = RulesService(tmp_path, catalog_service)
+
+    # 2. Create design
+    design = design_service.create_design(
+        title="Population Analysis",
+        hypothesis_statement="No correlation between age and income",
+        hypothesis_background="Background context",
+        theme_id="FP",
+    )
+    assert design.id == "FP-H01"
+
+    # 3. Update to active
+    design = design_service.update_design(design.id, status=DesignStatus.active)
+    assert design is not None
+    assert design.status == DesignStatus.active
+
+    # 4. Submit for review
+    design = review_service.submit_for_review(design.id)
+    assert design is not None
+    assert design.status == DesignStatus.pending_review
+
+    # 5. Save review comment with knowledge content
+    comment = review_service.save_review_comment(
+        design.id,
+        "table: test_data\ncaution: watch for nulls in age column\n"
+        "definition: MAU = Monthly Active Users",
+        "supported",
+    )
+    assert comment is not None
+    assert comment.status_after == DesignStatus.supported
+
+    # 6. Extract domain knowledge (preview)
+    entries = review_service.extract_domain_knowledge(design.id)
+    assert len(entries) >= 2  # at least caution + definition
+
+    # Verify entries are NOT persisted yet
+    from insight_blueprint.storage.yaml_store import read_yaml
+
+    ek_data = read_yaml(tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml")
+    assert ek_data["entries"] == []
+
+    # 7. Save extracted knowledge (persist)
+    saved = review_service.save_extracted_knowledge(design.id, entries)
+    assert len(saved) >= 2
+
+    # Verify entries ARE persisted now
+    ek_data = read_yaml(tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml")
+    assert len(ek_data["entries"]) >= 2
+
+    # 8. Get project context
+    ctx = rules_service.get_project_context()
+    assert ctx["total_knowledge"] >= 2
+
+    # 9. Suggest cautions — should find matches for test_data
+    cautions = rules_service.suggest_cautions(["test_data"])
+    assert len(cautions) >= 1
+
+    # 10. Suggest cautions — no matches for nonexistent table
+    no_cautions = rules_service.suggest_cautions(["nonexistent_table"])
+    assert len(no_cautions) == 0

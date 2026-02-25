@@ -229,3 +229,41 @@ def test_init_project_copies_catalog_register_skill(tmp_path: Path) -> None:
     skill_dir = tmp_path / ".claude" / "skills" / "catalog-register"
     assert skill_dir.is_dir()
     assert (skill_dir / "SKILL.md").exists()
+
+
+# === extracted_knowledge.yaml tests (SPEC-3 Task 4.2) ===
+
+
+def test_init_project_creates_extracted_knowledge_yaml(tmp_path: Path) -> None:
+    """extracted_knowledge.yaml is created with correct structure."""
+    _init_project(tmp_path)
+
+    ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+    assert ek_path.exists()
+
+    data = read_yaml(ek_path)
+    assert data["source_id"] == "review"
+    assert data["entries"] == []
+
+
+def test_init_project_does_not_overwrite_existing_extracted_knowledge(
+    tmp_path: Path,
+) -> None:
+    """Existing extracted_knowledge.yaml is preserved on re-run."""
+    _init_project(tmp_path)
+
+    # Add a custom entry
+    ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+    custom_data = {
+        "source_id": "review",
+        "entries": [{"key": "custom-1", "content": "keep me"}],
+    }
+    write_yaml(ek_path, custom_data)
+
+    # Re-run init
+    _init_project(tmp_path)
+
+    # Custom data should be preserved
+    data = read_yaml(ek_path)
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["key"] == "custom-1"

@@ -49,6 +49,10 @@ def _create_insight_dirs(project_path: Path) -> None:
     if not analysis_rules.exists():
         write_yaml(analysis_rules, {"rules": []})
 
+    extracted_knowledge = insight / "rules" / "extracted_knowledge.yaml"
+    if not extracted_knowledge.exists():
+        write_yaml(extracted_knowledge, {"source_id": "review", "entries": []})
+
 
 def _copy_skills_template(project_path: Path) -> None:
     """Copy bundled _skills/ to .claude/skills/ (first run only per skill)."""
