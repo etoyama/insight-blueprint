@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
+
+_DESIGN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 if TYPE_CHECKING:
     from insight_blueprint.core.catalog import CatalogService
@@ -63,6 +66,13 @@ def get_rules_service() -> RulesService:
     if _rules_service is None:
         raise RuntimeError("RulesService not initialized. Call init_project() first.")
     return _rules_service
+
+
+def _validate_design_id(design_id: str) -> dict | None:
+    """Return an error dict if design_id contains invalid characters."""
+    if not _DESIGN_ID_PATTERN.match(design_id):
+        return {"error": f"Invalid design_id '{design_id}': must match [a-zA-Z0-9_-]+"}
+    return None
 
 
 @mcp.tool()
@@ -125,6 +135,8 @@ async def update_analysis_design(
     Only provided fields are updated. Returns the updated design as a dict,
     or an error dict if design_id not found or status is invalid.
     """
+    if err := _validate_design_id(design_id):
+        return err
     from insight_blueprint.models.design import DesignStatus
 
     service = get_service()
@@ -164,6 +176,8 @@ async def get_analysis_design(design_id: str) -> dict:
 
     Returns the full design as a dict, or an error dict if not found.
     """
+    if err := _validate_design_id(design_id):
+        return err
     service = get_service()
     design = service.get_design(design_id)
     if design is None:
@@ -370,6 +384,8 @@ async def submit_for_review(design_id: str) -> dict:
 
     Returns: dict with design_id, status, message on success; {error} on failure
     """
+    if err := _validate_design_id(design_id):
+        return err
     svc = get_review_service()
     try:
         result = svc.submit_for_review(design_id)
@@ -398,6 +414,8 @@ async def save_review_comment(
 
     Returns: dict with comment_id, design_id, status_after, message
     """
+    if err := _validate_design_id(design_id):
+        return err
     svc = get_review_service()
     try:
         result = svc.save_review_comment(design_id, comment, status, reviewer)
@@ -422,6 +440,8 @@ async def extract_domain_knowledge(design_id: str) -> dict:
 
     Returns: dict with design_id, entries, count, message
     """
+    if err := _validate_design_id(design_id):
+        return err
     svc = get_review_service()
     try:
         entries = svc.extract_domain_knowledge(design_id)
@@ -451,6 +471,8 @@ async def save_extracted_knowledge(
 
     Returns: dict with design_id, saved_entries, count, message
     """
+    if err := _validate_design_id(design_id):
+        return err
     from insight_blueprint.models.catalog import DomainKnowledgeEntry
 
     svc = get_review_service()
