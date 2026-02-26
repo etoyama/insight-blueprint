@@ -8,6 +8,13 @@ from insight_blueprint.models.design import AnalysisDesign, DesignStatus
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
+_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+def _validate_id(value: str, name: str = "id") -> None:
+    """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
+    if not _SAFE_ID_PATTERN.fullmatch(value):
+        raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
 
 
 class DesignService:
@@ -65,6 +72,7 @@ class DesignService:
         Only provided fields are updated. updated_at is always refreshed.
         Returns None if design_id not found.
         """
+        _validate_id(design_id, "design_id")
         design = self.get_design(design_id)
         if design is None:
             return None
@@ -75,6 +83,7 @@ class DesignService:
 
     def get_design(self, design_id: str) -> AnalysisDesign | None:
         """Get a design by ID. Returns None if not found."""
+        _validate_id(design_id, "design_id")
         file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
         data = read_yaml(file_path)
         if not data:

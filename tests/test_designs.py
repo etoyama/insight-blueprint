@@ -247,3 +247,28 @@ def test_update_design_persists_to_yaml(service: DesignService) -> None:
     reloaded = service.get_design(design.id)
     assert reloaded is not None
     assert reloaded.chart == [{"type": "table"}]
+
+
+# -- ID validation tests --
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../etc/passwd", "foo/bar", "id with spaces", "", "valid-id\n", "back\\slash"],
+)
+def test_get_design_invalid_id_raises_error(
+    service: DesignService, bad_id: str
+) -> None:
+    with pytest.raises(ValueError, match="Invalid"):
+        service.get_design(bad_id)
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../etc/passwd", "foo/bar", "id with spaces", "", "valid-id\n", "back\\slash"],
+)
+def test_update_design_invalid_id_raises_error(
+    service: DesignService, bad_id: str
+) -> None:
+    with pytest.raises(ValueError, match="Invalid"):
+        service.update_design(bad_id, title="x")
