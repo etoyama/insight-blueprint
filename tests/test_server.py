@@ -540,12 +540,17 @@ def test_invalid_design_id_rejected(initialized_server: Path) -> None:
 # -- source_id validation --
 
 
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../etc/passwd", "foo/bar", "id with spaces", "", "valid-id\n", "back\\slash"],
+)
 def test_add_catalog_entry_invalid_source_id(
     initialized_catalog_server: Path,
+    bad_id: str,
 ) -> None:
     result = asyncio.run(
         server_module.add_catalog_entry(
-            source_id="../etc/passwd",
+            source_id=bad_id,
             name="x",
             type="csv",
             description="x",

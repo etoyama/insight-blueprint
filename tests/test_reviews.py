@@ -434,41 +434,61 @@ class TestSaveExtractedKnowledge:
         assert comments[1].extracted_knowledge[0] == entries[1].key
 
 
+_BAD_IDS = [
+    "../etc/passwd",
+    "foo/bar",
+    "id with spaces",
+    "",
+    "valid-id\n",
+    "back\\slash",
+]
+
+
 class TestIdValidation:
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_submit_for_review_invalid_id_raises_error(
         self,
         review_service: ReviewService,
+        bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.submit_for_review("../etc/passwd")
+            review_service.submit_for_review(bad_id)
 
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_save_review_comment_invalid_id_raises_error(
         self,
         review_service: ReviewService,
+        bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.save_review_comment("foo/bar", "comment", "supported")
+            review_service.save_review_comment(bad_id, "comment", "supported")
 
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_list_comments_invalid_id_raises_error(
         self,
         review_service: ReviewService,
+        bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.list_comments("id with spaces")
+            review_service.list_comments(bad_id)
 
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_extract_domain_knowledge_invalid_id_raises_error(
         self,
         review_service: ReviewService,
+        bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.extract_domain_knowledge("../etc/passwd")
+            review_service.extract_domain_knowledge(bad_id)
 
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_save_extracted_knowledge_invalid_id_raises_error(
         self,
         review_service: ReviewService,
+        bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.save_extracted_knowledge("foo/bar", [])
+            review_service.save_extracted_knowledge(bad_id, [])
 
 
 class TestImmutability:

@@ -31,12 +31,12 @@ _CATEGORY_PATTERNS: list[tuple[re.Pattern[str], KnowledgeCategory]] = [
 
 _TABLE_PATTERN = re.compile(r"^(table|テーブル)\s*:\s*", re.IGNORECASE)
 
-_SAFE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 
 
 def _validate_id(value: str, name: str = "id") -> None:
     """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
-    if not _SAFE_ID_PATTERN.match(value):
+    if not _SAFE_ID_PATTERN.fullmatch(value):
         raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
 
 

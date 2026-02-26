@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
-_DESIGN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_DESIGN_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 
 if TYPE_CHECKING:
     from insight_blueprint.core.catalog import CatalogService
@@ -70,14 +70,14 @@ def get_rules_service() -> RulesService:
 
 def _validate_design_id(design_id: str) -> dict | None:
     """Return an error dict if design_id contains invalid characters."""
-    if not _DESIGN_ID_PATTERN.match(design_id):
+    if not _DESIGN_ID_PATTERN.fullmatch(design_id):
         return {"error": f"Invalid design_id '{design_id}': must match [a-zA-Z0-9_-]+"}
     return None
 
 
 def _validate_source_id(source_id: str) -> dict | None:
     """Return an error dict if source_id contains invalid characters."""
-    if not _DESIGN_ID_PATTERN.match(source_id):
+    if not _DESIGN_ID_PATTERN.fullmatch(source_id):
         return {"error": f"Invalid source_id '{source_id}': must match [a-zA-Z0-9_-]+"}
     return None
 
