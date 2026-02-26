@@ -6,8 +6,9 @@ import pytest
 
 from insight_blueprint.core.designs import DesignService
 from insight_blueprint.core.reviews import ReviewService
+from insight_blueprint.models.catalog import DomainKnowledgeEntry
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
-from insight_blueprint.storage.yaml_store import read_yaml
+from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 
 class TestSubmitForReview:
@@ -431,3 +432,106 @@ class TestSaveExtractedKnowledge:
         # Comment 2 should only have the key from its own entry
         assert len(comments[1].extracted_knowledge) == 1
         assert comments[1].extracted_knowledge[0] == entries[1].key
+
+
+_BAD_IDS = [
+    "../etc/passwd",
+    "foo/bar",
+    "id with spaces",
+    "",
+    "valid-id\n",
+    "back\\slash",
+]
+
+
+class TestIdValidation:
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_submit_for_review_invalid_id_raises_error(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.submit_for_review(bad_id)
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_save_review_comment_invalid_id_raises_error(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.save_review_comment(bad_id, "comment", "supported")
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_list_comments_invalid_id_raises_error(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.list_comments(bad_id)
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_extract_domain_knowledge_invalid_id_raises_error(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.extract_domain_knowledge(bad_id)
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_save_extracted_knowledge_invalid_id_raises_error(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.save_extracted_knowledge(bad_id, [])
+
+
+class TestImmutability:
+    def test_save_extracted_knowledge_does_not_mutate_existing_data(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """Verify save_extracted_knowledge does not mutate existing entries list."""
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        # Write initial data
+        initial_entry = {
+            "key": "existing-key",
+            "title": "Existing",
+            "content": "Existing knowledge entry",
+            "category": "context",
+            "source": "manual",
+            "affects_columns": [],
+        }
+        initial_data = {"source_id": "review", "entries": [initial_entry]}
+        write_yaml(ek_path, initial_data)
+
+        # Read back to get reference to the dict
+        data_before = read_yaml(ek_path)
+        entries_before = list(data_before["entries"])  # shallow copy for comparison
+
+        # Save new entries
+        new_entry = DomainKnowledgeEntry(
+            key="new-key",
+            title="New",
+            content="New knowledge entry",
+            category="caution",
+            source=f"review:RC-abc@{active_design.id}",
+            affects_columns=[],
+        )
+        review_service.save_extracted_knowledge(active_design.id, [new_entry])
+
+        # Verify data_before dict was not mutated
+        assert len(entries_before) == 1
+        assert entries_before[0]["key"] == "existing-key"
+
+        # Verify file now has both entries
+        data_after = read_yaml(ek_path)
+        assert len(data_after["entries"]) == 2

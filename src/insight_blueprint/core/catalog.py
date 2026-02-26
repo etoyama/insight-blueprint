@@ -1,6 +1,7 @@
 """Data catalog CRUD business logic (SPEC-2)."""
 
 import logging
+import re
 from pathlib import Path
 
 from insight_blueprint.models.catalog import (
@@ -22,6 +23,14 @@ from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 logger = logging.getLogger(__name__)
 
+_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+def _validate_id(value: str, name: str = "id") -> None:
+    """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
+    if not _SAFE_ID_PATTERN.fullmatch(value):
+        raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
+
 
 class CatalogService:
     """Service for managing data catalog entries."""
@@ -37,6 +46,7 @@ class CatalogService:
         Creates source YAML, empty knowledge YAML, and inserts into FTS5.
         Raises ValueError if source ID already exists.
         """
+        _validate_id(source.id, "source_id")
         source_path = self._sources_dir / f"{source.id}.yaml"
         if source_path.exists():
             raise ValueError(f"Source '{source.id}' already exists")
@@ -68,6 +78,7 @@ class CatalogService:
 
     def get_source(self, source_id: str) -> DataSource | None:
         """Get a source by ID. Returns None if not found."""
+        _validate_id(source_id, "source_id")
         source_path = self._sources_dir / f"{source_id}.yaml"
         data = read_yaml(source_path)
         if not data:
@@ -89,6 +100,7 @@ class CatalogService:
 
     def get_schema(self, source_id: str) -> list[ColumnSchema] | None:
         """Get column schema for a source. Returns None if source not found."""
+        _validate_id(source_id, "source_id")
         source = self.get_source(source_id)
         if source is None:
             return None
@@ -101,6 +113,7 @@ class CatalogService:
         category: KnowledgeCategory | None = None,
     ) -> DomainKnowledge | None:
         """Get domain knowledge for a source, optionally filtered by category."""
+        _validate_id(source_id, "source_id")
         knowledge_path = self._knowledge_dir / f"{source_id}.yaml"
         data = read_yaml(knowledge_path)
         if not data:
@@ -118,6 +131,7 @@ class CatalogService:
 
         Returns the updated DataSource, or None if source not found.
         """
+        _validate_id(source_id, "source_id")
         source = self.get_source(source_id)
         if source is None:
             return None

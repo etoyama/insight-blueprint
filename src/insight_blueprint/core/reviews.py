@@ -31,6 +31,15 @@ _CATEGORY_PATTERNS: list[tuple[re.Pattern[str], KnowledgeCategory]] = [
 
 _TABLE_PATTERN = re.compile(r"^(table|テーブル)\s*:\s*", re.IGNORECASE)
 
+_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+def _validate_id(value: str, name: str = "id") -> None:
+    """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
+    if not _SAFE_ID_PATTERN.fullmatch(value):
+        raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
+
+
 VALID_REVIEW_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
     DesignStatus.active: {DesignStatus.pending_review},
     DesignStatus.pending_review: {
@@ -57,6 +66,7 @@ class ReviewService:
         Returns None if design not found.
         Raises ValueError if design is not in active status.
         """
+        _validate_id(design_id, "design_id")
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
@@ -82,6 +92,7 @@ class ReviewService:
         Raises ValueError if design is not in pending_review status
         or if status is not a valid post-review status.
         """
+        _validate_id(design_id, "design_id")
         # Validate post-review status
         try:
             target_status = DesignStatus(status)
@@ -136,6 +147,7 @@ class ReviewService:
 
         Returns empty list if no reviews file exists.
         """
+        _validate_id(design_id, "design_id")
         reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
         data = read_yaml(reviews_path)
         if not data or "comments" not in data:
@@ -148,6 +160,7 @@ class ReviewService:
         Returns a list of DomainKnowledgeEntry items (NOT persisted).
         Scope priority: table: annotation > design.source_ids > [].
         """
+        _validate_id(design_id, "design_id")
         comments = self.list_comments(design_id)
         if not comments:
             return []
@@ -216,23 +229,25 @@ class ReviewService:
         Updates ReviewComment.extracted_knowledge with saved keys.
         Returns the list of newly saved entries.
         """
+        _validate_id(design_id, "design_id")
         ek_path = self._rules_dir / "extracted_knowledge.yaml"
         data: dict[str, Any] = read_yaml(ek_path)
         if not data:
             data = {"source_id": "review", "entries": []}
 
-        entries_list: list[dict[str, Any]] = data.get("entries", [])
-        existing_keys = {e["key"] for e in entries_list}
+        existing_entries: list[dict[str, Any]] = data.get("entries", [])
+        existing_keys = {e["key"] for e in existing_entries}
         saved: list[DomainKnowledgeEntry] = []
+        new_entries: list[dict[str, Any]] = []
 
         for entry in entries:
             if entry.key in existing_keys:
                 continue
-            entries_list.append(entry.model_dump(mode="json"))
-            data["entries"] = entries_list
+            new_entries.append(entry.model_dump(mode="json"))
             existing_keys.add(entry.key)
             saved.append(entry)
 
+        data = {**data, "entries": [*existing_entries, *new_entries]}
         write_yaml(ek_path, data)
 
         # Update ReviewComment.extracted_knowledge per comment

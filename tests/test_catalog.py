@@ -326,6 +326,59 @@ class TestSearch:
         assert results == []
 
 
+_BAD_IDS = [
+    "../etc/passwd",
+    "foo/bar",
+    "id with spaces",
+    "",
+    "valid-id\n",
+    "back\\slash",
+]
+
+
+class TestIdValidation:
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_get_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService, bad_id: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_source(bad_id)
+
+    def test_add_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        source = DataSource(
+            id="foo/bar",
+            name="Bad Source",
+            type=SourceType.csv,
+            description="Invalid ID source",
+            connection={},
+        )
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.add_source(source)
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_update_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService, bad_id: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.update_source(bad_id, name="x")
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_get_schema_invalid_id_raises_error(
+        self, catalog_service: CatalogService, bad_id: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_schema(bad_id)
+
+    @pytest.mark.parametrize("bad_id", _BAD_IDS)
+    def test_get_knowledge_invalid_id_raises_error(
+        self, catalog_service: CatalogService, bad_id: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_knowledge(bad_id)
+
+
 class TestRebuildIndex:
     def test_rebuild_index_creates_fts_db(
         self,
