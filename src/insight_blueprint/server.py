@@ -75,6 +75,13 @@ def _validate_design_id(design_id: str) -> dict | None:
     return None
 
 
+def _validate_source_id(source_id: str) -> dict | None:
+    """Return an error dict if source_id contains invalid characters."""
+    if not _DESIGN_ID_PATTERN.match(source_id):
+        return {"error": f"Invalid source_id '{source_id}': must match [a-zA-Z0-9_-]+"}
+    return None
+
+
 @mcp.tool()
 async def create_analysis_design(
     title: str,
@@ -230,6 +237,8 @@ async def add_catalog_entry(
     row_count_estimate: int | None = None,
 ) -> dict:
     """Register a new data source in the catalog."""
+    if err := _validate_source_id(source_id):
+        return err
     from insight_blueprint.models.catalog import DataSource, SourceType
 
     service = get_catalog_service()
@@ -276,6 +285,8 @@ async def update_catalog_entry(
     tags: list[str] | None = None,
 ) -> dict:
     """Update an existing data source in the catalog."""
+    if err := _validate_source_id(source_id):
+        return err
     service = get_catalog_service()
     updates: dict = {}
     if name is not None:
@@ -303,6 +314,8 @@ async def update_catalog_entry(
 @mcp.tool()
 async def get_table_schema(source_id: str) -> dict:
     """Get the column schema for a data source."""
+    if err := _validate_source_id(source_id):
+        return err
     service = get_catalog_service()
     source = service.get_source(source_id)
     if source is None:
@@ -347,6 +360,8 @@ async def get_domain_knowledge(
     category: str | None = None,
 ) -> dict:
     """Get domain knowledge entries for a data source."""
+    if err := _validate_source_id(source_id):
+        return err
     from insight_blueprint.models.catalog import KnowledgeCategory
 
     service = get_catalog_service()
