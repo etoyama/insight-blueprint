@@ -252,11 +252,23 @@ def test_update_design_persists_to_yaml(service: DesignService) -> None:
 # -- ID validation tests --
 
 
-def test_get_design_invalid_id_raises_error(service: DesignService) -> None:
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../etc/passwd", "foo/bar", "id with spaces", "", "valid-id\n", "back\\slash"],
+)
+def test_get_design_invalid_id_raises_error(
+    service: DesignService, bad_id: str
+) -> None:
     with pytest.raises(ValueError, match="Invalid"):
-        service.get_design("../etc/passwd")
+        service.get_design(bad_id)
 
 
-def test_update_design_invalid_id_raises_error(service: DesignService) -> None:
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../etc/passwd", "foo/bar", "id with spaces", "", "valid-id\n", "back\\slash"],
+)
+def test_update_design_invalid_id_raises_error(
+    service: DesignService, bad_id: str
+) -> None:
     with pytest.raises(ValueError, match="Invalid"):
-        service.update_design("foo/bar", title="x")
+        service.update_design(bad_id, title="x")

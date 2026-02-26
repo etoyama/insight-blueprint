@@ -8,12 +8,12 @@ from insight_blueprint.models.design import AnalysisDesign, DesignStatus
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
-_SAFE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 
 
 def _validate_id(value: str, name: str = "id") -> None:
     """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
-    if not _SAFE_ID_PATTERN.match(value):
+    if not _SAFE_ID_PATTERN.fullmatch(value):
         raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
 
 
