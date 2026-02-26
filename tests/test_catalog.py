@@ -326,6 +326,45 @@ class TestSearch:
         assert results == []
 
 
+class TestIdValidation:
+    def test_get_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_source("../etc/passwd")
+
+    def test_add_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        source = DataSource(
+            id="foo/bar",
+            name="Bad Source",
+            type=SourceType.csv,
+            description="Invalid ID source",
+            connection={},
+        )
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.add_source(source)
+
+    def test_update_source_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.update_source("id with spaces", name="x")
+
+    def test_get_schema_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_schema("../etc/passwd")
+
+    def test_get_knowledge_invalid_id_raises_error(
+        self, catalog_service: CatalogService
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            catalog_service.get_knowledge("foo/bar")
+
+
 class TestRebuildIndex:
     def test_rebuild_index_creates_fts_db(
         self,

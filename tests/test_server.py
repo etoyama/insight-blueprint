@@ -537,6 +537,54 @@ def test_invalid_design_id_rejected(initialized_server: Path) -> None:
     assert "Invalid design_id" in result["error"]
 
 
+# -- source_id validation --
+
+
+def test_add_catalog_entry_invalid_source_id(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.add_catalog_entry(
+            source_id="../etc/passwd",
+            name="x",
+            type="csv",
+            description="x",
+            connection={},
+        )
+    )
+    assert "error" in result
+    assert "Invalid source_id" in result["error"]
+
+
+def test_update_catalog_entry_invalid_source_id(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(
+        server_module.update_catalog_entry(
+            source_id="foo/bar",
+            name="x",
+        )
+    )
+    assert "error" in result
+    assert "Invalid source_id" in result["error"]
+
+
+def test_get_table_schema_invalid_source_id(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(server_module.get_table_schema("id with spaces"))
+    assert "error" in result
+    assert "Invalid source_id" in result["error"]
+
+
+def test_get_domain_knowledge_invalid_source_id(
+    initialized_catalog_server: Path,
+) -> None:
+    result = asyncio.run(server_module.get_domain_knowledge("../etc/passwd"))
+    assert "error" in result
+    assert "Invalid source_id" in result["error"]
+
+
 # -- submit_for_review tool --
 
 
