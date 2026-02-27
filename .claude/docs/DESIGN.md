@@ -1103,6 +1103,14 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-02-27**: Recorded frontend E2E test architecture decisions for expanded Playwright coverage.
+  - **Spec organization**: Split detailed E2E tests by feature/page (`design-detail`, `catalog`, `rules`, `history`, `cross-tab`) and keep `smoke.spec.ts` as a fast gate.
+  - **Parallelism strategy**: Prefer file-level parallel execution (Playwright default across files). Keep tests isolated so workers can scale without order dependencies.
+  - **Mocking architecture**: Extract shared route setup + mock data factories into reusable E2E helpers/fixtures; keep each test responsible for its own route registrations and overrides.
+  - **Loading-state test stability**: Use a promise-gated `page.route()` delay (manual release) instead of fixed sleep-based timing to verify spinner-visible then spinner-hidden transitions.
+  - **SPA history behavior**: Validate back-navigation with both URL assertion and active-tab UI assertion because `history.pushState` + `popstate` is same-document navigation.
+  - **Isolation principle**: Do not chain tests by state; share setup code, not runtime state. `beforeEach` can prepare common mocks/UI entrypoint, but each test must be independently executable.
+
 - **2026-02-27**: Recorded SPEC-4b frontend test strategy refinement (Codex review).
   - Kept the baseline gate as `TypeScript strict + build verification`.
   - Added recommendation to introduce a **small Playwright smoke suite** (not full E2E) for high-risk UI flows:

@@ -1,0 +1,209 @@
+// Route-setup helpers for Playwright E2E tests.
+// Each helper registers page.route() interceptors for a specific API group.
+// Tests call these in beforeEach or at the top of each test body.
+
+import type { Page } from "@playwright/test";
+import type {
+  Design,
+  ReviewComment,
+  KnowledgeEntry,
+  DataSource,
+  ColumnSchema,
+  SearchResult,
+  RulesContext,
+  Caution,
+} from "./mock-data";
+
+// ---------------------------------------------------------------------------
+// Designs
+// ---------------------------------------------------------------------------
+
+export async function mockDesignList(page: Page, designs: Design[]) {
+  await page.route("**/api/designs", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { designs, count: designs.length },
+      });
+    }
+    return route.continue();
+  });
+}
+
+export async function mockDesignDetail(page: Page, design: Design) {
+  await page.route(`**/api/designs/${design.id}`, (route) =>
+    route.fulfill({ json: design }),
+  );
+}
+
+export async function mockSubmitReview(
+  page: Page,
+  designId: string,
+  response?: Record<string, unknown>,
+) {
+  await page.route(`**/api/designs/${designId}/review`, (route) =>
+    route.fulfill({
+      json: response ?? {
+        design_id: designId,
+        status: "pending_review",
+        message: "Review submitted",
+      },
+    }),
+  );
+}
+
+export async function mockComments(
+  page: Page,
+  designId: string,
+  comments: ReviewComment[],
+) {
+  await page.route(`**/api/designs/${designId}/comments`, (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { design_id: designId, comments, count: comments.length },
+      });
+    }
+    // POST — add comment
+    return route.fulfill({
+      json: {
+        comment_id: "c-new",
+        status_after: "supported",
+        message: "Comment added",
+      },
+    });
+  });
+}
+
+export async function mockExtractKnowledge(
+  page: Page,
+  designId: string,
+  entries: KnowledgeEntry[],
+) {
+  await page.route(`**/api/designs/${designId}/knowledge`, (route) =>
+    route.fulfill({
+      json: { entries, count: entries.length, message: "Extracted" },
+    }),
+  );
+}
+
+export async function mockSaveKnowledge(
+  page: Page,
+  designId: string,
+  entries: KnowledgeEntry[],
+) {
+  await page.route(`**/api/designs/${designId}/knowledge`, (route) =>
+    route.fulfill({
+      json: {
+        saved_entries: entries,
+        count: entries.length,
+        message: "Saved",
+      },
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+export async function mockSourceList(page: Page, sources: DataSource[]) {
+  await page.route("**/api/catalog/sources", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { sources, count: sources.length },
+      });
+    }
+    return route.continue();
+  });
+}
+
+export async function mockSchema(
+  page: Page,
+  sourceId: string,
+  columns: ColumnSchema[],
+) {
+  await page.route(`**/api/catalog/sources/${sourceId}/schema`, (route) =>
+    route.fulfill({ json: { source_id: sourceId, columns } }),
+  );
+}
+
+export async function mockCatalogSearch(
+  page: Page,
+  results: SearchResult[],
+) {
+  await page.route("**/api/catalog/search**", (route) =>
+    route.fulfill({
+      json: {
+        query: "test",
+        results,
+        count: results.length,
+      },
+    }),
+  );
+}
+
+export async function mockKnowledgeList(
+  page: Page,
+  entries: KnowledgeEntry[],
+) {
+  await page.route("**/api/catalog/knowledge", (route) =>
+    route.fulfill({ json: { entries, count: entries.length } }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rules
+// ---------------------------------------------------------------------------
+
+export async function mockRulesContext(page: Page, context: RulesContext) {
+  await page.route("**/api/rules/context", (route) =>
+    route.fulfill({ json: context }),
+  );
+}
+
+export async function mockCautions(page: Page, cautions: Caution[]) {
+  await page.route("**/api/rules/cautions**", (route) =>
+    route.fulfill({
+      json: {
+        table_names: ["test"],
+        cautions,
+        count: cautions.length,
+      },
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Catch-all: mock all routes with empty/minimal data (for cross-tab tests)
+// ---------------------------------------------------------------------------
+
+export async function mockAllRoutesEmpty(page: Page) {
+  await page.route("**/api/designs**", (route) =>
+    route.fulfill({ json: { designs: [], count: 0 } }),
+  );
+  await page.route("**/api/catalog/sources**", (route) =>
+    route.fulfill({ json: { sources: [], count: 0 } }),
+  );
+  await page.route("**/api/catalog/knowledge", (route) =>
+    route.fulfill({ json: { entries: [], count: 0 } }),
+  );
+  await page.route("**/api/catalog/search**", (route) =>
+    route.fulfill({ json: { query: "", results: [], count: 0 } }),
+  );
+  await page.route("**/api/rules/context", (route) =>
+    route.fulfill({
+      json: {
+        sources: [],
+        knowledge_entries: [],
+        rules: [],
+        total_sources: 0,
+        total_knowledge: 0,
+        total_rules: 0,
+      },
+    }),
+  );
+  await page.route("**/api/rules/cautions**", (route) =>
+    route.fulfill({
+      json: { table_names: [], cautions: [], count: 0 },
+    }),
+  );
+}
