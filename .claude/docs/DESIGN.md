@@ -1103,6 +1103,15 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-02-27**: Recorded SPEC-4b frontend test strategy refinement (Codex review).
+  - Kept the baseline gate as `TypeScript strict + build verification`.
+  - Added recommendation to introduce a **small Playwright smoke suite** (not full E2E) for high-risk UI flows:
+    - App shell + tab navigation (`?tab=` sync, invalid fallback, browser back/forward)
+    - Core data rendering per tab (Designs/Catalog/Rules/History first-view checks)
+    - API failure banner + retry affordance visibility
+  - Positioning decision: Use Playwright primarily as a **Claude Code-driven verification tool** in development/review sessions; optional CI integration later when test stability is proven.
+  - Scope guardrail: Keep broad exploratory scenarios in manual checklist, and automate only deterministic acceptance-critical checks to avoid low-ROI maintenance.
+
 - **2026-02-26**: Full SPEC-3 (review-workflow) technical risk analysis via Codex.
 
   ### Risk Analysis Summary
