@@ -65,5 +65,9 @@ src/insight_blueprint/static/
 # Frontend dependencies
 frontend/node_modules/
 
+# Playwright test artifacts
+frontend/test-results/
+frontend/playwright-report/
+
 # spec-workflow approval state (runtime, managed by dashboard)
 .spec-workflow/approvals/
