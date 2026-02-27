@@ -1,6 +1,6 @@
 # SPEC-4b: webui-frontend — Tasks
 
-- [ ] 1.1 Initialize shadcn/ui and configure development environment
+- [x] 1.1 Initialize shadcn/ui and configure development environment
   - File: `frontend/package.json`, `frontend/tsconfig.json`, `frontend/vite.config.ts`, `frontend/src/index.css`, `frontend/components.json`
   - Run `npx shadcn@latest init` in `frontend/` with CSS Variables enabled
   - Add `@` path alias to `tsconfig.json` (`paths: {"@/*": ["./src/*"]}`) and `vite.config.ts` (`resolve.alias`)
@@ -25,7 +25,7 @@
   - _Requirements: FR-21, FR-22, FR-23_
   - _Prompt: Role: Frontend Developer specializing in React + Vite + Tailwind CSS v4 + shadcn/ui setup | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Initialize shadcn/ui in the existing frontend scaffold. Add path alias, Vite proxy, and install all 10 shadcn/ui components. Verify dev server and production build both work. | Restrictions: Do not modify any Python files. Do not change the Vite build output directory (must remain `../src/insight_blueprint/static`). Do not add unnecessary dependencies. | Success: `npm run dev` starts without errors, `npm run build` produces output in `src/insight_blueprint/static/`, all 10 shadcn/ui components are installed, path alias `@/` resolves correctly. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 1.2 Create TypeScript type definitions and API client
+- [x] 1.2 Create TypeScript type definitions and API client
   - File: `frontend/src/types/api.ts`, `frontend/src/api/client.ts`
   - Define all TypeScript types mirroring Python Pydantic models: `Design`, `DataSource`, `ColumnSchema`, `ReviewComment`, `KnowledgeEntry`, `RulesContext`, `SearchResult`, `Caution`
   - Define enum union types: `DesignStatus`, `SourceType`, `KnowledgeCategory`, `KnowledgeImportance`
@@ -49,7 +49,7 @@
   - _Requirements: FR-3, NFR-Security (XSS prevention via type safety)_
   - _Prompt: Role: TypeScript Developer specializing in API client design and type safety | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create complete TypeScript type definitions mirroring Python Pydantic models, and implement the API client with shared request\<T>() helper. Reference SPEC-4a web.py for exact endpoint signatures and response shapes. | Restrictions: Do not use any external HTTP client library (use native fetch). Do not add runtime type validation (trust backend contracts). Base URL must be empty string (same-origin serving). Include AbortSignal parameter on all GET endpoint functions. | Success: All types compile without errors, all 16 endpoint functions implemented, request\<T>() handles {error}, {detail} (422), non-JSON, and network errors correctly. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 2.1 Create shared UI components
+- [x] 2.1 Create shared UI components
   - File: `frontend/src/components/DataTable.tsx`, `frontend/src/components/StatusBadge.tsx`, `frontend/src/components/EmptyState.tsx`, `frontend/src/components/ErrorBanner.tsx`, `frontend/src/components/JsonTree.tsx`
   - `DataTable\<T>`: generic table with columns config, row click handler, selected row highlight. Wraps shadcn/ui Table
   - `StatusBadge`: DesignStatus → color mapping (draft=gray, active=blue, pending_review=yellow, supported=green, rejected=red, inconclusive=orange). Wraps shadcn/ui Badge
@@ -73,7 +73,7 @@
   - _Requirements: FR-4, NFR-Usability (color coding, loading states)_
   - _Prompt: Role: React Component Developer specializing in reusable UI components | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create 5 shared UI components using shadcn/ui primitives. DataTable must be generic with TypeScript generics. StatusBadge must map all 6 DesignStatus values to specific colors. JsonTree must handle nested objects/arrays with expand/collapse. | Restrictions: Do not use external component libraries beyond shadcn/ui. Keep each component under 100 lines. Do not add global CSS — use Tailwind utility classes only. | Success: All 5 components render correctly, DataTable accepts generic type parameter, StatusBadge shows correct colors for all 6 statuses, JsonTree handles nested data with toggle. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 2.2 Create App shell with tab navigation
+- [x] 2.2 Create App shell with tab navigation
   - File: `frontend/src/App.tsx`, `frontend/src/main.tsx`
   - Implement App shell: header ("Insight Blueprint") + shadcn/ui Tabs for 4 tabs
   - Tab state management: useState\<Tab> synced with URL ?tab= parameter
@@ -98,7 +98,7 @@
   - _Requirements: FR-1, FR-2_
   - _Prompt: Role: React Developer specializing in SPA navigation and URL state sync | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create App.tsx with header, 4-tab navigation using shadcn/ui Tabs, and URL ?tab= synchronization. Handle popstate for browser navigation. Render placeholder content for each tab (actual pages will be implemented in later tasks). Update main.tsx entry point. | Restrictions: Do not use react-router. Use history.replaceState (not pushState) for tab changes. Keep App.tsx under 80 lines. | Success: 4 tabs render and switch correctly, URL updates on tab change, page reload preserves tab selection, browser back/forward works, invalid ?tab= falls back to designs. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 3.1 Implement Designs page (master list + create dialog)
+- [x] 3.1 Implement Designs page (master list + create dialog)
   - File: `frontend/src/pages/DesignsPage.tsx`
   - Fetch and display design list using DataTable with columns: title, status (StatusBadge), updated_at
   - Status filter dropdown (All + 6 status values) using shadcn/ui Select
@@ -126,7 +126,7 @@
   - _Requirements: FR-5, FR-7_
   - _Prompt: Role: React Developer specializing in data-driven UI with forms and filtering | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create DesignsPage with design list table, status filter, and create dialog. Use AbortController for fetch cancellation. Connect to API client for listDesigns and createDesign. | Restrictions: Do not implement the detail panel yet (that is task 3.2). Do not use any state management library. Keep the file under 250 lines. | Success: Design list loads and displays, status filter works, create dialog opens/submits/refreshes list, loading/error/empty states render correctly, AbortController cancels stale requests. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 3.2 Implement Design detail with sub-tabs (Overview / Review / Knowledge)
+- [x] 3.2 Implement Design detail with sub-tabs (Overview / Review / Knowledge)
   - File: `frontend/src/pages/DesignDetail.tsx`
   - Fetch design detail via getDesign(designId)
   - Sub-tabs using shadcn/ui Tabs: Overview, Review, Knowledge
@@ -154,7 +154,7 @@
   - _Requirements: FR-6, FR-8, FR-9, FR-10, FR-11_
   - _Prompt: Role: React Developer specializing in complex multi-panel UI with forms | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create DesignDetail with 3 sub-tabs (Overview/Review/Knowledge). Each panel is a separate function component within the same file. Overview shows design fields with JsonTree for dicts. Review has submit button, comment list, and add comment form. Knowledge has extract preview and save functionality. | Restrictions: Keep DesignDetail as orchestrator (~150 lines) with panels (~60-80 lines each). Do not exceed 400 lines total. Disable "Submit for Review" when status is not "active". Use AbortController for all fetches. | Success: All 3 sub-tabs render with correct data, review submit changes status, comments add and refresh, knowledge extract shows preview and save persists, parent list refreshes on updates. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 3.3 Wire DesignsPage + DesignDetail together
+- [x] 3.3 Wire DesignsPage + DesignDetail together
   - File: `frontend/src/pages/DesignsPage.tsx` (modify), `frontend/src/App.tsx` (modify)
   - Import and render DesignDetail in DesignsPage when selectedId is set
   - Pass onDesignUpdated callback to refresh design list
@@ -174,7 +174,7 @@
   - _Requirements: FR-5, FR-6, FR-8_
   - _Prompt: Role: React Developer | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Wire DesignDetail into DesignsPage (render below table when selectedId is set). Wire DesignsPage into App.tsx Designs tab. | Restrictions: Minimal changes only — import + render + callback wiring. Do not refactor existing components. | Success: Clicking a design row shows DesignDetail below, design updates refresh the list, Designs tab in App.tsx shows the full page. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 4.1 Implement Catalog page
+- [x] 4.1 Implement Catalog page
   - File: `frontend/src/pages/CatalogPage.tsx`
   - Source list with DataTable: name, type (badge), description, tags, updated_at
   - Source detail: schema table (ColumnSchema fields) on row click
@@ -203,7 +203,7 @@
   - _Requirements: FR-12, FR-13, FR-14, FR-15, FR-16_
   - _Prompt: Role: React Developer specializing in multi-section data pages | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create CatalogPage with 4 internal sections (SourceList, Schema, Search, Knowledge). Each section is a sub-component in the same file. Source list shows all sources, clicking shows schema. Add Source opens dialog with JSON textarea for connection. Search bar triggers catalog search. Knowledge section shows all domain knowledge entries. | Restrictions: Keep total file under 350 lines. Validate JSON input for connection field before submit. Use AbortController for all fetches. | Success: Source list loads, schema displays on click, add source works with JSON validation, search returns results, knowledge entries display with category/importance badges. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 4.2 Implement Rules page
+- [x] 4.2 Implement Rules page
   - File: `frontend/src/pages/RulesPage.tsx`
   - Fetch and display project context (GET /api/rules/context) in 3 collapsible sections: Sources, Knowledge, Rules
   - Each section shows count in header and list/table of items
@@ -227,7 +227,7 @@
   - _Requirements: FR-17, FR-18_
   - _Prompt: Role: React Developer | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create RulesPage with project context display (3 collapsible sections with counts) and cautions search form. | Restrictions: Keep file under 200 lines. Use shadcn/ui Card for sections. Use AbortController for fetches. | Success: Context loads with correct counts, sections expand/collapse, cautions search returns results for valid table names, empty state shows when no data. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 4.3 Implement History page
+- [x] 4.3 Implement History page
   - File: `frontend/src/pages/HistoryPage.tsx`
   - Fetch all designs, sort by updated_at descending
   - Display timeline: title, status (StatusBadge), updated_at, distinguish created vs updated
@@ -253,7 +253,7 @@
   - _Requirements: FR-19, FR-20_
   - _Prompt: Role: React Developer | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Create HistoryPage showing all designs sorted by updated_at desc as a timeline. Clicking an entry expands to show review comment history fetched via listComments. | Restrictions: Do not create new API endpoints. Keep file under 200 lines. Use AbortController for comment fetches. Distinguish "created" vs "updated" in the timeline display. | Success: Timeline shows all designs sorted by date, clicking expands to show comments with status badges, empty state renders when no designs exist. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 5.1 Wire all pages into App and verify full build
+- [x] 5.1 Wire all pages into App and verify full build
   - File: `frontend/src/App.tsx` (modify)
   - Import and wire CatalogPage, RulesPage, HistoryPage into App.tsx tab content
   - Verify `npm run build` succeeds with zero TypeScript errors
@@ -279,7 +279,7 @@
   - _Requirements: FR-23, NFR-Performance (build under 30s)_
   - _Prompt: Role: Frontend Developer specializing in build systems and integration | Task: Implement the task for spec SPEC-4b, first run spec-workflow-guide to get the workflow guide then implement the task: Wire remaining pages (Catalog, Rules, History) into App.tsx. Run npm run build and poe build-frontend to verify the complete SPA builds successfully. Test that the built static files are served correctly by FastAPI. | Restrictions: Do not modify page components — only App.tsx imports. Do not change build configuration. Ensure zero TypeScript compile errors. | Success: All 4 tabs work in the built SPA, npm run build completes under 30s, poe build-frontend outputs to static/, FastAPI serves the SPA correctly at localhost. Mark task as in-progress `[-]` in tasks.md before starting, log implementation with log-implementation tool after completion, then mark as complete `[x]`._
 
-- [ ] 5.2 Set up Playwright smoke tests
+- [x] 5.2 Set up Playwright smoke tests
   - File: `frontend/playwright.config.ts`, `frontend/e2e/smoke.spec.ts`, `frontend/package.json` (modify)
   - Install Playwright: `npm install -D @playwright/test` and `npx playwright install chromium`
   - Create `playwright.config.ts` with baseURL `http://localhost:3000`, headless mode, webServer config
