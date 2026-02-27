@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { DesignStatus } from "@/types/api";
+import { DESIGN_STATUS_LABELS } from "@/lib/constants";
 
 const STATUS_STYLES: Record<DesignStatus, string> = {
   draft: "bg-gray-100 text-gray-800 hover:bg-gray-100",
@@ -10,15 +11,6 @@ const STATUS_STYLES: Record<DesignStatus, string> = {
   inconclusive: "bg-orange-100 text-orange-800 hover:bg-orange-100",
 };
 
-const STATUS_LABELS: Record<DesignStatus, string> = {
-  draft: "Draft",
-  active: "Active",
-  pending_review: "Pending Review",
-  supported: "Supported",
-  rejected: "Rejected",
-  inconclusive: "Inconclusive",
-};
-
 interface StatusBadgeProps {
   status: DesignStatus;
 }
@@ -26,7 +18,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <Badge variant="secondary" className={STATUS_STYLES[status]}>
-      {STATUS_LABELS[status]}
+      {DESIGN_STATUS_LABELS[status]}
     </Badge>
   );
 }

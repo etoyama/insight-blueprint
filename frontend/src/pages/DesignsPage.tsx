@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { listDesigns, createDesign } from "@/api/client";
 import type { Design, DesignStatus, CreateDesignRequest } from "@/types/api";
+import { DESIGN_STATUS_LABELS, DEFAULT_THEME_ID } from "@/lib/constants";
 import { DesignDetail } from "@/pages/DesignDetail";
 import { DataTable } from "@/components/DataTable";
 import type { ColumnDef } from "@/components/DataTable";
@@ -34,14 +35,9 @@ const ALL_STATUSES: DesignStatus[] = [
   "inconclusive",
 ];
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_FILTER_OPTIONS: Record<string, string> = {
   all: "All",
-  draft: "Draft",
-  active: "Active",
-  pending_review: "Pending Review",
-  supported: "Supported",
-  rejected: "Rejected",
-  inconclusive: "Inconclusive",
+  ...DESIGN_STATUS_LABELS,
 };
 
 const columns: ColumnDef<Design>[] = [
@@ -104,7 +100,7 @@ export function DesignsPage() {
     const hypothesis_background = (
       data.get("hypothesis_background") as string
     ).trim();
-    const theme_id = (data.get("theme_id") as string).trim() || "DEFAULT";
+    const theme_id = (data.get("theme_id") as string).trim() || DEFAULT_THEME_ID;
 
     if (!title || !hypothesis_statement || !hypothesis_background) {
       setFormError("Title, hypothesis statement, hypothesis background are required.");
@@ -141,10 +137,10 @@ export function DesignsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{STATUS_LABELS.all}</SelectItem>
+            <SelectItem value="all">{STATUS_FILTER_OPTIONS.all}</SelectItem>
             {ALL_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {STATUS_LABELS[s]}
+                {STATUS_FILTER_OPTIONS[s]}
               </SelectItem>
             ))}
           </SelectContent>

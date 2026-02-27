@@ -36,7 +36,7 @@ export default function App() {
     setActiveTab(tab);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
-    history.replaceState(null, "", url.toString());
+    history.pushState(null, "", url.toString());
   };
 
   return (

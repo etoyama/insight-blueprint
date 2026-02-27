@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,17 +8,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { DataTable, type ColumnDef } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { KNOWLEDGE_COLUMNS } from "@/lib/constants";
 import { listSources, addSource, getSchema, searchCatalog, getKnowledgeList } from "@/api/client";
 import type { DataSource, ColumnSchema, SearchResult, KnowledgeEntry, SourceType, AddSourceRequest } from "@/types/api";
 
 // --- SourceListSection ---
 
 const SOURCE_COLUMNS: ColumnDef<DataSource>[] = [
-  { key: "name", label: "名前" },
-  { key: "type", label: "タイプ", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
-  { key: "description", label: "説明" },
-  { key: "tags", label: "タグ", render: (v) => <span>{(v as string[]).join(", ")}</span> },
-  { key: "updated_at", label: "更新日時" },
+  { key: "name", label: "Name" },
+  { key: "type", label: "Type", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
+  { key: "description", label: "Description" },
+  { key: "tags", label: "Tags", render: (v) => <span>{(v as string[]).join(", ")}</span> },
+  { key: "updated_at", label: "Updated At" },
 ];
 
 function SourceListSection({
@@ -43,12 +44,18 @@ function SourceListSection({
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const MAX_CONNECTION_JSON_LENGTH = 10240;
+
   const handleSubmit = async () => {
+    if (form.connection.length > MAX_CONNECTION_JSON_LENGTH) {
+      setJsonError("Connection JSON is too large (max 10KB)");
+      return;
+    }
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(form.connection);
     } catch {
-      setJsonError("有効な JSON を入力してください");
+      setJsonError("Please enter valid JSON");
       return;
     }
     setJsonError(null);
@@ -73,13 +80,13 @@ function SourceListSection({
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">データソース</h2>
-        <Button onClick={() => setDialogOpen(true)}>ソース追加</Button>
+        <h2 className="text-lg font-semibold">Data Sources</h2>
+        <Button onClick={() => setDialogOpen(true)}>Add Source</Button>
       </div>
       {sources.length === 0 ? (
         <EmptyState
-          message="データソースがありません"
-          action={{ label: "ソースを追加", onClick: () => setDialogOpen(true) }}
+          message="No data sources found"
+          action={{ label: "Add Source", onClick: () => setDialogOpen(true) }}
         />
       ) : (
         <DataTable
@@ -92,16 +99,16 @@ function SourceListSection({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>ソース追加</DialogTitle>
+            <DialogTitle>Add Source</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <Input
-              placeholder="ソースID"
+              placeholder="Source ID"
               value={form.source_id}
               onChange={(e) => setForm({ ...form, source_id: e.target.value })}
             />
             <Input
-              placeholder="名前"
+              placeholder="Name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
@@ -119,12 +126,12 @@ function SourceListSection({
               </SelectContent>
             </Select>
             <Input
-              placeholder="説明"
+              placeholder="Description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
             <Textarea
-              placeholder='接続情報 (JSON) 例: {"host": "localhost"}'
+              placeholder='Connection JSON e.g. {"host": "localhost"}'
               value={form.connection}
               onChange={(e) => {
                 setForm({ ...form, connection: e.target.value });
@@ -138,7 +145,7 @@ function SourceListSection({
               onClick={handleSubmit}
               disabled={submitting || !form.source_id || !form.name || !form.description}
             >
-              {submitting ? "追加中..." : "追加"}
+              {submitting ? "Adding..." : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -150,12 +157,12 @@ function SourceListSection({
 // --- SchemaSection ---
 
 const SCHEMA_COLUMNS: ColumnDef<ColumnSchema>[] = [
-  { key: "name", label: "カラム名" },
-  { key: "type", label: "型" },
-  { key: "description", label: "説明" },
+  { key: "name", label: "Column Name" },
+  { key: "type", label: "Type" },
+  { key: "description", label: "Description" },
   { key: "nullable", label: "Nullable", render: (v) => (v ? "Yes" : "No") },
-  { key: "unit", label: "単位", render: (v) => String(v ?? "-") },
-  { key: "examples", label: "例", render: (v) => ((v as string[] | null)?.join(", ") ?? "-") },
+  { key: "unit", label: "Unit", render: (v) => String(v ?? "-") },
+  { key: "examples", label: "Examples", render: (v) => ((v as string[] | null)?.join(", ") ?? "-") },
 ];
 
 function SchemaSection({ sourceId }: { sourceId: string | null }) {
@@ -178,13 +185,13 @@ function SchemaSection({ sourceId }: { sourceId: string | null }) {
   }, [sourceId]);
 
   if (!sourceId) return null;
-  if (loading) return <p className="py-4 text-muted-foreground">スキーマを読み込み中...</p>;
+  if (loading) return <p className="py-4 text-muted-foreground">Loading schema...</p>;
   if (error) return <ErrorBanner message={error} />;
-  if (columns.length === 0) return <EmptyState message="スキーマ情報がありません" />;
+  if (columns.length === 0) return <EmptyState message="No schema information available" />;
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-lg font-semibold">スキーマ</h2>
+      <h2 className="mb-2 text-lg font-semibold">Schema</h2>
       <DataTable data={columns} columns={SCHEMA_COLUMNS} />
     </section>
   );
@@ -193,9 +200,9 @@ function SchemaSection({ sourceId }: { sourceId: string | null }) {
 // --- SearchSection ---
 
 const SEARCH_COLUMNS: ColumnDef<SearchResult>[] = [
-  { key: "source_id", label: "ソースID" },
-  { key: "column_name", label: "カラム名" },
-  { key: "description", label: "説明" },
+  { key: "source_id", label: "Source ID" },
+  { key: "column_name", label: "Column Name" },
+  { key: "description", label: "Description" },
 ];
 
 function SearchSection() {
@@ -204,10 +211,19 @@ function SearchSection() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const handleSearch = () => {
     if (!query.trim()) return;
+    abortRef.current?.abort();
     const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setLoading(true);
     setError(null);
     searchCatalog(query.trim(), undefined, ctrl.signal)
@@ -223,20 +239,20 @@ function SearchSection() {
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-lg font-semibold">カタログ検索</h2>
+      <h2 className="mb-2 text-lg font-semibold">Catalog Search</h2>
       <div className="mb-4 flex gap-2">
         <Input
-          placeholder="検索クエリ..."
+          placeholder="Search query..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
         />
         <Button onClick={handleSearch} disabled={loading || !query.trim()}>
-          {loading ? "検索中..." : "検索"}
+          {loading ? "Searching..." : "Search"}
         </Button>
       </div>
       {error && <ErrorBanner message={error} />}
-      {searched && results.length === 0 && <EmptyState message="検索結果がありません" />}
+      {searched && results.length === 0 && <EmptyState message="No search results found" />}
       {results.length > 0 && <DataTable data={results} columns={SEARCH_COLUMNS} />}
     </section>
   );
@@ -244,11 +260,10 @@ function SearchSection() {
 
 // --- KnowledgeSection ---
 
-const KNOWLEDGE_COLUMNS: ColumnDef<KnowledgeEntry>[] = [
-  { key: "title", label: "タイトル" },
-  { key: "content", label: "内容" },
-  { key: "category", label: "カテゴリ", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
-  { key: "importance", label: "重要度", render: (v) => <Badge variant="secondary">{String(v)}</Badge> },
+const EXTENDED_KNOWLEDGE_COLUMNS: ColumnDef<KnowledgeEntry>[] = [
+  { key: "key", label: "Key" },
+  ...KNOWLEDGE_COLUMNS,
+  { key: "affects_columns", label: "Affects Columns", render: (v) => Array.isArray(v) ? v.join(", ") : String(v ?? "") },
 ];
 
 function KnowledgeSection() {
@@ -267,14 +282,14 @@ function KnowledgeSection() {
     return () => ctrl.abort();
   }, []);
 
-  if (loading) return <p className="py-4 text-muted-foreground">ドメイン知識を読み込み中...</p>;
+  if (loading) return <p className="py-4 text-muted-foreground">Loading domain knowledge...</p>;
   if (error) return <ErrorBanner message={error} />;
-  if (entries.length === 0) return <EmptyState message="ドメイン知識がありません" />;
+  if (entries.length === 0) return <EmptyState message="No domain knowledge entries found" />;
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-lg font-semibold">ドメイン知識</h2>
-      <DataTable data={entries} columns={KNOWLEDGE_COLUMNS} />
+      <h2 className="mb-2 text-lg font-semibold">Domain Knowledge</h2>
+      <DataTable data={entries} columns={EXTENDED_KNOWLEDGE_COLUMNS} />
     </section>
   );
 }
@@ -304,7 +319,7 @@ export function CatalogPage() {
     return () => ctrl.abort();
   }, []);
 
-  if (loading) return <p className="py-8 text-center text-muted-foreground">読み込み中...</p>;
+  if (loading) return <p className="py-8 text-center text-muted-foreground">Loading...</p>;
   if (error) return <ErrorBanner message={error} onRetry={() => fetchSources()} />;
 
   return (

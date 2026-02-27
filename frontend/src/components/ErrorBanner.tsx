@@ -13,7 +13,7 @@ export function ErrorBanner({ message, onRetry }: ErrorBannerProps) {
         <span>{message}</span>
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>
-            再試行
+            Retry
           </Button>
         )}
       </AlertDescription>

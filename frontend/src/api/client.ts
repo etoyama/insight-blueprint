@@ -24,6 +24,12 @@ export class ApiError extends Error {
   }
 }
 
+// For 5xx, use generic message. For 4xx, truncate.
+function sanitizeErrorDetail(status: number, detail: string): string {
+  if (status >= 500) return "Internal server error";
+  return detail.length > 200 ? detail.slice(0, 200) + "..." : detail;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -32,7 +38,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw err;
     }
-    throw new ApiError(0, "サーバーに接続できません");
+    throw new ApiError(0, "Server is not responding. Please check if the backend is running.");
   }
 
   if (!res.ok) {
@@ -49,7 +55,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // non-JSON response, use statusText
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, sanitizeErrorDetail(res.status, detail));
   }
 
   return res.json() as Promise<T>;

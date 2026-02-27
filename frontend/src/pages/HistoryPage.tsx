@@ -53,10 +53,27 @@ export function HistoryPage() {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const fetchDesigns = () => {
+    setLoading(true);
+    setError(null);
+    const ctrl = new AbortController();
+    listDesigns(undefined, ctrl.signal)
+      .then((res) => {
+        const sorted = [...res.designs].sort(
+          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
+        setDesigns(sorted);
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message);
+      })
+      .finally(() => setLoading(false));
+  };
+
   if (loading)
-    return <p className="py-8 text-center text-muted-foreground">読み込み中...</p>;
-  if (error) return <ErrorBanner message={error} />;
-  if (designs.length === 0) return <EmptyState message="デザインがありません" />;
+    return <p className="py-8 text-center text-muted-foreground">Loading...</p>;
+  if (error) return <ErrorBanner message={error} onRetry={fetchDesigns} />;
+  if (designs.length === 0) return <EmptyState message="No designs found" />;
 
   return (
     <div className="flex flex-col gap-3">
@@ -75,22 +92,22 @@ export function HistoryPage() {
                 <span className="flex-1">{design.title}</span>
                 <StatusBadge status={design.status} />
                 <span className="text-sm font-normal text-muted-foreground">
-                  {isCreated ? "作成" : "更新"}:{" "}
-                  {new Date(design.updated_at).toLocaleString("ja-JP")}
+                  {isCreated ? "Created" : "Updated"}:{" "}
+                  {new Date(design.updated_at).toLocaleString()}
                 </span>
               </CardTitle>
             </CardHeader>
 
             {isExpanded && (
               <CardContent onClick={(e) => e.stopPropagation()}>
-                <h3 className="mb-2 text-sm font-semibold">レビュー履歴</h3>
+                <h3 className="mb-2 text-sm font-semibold">Review History</h3>
                 {commentsLoading && (
-                  <p className="text-sm text-muted-foreground">読み込み中...</p>
+                  <p className="text-sm text-muted-foreground">Loading...</p>
                 )}
                 {commentsError && <ErrorBanner message={commentsError} />}
                 {!commentsLoading && !commentsError && comments.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    レビューコメントがありません
+                    No review comments
                   </p>
                 )}
                 {comments.length > 0 && (
@@ -104,7 +121,7 @@ export function HistoryPage() {
                           <span className="font-medium">{c.reviewer}</span>
                           <StatusBadge status={c.status_after} />
                           <span className="text-muted-foreground">
-                            {new Date(c.created_at).toLocaleString("ja-JP")}
+                            {new Date(c.created_at).toLocaleString()}
                           </span>
                         </div>
                         <p>{c.comment}</p>

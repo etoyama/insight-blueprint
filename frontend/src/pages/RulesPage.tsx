@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { KNOWLEDGE_COLUMNS } from "@/lib/constants";
 import { getRulesContext, getCautions } from "@/api/client";
-import type { RulesContext, Caution, KnowledgeEntry } from "@/types/api";
+import type { RulesContext, Caution } from "@/types/api";
 
 function CollapsibleSection({ title, count, expanded, onToggle, children }: {
   title: string; count: number; expanded: boolean; onToggle: () => void; children: React.ReactNode;
@@ -17,7 +18,7 @@ function CollapsibleSection({ title, count, expanded, onToggle, children }: {
       <CardHeader className="cursor-pointer select-none" onClick={onToggle}>
         <CardTitle className="flex items-center justify-between">
           <span>{title} ({count})</span>
-          <span className="text-muted-foreground text-sm">{expanded ? "折りたたむ" : "展開する"}</span>
+          <span className="text-muted-foreground text-sm">{expanded ? "Collapse" : "Expand"}</span>
         </CardTitle>
       </CardHeader>
       {expanded && <CardContent>{children}</CardContent>}
@@ -25,19 +26,12 @@ function CollapsibleSection({ title, count, expanded, onToggle, children }: {
   );
 }
 
-const KNOWLEDGE_COLUMNS: ColumnDef<KnowledgeEntry>[] = [
-  { key: "title", label: "タイトル" },
-  { key: "content", label: "内容" },
-  { key: "category", label: "カテゴリ", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
-  { key: "importance", label: "重要度", render: (v) => <Badge variant="secondary">{String(v)}</Badge> },
-];
-
 const CAUTION_COLUMNS: ColumnDef<Caution>[] = [
-  { key: "title", label: "タイトル" },
-  { key: "content", label: "内容" },
-  { key: "category", label: "カテゴリ", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
-  { key: "importance", label: "重要度", render: (v) => <Badge variant="secondary">{String(v)}</Badge> },
-  { key: "affects_columns", label: "対象カラム", render: (v) => (v as string[]).join(", ") },
+  { key: "title", label: "Title" },
+  { key: "content", label: "Content" },
+  { key: "category", label: "Category", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
+  { key: "importance", label: "Importance", render: (v) => <Badge variant="secondary">{String(v)}</Badge> },
+  { key: "affects_columns", label: "Affects Columns", render: (v) => (v as string[]).join(", ") },
 ];
 
 export function RulesPage() {
@@ -85,21 +79,33 @@ export function RulesPage() {
       .finally(() => setCautionsLoading(false));
   };
 
+  const fetchContext = () => {
+    setLoading(true);
+    setError(null);
+    const ctrl = new AbortController();
+    getRulesContext(ctrl.signal)
+      .then(setContext)
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message);
+      })
+      .finally(() => setLoading(false));
+  };
+
   if (loading)
-    return <p className="py-8 text-center text-muted-foreground">読み込み中...</p>;
-  if (error) return <ErrorBanner message={error} />;
-  if (!context) return <EmptyState message="コンテキスト情報がありません" />;
+    return <p className="py-8 text-center text-muted-foreground">Loading...</p>;
+  if (error) return <ErrorBanner message={error} onRetry={fetchContext} />;
+  if (!context) return <EmptyState message="No context information available" />;
 
   return (
     <div className="flex flex-col gap-4">
       <CollapsibleSection
-        title="ソース"
+        title="Sources"
         count={context.total_sources}
         expanded={sourcesOpen}
         onToggle={() => setSourcesOpen(!sourcesOpen)}
       >
         {context.sources.length === 0 ? (
-          <EmptyState message="ソースがありません" />
+          <EmptyState message="No sources found" />
         ) : (
           <ul className="space-y-1 text-sm">
             {context.sources.map((s) => (
@@ -114,26 +120,26 @@ export function RulesPage() {
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="ドメイン知識"
+        title="Domain Knowledge"
         count={context.total_knowledge}
         expanded={knowledgeOpen}
         onToggle={() => setKnowledgeOpen(!knowledgeOpen)}
       >
         {context.knowledge_entries.length === 0 ? (
-          <EmptyState message="ドメイン知識がありません" />
+          <EmptyState message="No domain knowledge entries found" />
         ) : (
           <DataTable data={context.knowledge_entries} columns={KNOWLEDGE_COLUMNS} />
         )}
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="ルール"
+        title="Rules"
         count={context.total_rules}
         expanded={rulesOpen}
         onToggle={() => setRulesOpen(!rulesOpen)}
       >
         {context.rules.length === 0 ? (
-          <EmptyState message="ルールがありません" />
+          <EmptyState message="No rules found" />
         ) : (
           <ul className="space-y-1 text-sm">
             {context.rules.map((rule, i) => (
@@ -145,12 +151,12 @@ export function RulesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>注意事項検索</CardTitle>
+          <CardTitle>Caution Search</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex gap-2">
             <Input
-              placeholder="テーブル名（カンマ区切り）"
+              placeholder="Table names (comma separated)"
               value={tableNames}
               onChange={(e) => setTableNames(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearchCautions()}
@@ -159,12 +165,12 @@ export function RulesPage() {
               onClick={handleSearchCautions}
               disabled={cautionsLoading || !tableNames.trim()}
             >
-              {cautionsLoading ? "検索中..." : "検索"}
+              {cautionsLoading ? "Searching..." : "Search"}
             </Button>
           </div>
           {cautionsError && <ErrorBanner message={cautionsError} />}
           {cautionsSearched && cautions.length === 0 && (
-            <EmptyState message="該当する注意事項がありません" />
+            <EmptyState message="No matching cautions found" />
           )}
           {cautions.length > 0 && (
             <DataTable data={cautions} columns={CAUTION_COLUMNS} />

@@ -61,16 +61,30 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
 
   const refreshDesign = () => {
     getDesign(designId)
-      .then(setDesign)
+      .then((d) => {
+        setDesign(d);
+        onDesignUpdated();
+      })
       .catch((err) => setError(err.message));
-    onDesignUpdated();
   };
 
   if (loading) {
     return <p className="py-4 text-center text-muted-foreground">Loading...</p>;
   }
   if (error) {
-    return <ErrorBanner message={error} />;
+    return <ErrorBanner message={error} onRetry={() => {
+      setError(null);
+      setLoading(true);
+      getDesign(designId)
+        .then((d) => {
+          setDesign(d);
+          setLoading(false);
+        })
+        .catch((err) => {
+          setError(err.message);
+          setLoading(false);
+        });
+    }} />;
   }
   if (!design) return null;
 
@@ -192,7 +206,7 @@ function ReviewPanel({
   const [error, setError] = useState<string | null>(null);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentStatus, setCommentStatus] = useState<string>("supported");
+  const [commentStatus, setCommentStatus] = useState<DesignStatus>("supported");
 
   const fetchComments = (signal?: AbortSignal) => {
     listComments(designId, signal)
@@ -271,7 +285,7 @@ function ReviewPanel({
         <h4 className="font-medium">Add Comment</h4>
         <Textarea name="comment" placeholder="Comment" required />
         <div className="flex gap-2">
-          <Select value={commentStatus} onValueChange={setCommentStatus}>
+          <Select value={commentStatus} onValueChange={(v) => setCommentStatus(v as DesignStatus)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>

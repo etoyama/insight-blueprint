@@ -19,6 +19,7 @@ interface DataTableProps<T> {
   columns: ColumnDef<T>[];
   onRowClick?: (row: T) => void;
   selectedRow?: (row: T) => boolean;
+  rowKey?: (row: T, index: number) => string | number;
 }
 
 export function DataTable<T>({
@@ -26,6 +27,7 @@ export function DataTable<T>({
   columns,
   onRowClick,
   selectedRow,
+  rowKey,
 }: DataTableProps<T>) {
   return (
     <Table>
@@ -39,7 +41,7 @@ export function DataTable<T>({
       <TableBody>
         {data.map((row, i) => (
           <TableRow
-            key={i}
+            key={rowKey ? rowKey(row, i) : i}
             className={[
               onRowClick ? "cursor-pointer" : "",
               selectedRow?.(row) ? "bg-muted" : "",

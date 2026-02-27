@@ -125,31 +125,42 @@ test("S7: clicking design row shows detail sub-tabs", async ({ page }) => {
 
 // S8: Source add with JSON validation — invalid JSON → error, valid JSON → success
 test("S8: source add validates JSON and submits", async ({ page }) => {
-  await page.route("**/api/sources", (route) => {
+  await page.route("**/api/catalog/sources**", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ json: { sources: [], count: 0 } });
     }
     return route.fulfill({
       json: {
-        source: { id: "s-001", name: "Test" },
-        message: "created",
+        source: {
+          id: "s-001",
+          source_id: "test-src",
+          name: "Test",
+          type: "csv",
+          description: "",
+          connection: {},
+          schema_info: [],
+          tags: [],
+          created_at: "2026-01-01T00:00:00",
+          updated_at: "2026-01-01T00:00:00",
+        },
+        message: "Source created",
       },
     });
   });
-  await page.route("**/api/knowledge**", (route) =>
+  await page.route("**/api/catalog/knowledge**", (route) =>
     route.fulfill({ json: { entries: [], count: 0 } }),
   );
   await page.goto("/?tab=catalog");
-  await page.getByRole("button", { name: "ソース追加" }).first().click();
-  await page.getByPlaceholder("ソースID").fill("s-001");
-  await page.getByPlaceholder("名前").fill("Test Source");
-  await page.getByPlaceholder("説明").fill("A test source");
-  await page.getByPlaceholder(/接続情報/).fill("not-json");
-  await page.getByRole("button", { name: "追加" }).click();
-  await expect(page.getByText(/有効な JSON/)).toBeVisible();
-  await page.getByPlaceholder(/接続情報/).fill('{"host": "localhost"}');
-  await page.getByRole("button", { name: "追加" }).click();
-  await expect(page.getByText(/有効な JSON/)).not.toBeVisible({
+  await page.getByRole("button", { name: "Add Source" }).first().click();
+  await page.getByPlaceholder("Source ID").fill("s-001");
+  await page.getByPlaceholder("Name").fill("Test Source");
+  await page.getByPlaceholder("Description").fill("A test source");
+  await page.getByPlaceholder(/Connection JSON/).fill("not-json");
+  await page.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText(/valid JSON/i)).toBeVisible();
+  await page.getByPlaceholder(/Connection JSON/).fill('{"host": "localhost"}');
+  await page.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText(/valid JSON/i)).not.toBeVisible({
     timeout: 5000,
   });
 });
