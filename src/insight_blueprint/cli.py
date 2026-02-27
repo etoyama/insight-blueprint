@@ -1,5 +1,8 @@
 """CLI entry point for insight-blueprint."""
 
+import sys
+import threading
+import webbrowser
 from pathlib import Path
 
 import click
@@ -32,32 +35,31 @@ def main(project: str | None, headless: bool) -> None:
 
     init_project(project_path)
 
-    # Wire DesignService into server module
-    import insight_blueprint.server as server_module
-    from insight_blueprint.core.designs import DesignService
-
-    server_module._service = DesignService(project_path)
-
-    # Wire CatalogService into server module
+    # Wire services into centralized registry
+    import insight_blueprint._registry as registry
     from insight_blueprint.core.catalog import CatalogService
-
-    catalog_service = CatalogService(project_path)
-    server_module._catalog_service = catalog_service
-
-    # Rebuild FTS5 search index from YAML files
-    catalog_service.rebuild_index()
-
-    # Wire ReviewService into server module
+    from insight_blueprint.core.designs import DesignService
     from insight_blueprint.core.reviews import ReviewService
-
-    review_service = ReviewService(project_path, server_module._service)
-    server_module._review_service = review_service
-
-    # Wire RulesService into server module
     from insight_blueprint.core.rules import RulesService
 
-    rules_service = RulesService(project_path, catalog_service)
-    server_module._rules_service = rules_service
+    registry.design_service = DesignService(project_path)
+
+    registry.catalog_service = CatalogService(project_path)
+    registry.catalog_service.rebuild_index()
+
+    registry.review_service = ReviewService(project_path, registry.design_service)
+    registry.rules_service = RulesService(project_path, registry.catalog_service)
+
+    # Start HTTP server (daemon thread)
+    from insight_blueprint.web import start_server
+
+    port = start_server(host="127.0.0.1", port=3000)
+    url = f"http://127.0.0.1:{port}"
+    print(f"WebUI: {url}", file=sys.stderr)
+
+    # Browser auto-open (suppressed with --headless)
+    if not headless:
+        threading.Timer(1.5, webbrowser.open, args=[url]).start()
 
     # Start MCP server (MUST be last -- blocks main thread)
     mcp.run()

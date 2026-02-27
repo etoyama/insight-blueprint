@@ -59,5 +59,11 @@ logs/
 # Jupyter
 .ipynb_checkpoints/
 
+# Frontend build output (bundled into wheel via hatch artifacts)
+src/insight_blueprint/static/
+
+# Frontend dependencies
+frontend/node_modules/
+
 # spec-workflow approval state (runtime, managed by dashboard)
 .spec-workflow/approvals/

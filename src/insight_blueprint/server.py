@@ -3,69 +3,19 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from insight_blueprint._registry import (
+    get_catalog_service,
+    get_design_service,
+    get_review_service,
+    get_rules_service,
+)
+
 _DESIGN_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 
-if TYPE_CHECKING:
-    from insight_blueprint.core.catalog import CatalogService
-    from insight_blueprint.core.designs import DesignService
-    from insight_blueprint.core.reviews import ReviewService
-    from insight_blueprint.core.rules import RulesService
-
 mcp = FastMCP("insight-blueprint")
-
-# Module-level service references, set by cli.py before mcp.run()
-_service: DesignService | None = None
-_catalog_service: CatalogService | None = None
-_review_service: ReviewService | None = None
-_rules_service: RulesService | None = None
-
-
-def get_service() -> DesignService:
-    """Get the initialized DesignService.
-
-    Raises:
-        RuntimeError: If init_project() has not been called yet.
-    """
-    if _service is None:
-        raise RuntimeError("Service not initialized. Call init_project() first.")
-    return _service
-
-
-def get_catalog_service() -> CatalogService:
-    """Get the initialized CatalogService.
-
-    Raises:
-        RuntimeError: If init_project() has not been called yet.
-    """
-    if _catalog_service is None:
-        raise RuntimeError("CatalogService not initialized. Call init_project() first.")
-    return _catalog_service
-
-
-def get_review_service() -> ReviewService:
-    """Get the initialized ReviewService.
-
-    Raises:
-        RuntimeError: If ReviewService has not been wired yet.
-    """
-    if _review_service is None:
-        raise RuntimeError("ReviewService not initialized. Call init_project() first.")
-    return _review_service
-
-
-def get_rules_service() -> RulesService:
-    """Get the initialized RulesService.
-
-    Raises:
-        RuntimeError: If RulesService has not been wired yet.
-    """
-    if _rules_service is None:
-        raise RuntimeError("RulesService not initialized. Call init_project() first.")
-    return _rules_service
 
 
 def _validate_design_id(design_id: str) -> dict | None:
@@ -101,7 +51,7 @@ async def create_analysis_design(
 
     Returns: dict with id, title, status, message
     """
-    service = get_service()
+    service = get_design_service()
     try:
         design = service.create_design(
             title=title,
@@ -146,7 +96,7 @@ async def update_analysis_design(
         return err
     from insight_blueprint.models.design import DesignStatus
 
-    service = get_service()
+    service = get_design_service()
     updates: dict = {
         k: v
         for k, v in {
@@ -185,7 +135,7 @@ async def get_analysis_design(design_id: str) -> dict:
     """
     if err := _validate_design_id(design_id):
         return err
-    service = get_service()
+    service = get_design_service()
     design = service.get_design(design_id)
     if design is None:
         return {"error": f"Design '{design_id}' not found"}
@@ -203,7 +153,7 @@ async def list_analysis_designs(status: str | None = None) -> dict:
     """
     from insight_blueprint.models.design import DesignStatus
 
-    service = get_service()
+    service = get_design_service()
 
     status_filter = None
     if status is not None:

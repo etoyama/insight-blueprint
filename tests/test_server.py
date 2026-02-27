@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import insight_blueprint._registry as registry
 import insight_blueprint.server as server_module
 from insight_blueprint.core.catalog import CatalogService
 from insight_blueprint.core.designs import DesignService
@@ -14,17 +15,17 @@ from insight_blueprint.core.rules import RulesService
 
 @pytest.fixture(autouse=True)
 def _reset_service() -> None:
-    """Reset server._service before each test."""
-    original = server_module._service
+    """Reset registry.design_service before each test."""
+    original = registry.design_service
     yield  # type: ignore[misc]
-    server_module._service = original
+    registry.design_service = original
 
 
 @pytest.fixture
 def initialized_server(tmp_path: Path) -> Path:
     """Set up server with a real DesignService backed by tmp_path."""
     (tmp_path / ".insight" / "designs").mkdir(parents=True)
-    server_module._service = DesignService(tmp_path)
+    registry.design_service = DesignService(tmp_path)
     return tmp_path
 
 
@@ -69,9 +70,9 @@ def test_list_analysis_designs_returns_count_field(
 
 
 def test_get_service_raises_when_not_initialized() -> None:
-    server_module._service = None
-    with pytest.raises(RuntimeError, match="Service not initialized"):
-        server_module.get_service()
+    registry.design_service = None
+    with pytest.raises(RuntimeError, match="design_service"):
+        registry.get_design_service()
 
 
 def test_create_analysis_design_returns_error_dict_for_invalid_theme_id(
@@ -179,19 +180,19 @@ def test_update_analysis_design_mcp_updates_status(initialized_server: Path) -> 
 
 @pytest.fixture(autouse=True)
 def _reset_catalog_service() -> None:
-    """Reset server._catalog_service before each test."""
-    original = server_module._catalog_service
+    """Reset registry.catalog_service before each test."""
+    original = registry.catalog_service
     yield  # type: ignore[misc]
-    server_module._catalog_service = original
+    registry.catalog_service = original
 
 
 @pytest.fixture
 def initialized_catalog_server(tmp_project: Path) -> Path:
     """Set up server with both DesignService and CatalogService."""
-    server_module._service = DesignService(tmp_project)
-    server_module._catalog_service = CatalogService(tmp_project)
+    registry.design_service = DesignService(tmp_project)
+    registry.catalog_service = CatalogService(tmp_project)
     # Build empty FTS5 index so search works
-    server_module._catalog_service.rebuild_index()
+    registry.catalog_service.rebuild_index()
     return tmp_project
 
 
@@ -199,9 +200,9 @@ def initialized_catalog_server(tmp_project: Path) -> Path:
 
 
 def test_get_catalog_service_raises_when_not_initialized() -> None:
-    server_module._catalog_service = None
-    with pytest.raises(RuntimeError, match="CatalogService not initialized"):
-        server_module.get_catalog_service()
+    registry.catalog_service = None
+    with pytest.raises(RuntimeError, match="catalog_service"):
+        registry.get_catalog_service()
 
 
 # -- add_catalog_entry (Task 3.1) --
@@ -352,7 +353,7 @@ def test_search_catalog_returns_results_dict(
         )
     )
     # Rebuild so FTS5 has the data
-    server_module._catalog_service.rebuild_index()
+    registry.catalog_service.rebuild_index()
     result = asyncio.run(server_module.search_catalog(query="population"))
     assert "results" in result
     assert "count" in result
@@ -388,7 +389,7 @@ def test_search_catalog_with_source_type_filter(
             connection={},
         )
     )
-    server_module._catalog_service.rebuild_index()
+    registry.catalog_service.rebuild_index()
     result = asyncio.run(
         server_module.search_catalog(query="population", source_type="csv")
     )
@@ -469,18 +470,18 @@ def test_get_domain_knowledge_invalid_category_returns_error(
 
 @pytest.fixture(autouse=True)
 def _reset_review_service() -> None:
-    """Reset server._review_service before each test."""
-    original = server_module._review_service
+    """Reset registry.review_service before each test."""
+    original = registry.review_service
     yield  # type: ignore[misc]
-    server_module._review_service = original
+    registry.review_service = original
 
 
 @pytest.fixture(autouse=True)
 def _reset_rules_service() -> None:
-    """Reset server._rules_service before each test."""
-    original = server_module._rules_service
+    """Reset registry.rules_service before each test."""
+    original = registry.rules_service
     yield  # type: ignore[misc]
-    server_module._rules_service = original
+    registry.rules_service = original
 
 
 @pytest.fixture
@@ -489,10 +490,10 @@ def initialized_review_server(tmp_project: Path) -> Path:
     design_service = DesignService(tmp_project)
     catalog_service = CatalogService(tmp_project)
     catalog_service.rebuild_index()
-    server_module._service = design_service
-    server_module._catalog_service = catalog_service
-    server_module._review_service = ReviewService(tmp_project, design_service)
-    server_module._rules_service = RulesService(tmp_project, catalog_service)
+    registry.design_service = design_service
+    registry.catalog_service = catalog_service
+    registry.review_service = ReviewService(tmp_project, design_service)
+    registry.rules_service = RulesService(tmp_project, catalog_service)
     return tmp_project
 
 
@@ -517,15 +518,15 @@ def _create_active_design(theme_id: str = "FP") -> str:
 
 
 def test_get_review_service_raises_when_not_initialized() -> None:
-    server_module._review_service = None
-    with pytest.raises(RuntimeError, match="ReviewService not initialized"):
-        server_module.get_review_service()
+    registry.review_service = None
+    with pytest.raises(RuntimeError, match="review_service"):
+        registry.get_review_service()
 
 
 def test_get_rules_service_raises_when_not_initialized() -> None:
-    server_module._rules_service = None
-    with pytest.raises(RuntimeError, match="RulesService not initialized"):
-        server_module.get_rules_service()
+    registry.rules_service = None
+    with pytest.raises(RuntimeError, match="rules_service"):
+        registry.get_rules_service()
 
 
 # -- design_id validation --
