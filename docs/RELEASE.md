@@ -4,6 +4,13 @@ Step-by-step guide for publishing insight-blueprint to PyPI.
 
 ## Prerequisites
 
+**Python 3.11 or later** is required (set via `requires-python` in pyproject.toml).
+Verify your Python version before proceeding:
+
+```bash
+python3 --version  # Must be 3.11+
+```
+
 Install the upload tool:
 
 ```bash
