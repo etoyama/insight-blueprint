@@ -3,7 +3,7 @@ import { listDesigns, createDesign } from "@/api/client";
 import type { Design, DesignStatus, CreateDesignRequest } from "@/types/api";
 import { DESIGN_STATUS_LABELS, DEFAULT_THEME_ID } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import { DesignDetail } from "@/pages/DesignDetail";
+import { DesignDetail } from "@/pages/design-detail";
 import { DataTable } from "@/components/DataTable";
 import type { ColumnDef } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";

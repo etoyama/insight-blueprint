@@ -100,7 +100,7 @@ test("S8: source add validates JSON and submits", async ({ page }) => {
   await mockKnowledgeList(page, []);
   // POST handler for source creation (not covered by mockSourceList)
   await page.route("**/api/catalog/sources", (route) => {
-    if (route.request().method() !== "POST") return route.continue();
+    if (route.request().method() !== "POST") return route.fallback();
     return route.fulfill({
       json: {
         source: makeSource(),

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DesignsPage } from "@/pages/DesignsPage";
-import { CatalogPage } from "@/pages/CatalogPage";
+import { CatalogPage } from "@/pages/catalog";
 import { RulesPage } from "@/pages/RulesPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 
