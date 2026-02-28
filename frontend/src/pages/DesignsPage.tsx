@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { listDesigns, createDesign } from "@/api/client";
 import type { Design, DesignStatus, CreateDesignRequest } from "@/types/api";
 import { DESIGN_STATUS_LABELS, DEFAULT_THEME_ID } from "@/lib/constants";
+import { formatDateTime } from "@/lib/utils";
 import { DesignDetail } from "@/pages/DesignDetail";
 import { DataTable } from "@/components/DataTable";
 import type { ColumnDef } from "@/components/DataTable";
@@ -50,7 +51,7 @@ const columns: ColumnDef<Design>[] = [
   {
     key: "updated_at",
     label: "Updated",
-    render: (v) => new Date(v as string).toLocaleString("ja-JP"),
+    render: (v) => formatDateTime(v as string),
   },
 ];
 
@@ -181,13 +182,14 @@ export function DesignsPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="text-sm font-medium">Title *</label>
-              <Input name="title" placeholder="Design title" />
+              <Input name="title" placeholder="Design title" maxLength={200} />
             </div>
             <div>
               <label className="text-sm font-medium">Hypothesis Statement *</label>
               <Textarea
                 name="hypothesis_statement"
                 placeholder="State your hypothesis"
+                maxLength={2000}
               />
             </div>
             <div>
@@ -195,11 +197,12 @@ export function DesignsPage() {
               <Textarea
                 name="hypothesis_background"
                 placeholder="Describe the background"
+                maxLength={5000}
               />
             </div>
             <div>
               <label className="text-sm font-medium">Theme ID</label>
-              <Input name="theme_id" placeholder="DEFAULT" />
+              <Input name="theme_id" placeholder="DEFAULT" maxLength={50} />
             </div>
             {formError && (
               <p className="text-sm text-destructive">{formError}</p>

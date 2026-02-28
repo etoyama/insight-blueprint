@@ -20,62 +20,66 @@ function JsonNode({
   value: unknown;
   defaultExpanded: boolean;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
-  if (value === null) return <span className="text-muted-foreground">null</span>;
-  if (typeof value === "boolean") return <span className="text-blue-600">{String(value)}</span>;
-  if (typeof value === "number") return <span className="text-green-600">{value}</span>;
-  if (typeof value === "string") return <span className="text-amber-700">"{value}"</span>;
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return <span>{"[]"}</span>;
-    return (
-      <div>
-        <button
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "▼" : "▶"} [{value.length}]
-        </button>
-        {expanded && (
-          <div className="ml-4 border-l pl-2">
-            {value.map((item, i) => (
-              <div key={i}>
-                <JsonNode value={item} defaultExpanded={false} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 0) return <span>{"{}"}</span>;
-    return (
-      <div>
-        <button
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "▼" : "▶"} {"{"}
-          {entries.length}
-          {"}"}
-        </button>
-        {expanded && (
-          <div className="ml-4 border-l pl-2">
-            {entries.map(([k, v]) => (
-              <div key={k}>
-                <span className="text-purple-600">{k}</span>:{" "}
-                <JsonNode value={v} defaultExpanded={false} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
+  if (value === null) return <PrimitiveNode className="text-muted-foreground" text="null" />;
+  if (typeof value === "boolean") return <PrimitiveNode className="text-blue-600" text={String(value)} />;
+  if (typeof value === "number") return <PrimitiveNode className="text-green-600" text={String(value)} />;
+  if (typeof value === "string") return <PrimitiveNode className="text-amber-700" text={`"${value}"`} />;
+  if (Array.isArray(value)) return <ArrayNode items={value} defaultExpanded={defaultExpanded} />;
+  if (typeof value === "object") return <ObjectNode entries={Object.entries(value as Record<string, unknown>)} defaultExpanded={defaultExpanded} />;
   return <span>{String(value)}</span>;
+}
+
+function PrimitiveNode({ className, text }: { className: string; text: string }) {
+  return <span className={className}>{text}</span>;
+}
+
+function ArrayNode({ items, defaultExpanded }: { items: unknown[]; defaultExpanded: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  if (items.length === 0) return <span>{"[]"}</span>;
+  return (
+    <div>
+      <button
+        className="text-muted-foreground hover:text-foreground"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? "▼" : "▶"} [{items.length}]
+      </button>
+      {expanded && (
+        <div className="ml-4 border-l pl-2">
+          {items.map((item, i) => (
+            <div key={i}>
+              <JsonNode value={item} defaultExpanded={false} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ObjectNode({ entries, defaultExpanded }: { entries: [string, unknown][]; defaultExpanded: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  if (entries.length === 0) return <span>{"{}"}</span>;
+  return (
+    <div>
+      <button
+        className="text-muted-foreground hover:text-foreground"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? "▼" : "▶"} {"{"}
+        {entries.length}
+        {"}"}
+      </button>
+      {expanded && (
+        <div className="ml-4 border-l pl-2">
+          {entries.map(([k, v]) => (
+            <div key={k}>
+              <span className="text-purple-600">{k}</span>:{" "}
+              <JsonNode value={v} defaultExpanded={false} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

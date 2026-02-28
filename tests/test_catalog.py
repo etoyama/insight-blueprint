@@ -405,3 +405,101 @@ class TestRebuildIndex:
         results = catalog_service.search("population")
         assert len(results) >= 1
         assert results[0]["source_id"] == "test-src"
+
+    def test_update_source_fts5_immediate_searchability(
+        self,
+        catalog_service: CatalogService,
+        sample_source: DataSource,
+    ) -> None:
+        """After update_source, updated content is immediately searchable."""
+        catalog_service.add_source(sample_source)
+        catalog_service.rebuild_index()
+        # Update description with a unique keyword
+        catalog_service.update_source(
+            "test-src", description="earthquake seismology data"
+        )
+        # Should be searchable immediately without rebuild_index
+        results = catalog_service.search("seismology")
+        assert len(results) >= 1
+        assert results[0]["source_id"] == "test-src"
+
+    def test_rebuild_index_on_empty_catalog(
+        self,
+        catalog_service: CatalogService,
+        tmp_project: Path,
+    ) -> None:
+        """rebuild_index on an empty catalog creates the DB without errors."""
+        catalog_service.rebuild_index()
+        db_path = tmp_project / ".insight" / ".sqlite" / "catalog_fts.db"
+        assert db_path.exists()
+        # Search should return empty, not error
+        results = catalog_service.search("anything")
+        assert results == []
+
+    def test_search_includes_knowledge_entries(
+        self,
+        catalog_service: CatalogService,
+        sample_source: DataSource,
+        tmp_project: Path,
+    ) -> None:
+        """FTS5 search results include knowledge entries."""
+        catalog_service.add_source(sample_source)
+        # Write a knowledge entry with a unique keyword
+        knowledge_path = (
+            tmp_project / ".insight" / "catalog" / "knowledge" / "test-src.yaml"
+        )
+        dk = DomainKnowledge(
+            source_id="test-src",
+            entries=[
+                DomainKnowledgeEntry(
+                    key="note-1",
+                    title="Geospatial Note",
+                    content="This data includes geospatial coordinates for mapping",
+                    category=KnowledgeCategory.context,
+                    importance=KnowledgeImportance.high,
+                ),
+            ],
+        )
+        write_yaml(knowledge_path, dk.model_dump(mode="json"))
+        catalog_service.rebuild_index()
+        results = catalog_service.search("geospatial")
+        assert len(results) >= 1
+        assert any(r["source_id"] == "test-src" for r in results)
+
+    def test_search_post_filter_with_knowledge_only_results(
+        self,
+        catalog_service: CatalogService,
+        tmp_project: Path,
+    ) -> None:
+        """When search hits only knowledge entries, post-filter returns empty (not error)."""
+        # Create a source with no matching description
+        source = DataSource(
+            id="sparse-src",
+            name="Sparse Source",
+            type=SourceType.csv,
+            description="Minimal data",
+            connection={},
+        )
+        catalog_service.add_source(source)
+        # Add knowledge with a unique keyword
+        knowledge_path = (
+            tmp_project / ".insight" / "catalog" / "knowledge" / "sparse-src.yaml"
+        )
+        dk = DomainKnowledge(
+            source_id="sparse-src",
+            entries=[
+                DomainKnowledgeEntry(
+                    key="k-1",
+                    title="Quantum Note",
+                    content="quantum computing implications for analysis",
+                    category=KnowledgeCategory.methodology,
+                    importance=KnowledgeImportance.medium,
+                ),
+            ],
+        )
+        write_yaml(knowledge_path, dk.model_dump(mode="json"))
+        catalog_service.rebuild_index()
+        # Search with type filter — knowledge entries don't have a type, so
+        # the post-filter should skip them gracefully and return empty
+        results = catalog_service.search("quantum", source_type=SourceType.api)
+        assert results == []

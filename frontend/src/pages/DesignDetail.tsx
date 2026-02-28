@@ -19,6 +19,7 @@ import { DataTable } from "@/components/DataTable";
 import type { ColumnDef } from "@/components/DataTable";
 import { JsonTree } from "@/components/JsonTree";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -133,31 +134,19 @@ function OverviewPanel({ design }: { design: Design }) {
       <Field label="Source IDs">
         {design.source_ids.length > 0 ? design.source_ids.join(", ") : "-"}
       </Field>
-      <Field label="Created">{new Date(design.created_at).toLocaleString("ja-JP")}</Field>
-      <Field label="Updated">{new Date(design.updated_at).toLocaleString("ja-JP")}</Field>
+      <Field label="Created">{formatDateTime(design.created_at)}</Field>
+      <Field label="Updated">{formatDateTime(design.updated_at)}</Field>
       {Object.keys(design.metrics).length > 0 && (
-        <div>
-          <span className="font-medium">Metrics</span>
-          <JsonTree data={design.metrics} />
-        </div>
+        <JsonField label="Metrics" data={design.metrics} />
       )}
       {design.explanatory.length > 0 && (
-        <div>
-          <span className="font-medium">Explanatory</span>
-          <JsonTree data={design.explanatory} />
-        </div>
+        <JsonField label="Explanatory" data={design.explanatory} />
       )}
       {design.chart.length > 0 && (
-        <div>
-          <span className="font-medium">Chart</span>
-          <JsonTree data={design.chart} />
-        </div>
+        <JsonField label="Chart" data={design.chart} />
       )}
       {design.next_action && (
-        <div>
-          <span className="font-medium">Next Action</span>
-          <JsonTree data={design.next_action} />
-        </div>
+        <JsonField label="Next Action" data={design.next_action} />
       )}
     </div>
   );
@@ -168,6 +157,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex gap-2">
       <span className="w-40 shrink-0 font-medium">{label}</span>
       <span>{children}</span>
+    </div>
+  );
+}
+
+function JsonField({ label, data }: { label: string; data: Record<string, unknown> | Record<string, unknown>[] }) {
+  return (
+    <div>
+      <span className="font-medium">{label}</span>
+      <JsonTree data={data} />
     </div>
   );
 }
@@ -187,7 +185,7 @@ const commentColumns: ColumnDef<ReviewComment>[] = [
   {
     key: "created_at",
     label: "Date",
-    render: (v) => new Date(v as string).toLocaleString("ja-JP"),
+    render: (v) => formatDateTime(v as string),
   },
 ];
 
@@ -283,7 +281,7 @@ function ReviewPanel({
 
       <form onSubmit={handleAddComment} className="space-y-3 border-t pt-4">
         <h4 className="font-medium">Add Comment</h4>
-        <Textarea name="comment" placeholder="Comment" required />
+        <Textarea name="comment" placeholder="Comment" required maxLength={2000} />
         <div className="flex gap-2">
           <Select value={commentStatus} onValueChange={(v) => setCommentStatus(v as DesignStatus)}>
             <SelectTrigger className="w-40">
@@ -295,7 +293,7 @@ function ReviewPanel({
               ))}
             </SelectContent>
           </Select>
-          <Input name="reviewer" placeholder="Reviewer (optional)" className="w-48" />
+          <Input name="reviewer" placeholder="Reviewer (optional)" className="w-48" maxLength={100} />
           <Button type="submit" disabled={submittingComment}>
             {submittingComment ? "Adding..." : "Add"}
           </Button>

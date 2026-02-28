@@ -46,19 +46,24 @@ function SourceListSection({
 
   const MAX_CONNECTION_JSON_LENGTH = 10240;
 
-  const handleSubmit = async () => {
-    if (form.connection.length > MAX_CONNECTION_JSON_LENGTH) {
+  function parseConnection(raw: string): Record<string, unknown> | null {
+    if (raw.length > MAX_CONNECTION_JSON_LENGTH) {
       setJsonError("Connection JSON is too large (max 10KB)");
-      return;
+      return null;
     }
-    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(form.connection);
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      setJsonError(null);
+      return parsed;
     } catch {
       setJsonError("Please enter valid JSON");
-      return;
+      return null;
     }
-    setJsonError(null);
+  }
+
+  const handleSubmit = async () => {
+    const connection = parseConnection(form.connection);
+    if (connection === null) return;
     setSubmitting(true);
     try {
       const body: AddSourceRequest = {
@@ -66,12 +71,14 @@ function SourceListSection({
         name: form.name,
         type: form.type,
         description: form.description,
-        connection: parsed,
+        connection,
       };
       await addSource(body);
       setDialogOpen(false);
       setForm({ source_id: "", name: "", type: "csv", description: "", connection: "" });
       onSourceAdded();
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : "Failed to add source");
     } finally {
       setSubmitting(false);
     }

@@ -30,10 +30,14 @@ function sanitizeErrorDetail(status: number, detail: string): string {
   return detail.length > 200 ? detail.slice(0, 200) + "..." : detail;
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, init);
+    // Apply default timeout unless caller already provides an AbortSignal
+    const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+    res = await fetch(path, { ...init, signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw err;

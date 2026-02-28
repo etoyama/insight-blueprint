@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
+import { JsonTree } from "@/components/JsonTree";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { KNOWLEDGE_COLUMNS } from "@/lib/constants";
 import { getRulesContext, getCautions } from "@/api/client";
@@ -141,9 +142,11 @@ export function RulesPage() {
         {context.rules.length === 0 ? (
           <EmptyState message="No rules found" />
         ) : (
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-2 text-sm">
             {context.rules.map((rule, i) => (
-              <li key={i}>{JSON.stringify(rule)}</li>
+              <li key={i}>
+                <JsonTree data={rule} defaultExpanded={false} />
+              </li>
             ))}
           </ul>
         )}

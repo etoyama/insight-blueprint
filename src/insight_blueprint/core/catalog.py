@@ -1,9 +1,9 @@
 """Data catalog CRUD business logic (SPEC-2)."""
 
 import logging
-import re
 from pathlib import Path
 
+from insight_blueprint.core.validation import validate_id as _validate_id
 from insight_blueprint.models.catalog import (
     ColumnSchema,
     DataSource,
@@ -22,14 +22,6 @@ from insight_blueprint.storage.sqlite_store import (
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 logger = logging.getLogger(__name__)
-
-_SAFE_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
-
-
-def _validate_id(value: str, name: str = "id") -> None:
-    """Raise ValueError if *value* contains characters outside [a-zA-Z0-9_-]."""
-    if not _SAFE_ID_PATTERN.fullmatch(value):
-        raise ValueError(f"Invalid {name} '{value}': must match [a-zA-Z0-9_-]+")
 
 
 class CatalogService:

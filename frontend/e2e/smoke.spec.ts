@@ -1,4 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { makeDesign, makeSource } from "./fixtures/mock-data";
+import {
+  mockDesignList,
+  mockDesignDetail,
+  mockSourceList,
+  mockKnowledgeList,
+} from "./fixtures/api-routes";
 
 // S1: Tab routing — navigate all 4 tabs, verify URL ?tab= sync
 test("S1: tab routing syncs URL with tab selection", async ({ page }) => {
@@ -29,9 +36,7 @@ test("S3: API error shows ErrorBanner", async ({ page }) => {
 
 // S4: Empty state — load with empty project → EmptyState visible
 test("S4: empty project shows EmptyState", async ({ page }) => {
-  await page.route("**/api/designs**", (route) =>
-    route.fulfill({ json: { designs: [], count: 0 } }),
-  );
+  await mockDesignList(page, []);
   await page.goto("/?tab=designs");
   await expect(page.getByText(/No designs found/)).toBeVisible({
     timeout: 5000,
@@ -42,28 +47,13 @@ test("S4: empty project shows EmptyState", async ({ page }) => {
 test("S5: create design dialog submits and refreshes list", async ({
   page,
 }) => {
-  const mockDesign = {
-    id: "d-001",
-    title: "Test Design",
-    status: "draft",
-    theme_id: "t-001",
-    hypothesis_statement: "Test hypothesis",
-    hypothesis_background: "Test background",
-    parent_id: null,
-    metrics: {},
-    explanatory: [],
-    chart: [],
-    source_ids: [],
-    next_action: null,
-    created_at: "2026-01-01T00:00:00",
-    updated_at: "2026-01-01T00:00:00",
-  };
+  const design = makeDesign({ status: "draft" });
   await page.route("**/api/designs", (route) => {
     if (route.request().method() === "GET") {
-      return route.fulfill({ json: { designs: [mockDesign], count: 1 } });
+      return route.fulfill({ json: { designs: [design], count: 1 } });
     }
     return route.fulfill({
-      json: { design: mockDesign, message: "created" },
+      json: { design, message: "created" },
     });
   });
   await page.goto("/?tab=designs");
@@ -92,28 +82,9 @@ test("S6: status filter sends correct API request", async ({ page }) => {
 
 // S7: Design detail expand — click design row, verify sub-tabs visible
 test("S7: clicking design row shows detail sub-tabs", async ({ page }) => {
-  const mockDesign = {
-    id: "d-001",
-    title: "Detail Test",
-    status: "active",
-    theme_id: "t-001",
-    hypothesis_statement: "Hypothesis",
-    hypothesis_background: "Background",
-    parent_id: null,
-    metrics: {},
-    explanatory: [],
-    chart: [],
-    source_ids: [],
-    next_action: null,
-    created_at: "2026-01-01T00:00:00",
-    updated_at: "2026-01-01T00:00:00",
-  };
-  await page.route("**/api/designs", (route) =>
-    route.fulfill({ json: { designs: [mockDesign], count: 1 } }),
-  );
-  await page.route("**/api/designs/d-001", (route) =>
-    route.fulfill({ json: mockDesign }),
-  );
+  const design = makeDesign({ title: "Detail Test" });
+  await mockDesignList(page, [design]);
+  await mockDesignDetail(page, design);
   await page.goto("/?tab=designs");
   await page.getByText("Detail Test").click();
   await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({
@@ -125,31 +96,18 @@ test("S7: clicking design row shows detail sub-tabs", async ({ page }) => {
 
 // S8: Source add with JSON validation — invalid JSON → error, valid JSON → success
 test("S8: source add validates JSON and submits", async ({ page }) => {
-  await page.route("**/api/catalog/sources**", (route) => {
-    if (route.request().method() === "GET") {
-      return route.fulfill({ json: { sources: [], count: 0 } });
-    }
+  await mockSourceList(page, []);
+  await mockKnowledgeList(page, []);
+  // POST handler for source creation (not covered by mockSourceList)
+  await page.route("**/api/catalog/sources", (route) => {
+    if (route.request().method() !== "POST") return route.continue();
     return route.fulfill({
       json: {
-        source: {
-          id: "s-001",
-          source_id: "test-src",
-          name: "Test",
-          type: "csv",
-          description: "",
-          connection: {},
-          schema_info: [],
-          tags: [],
-          created_at: "2026-01-01T00:00:00",
-          updated_at: "2026-01-01T00:00:00",
-        },
+        source: makeSource(),
         message: "Source created",
       },
     });
   });
-  await page.route("**/api/catalog/knowledge**", (route) =>
-    route.fulfill({ json: { entries: [], count: 0 } }),
-  );
   await page.goto("/?tab=catalog");
   await page.getByRole("button", { name: "Add Source" }).first().click();
   await page.getByPlaceholder("Source ID").fill("s-001");

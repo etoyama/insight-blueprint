@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { listDesigns, listComments } from "@/api/client";
 import type { Design, ReviewComment } from "@/types/api";
+import { formatDateTime } from "@/lib/utils";
 
 export function HistoryPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -80,6 +81,7 @@ export function HistoryPage() {
       {designs.map((design) => {
         const isCreated = design.created_at === design.updated_at;
         const isExpanded = expandedId === design.id;
+        const showEmptyComments = isExpanded && !commentsLoading && !commentsError && comments.length === 0;
 
         return (
           <Card
@@ -93,7 +95,7 @@ export function HistoryPage() {
                 <StatusBadge status={design.status} />
                 <span className="text-sm font-normal text-muted-foreground">
                   {isCreated ? "Created" : "Updated"}:{" "}
-                  {new Date(design.updated_at).toLocaleString()}
+                  {formatDateTime(design.updated_at)}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -105,7 +107,7 @@ export function HistoryPage() {
                   <p className="text-sm text-muted-foreground">Loading...</p>
                 )}
                 {commentsError && <ErrorBanner message={commentsError} />}
-                {!commentsLoading && !commentsError && comments.length === 0 && (
+                {showEmptyComments && (
                   <p className="text-sm text-muted-foreground">
                     No review comments
                   </p>
@@ -121,7 +123,7 @@ export function HistoryPage() {
                           <span className="font-medium">{c.reviewer}</span>
                           <StatusBadge status={c.status_after} />
                           <span className="text-muted-foreground">
-                            {new Date(c.created_at).toLocaleString()}
+                            {formatDateTime(c.created_at)}
                           </span>
                         </div>
                         <p>{c.comment}</p>

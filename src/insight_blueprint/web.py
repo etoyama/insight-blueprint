@@ -5,6 +5,7 @@ from __future__ import annotations
 import socket
 import threading
 import time
+import warnings
 from pathlib import Path as FilePath
 
 import uvicorn
@@ -535,6 +536,17 @@ def start_server(host: str = "127.0.0.1", port: int = 3000) -> int:
     If the requested port is in use, falls back to an OS-assigned port.
     """
     global _server_instance  # noqa: PLW0603
+
+    # Suppress uvicorn's use of legacy websockets API (upstream fix pending)
+    # See: https://github.com/encode/uvicorn/issues/2483
+    warnings.filterwarnings(
+        "ignore", message=r"websockets\.legacy", category=DeprecationWarning
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"websockets\.server\.WebSocketServerProtocol",
+        category=DeprecationWarning,
+    )
 
     # Probe port availability
     actual_port = port

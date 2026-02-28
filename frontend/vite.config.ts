@@ -11,6 +11,8 @@ export default defineConfig({
     },
   },
   server: {
+    // Dev-only proxy: forwards /api/* to the insight-blueprint backend.
+    // In production, the backend serves static files directly (no proxy needed).
     proxy: {
       "/api": {
         target: "http://localhost:3000",
