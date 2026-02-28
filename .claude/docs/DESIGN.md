@@ -1103,6 +1103,14 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-02-27**: Recorded SPEC-5 (skills-distribution) design review decisions.
+  - **Skill discovery**: Auto-discover bundled skills from `src/insight_blueprint/_skills/` by traversing `importlib.resources.files("insight_blueprint") / "_skills"` and selecting directories that contain `SKILL.md` (remove hardcoded skill name list).
+  - **Version policy**: Add `version` to bundled skill frontmatter and compare against installed skill frontmatter using strict SemVer parsing; treat missing/invalid local version as `0.0.0` for migration compatibility.
+  - **Customization detection**: Determine "user-customized" via deterministic directory hash over bundled-managed files (not only `SKILL.md`), with normalized line endings and ignore list for marker files to avoid false positives.
+  - **Update behavior**: Auto-update only when local content hash matches previous bundled hash (unchanged by user). If customized, skip overwrite and write a machine-readable update notice file to prompt manual merge.
+  - **State tracking**: Prefer explicit local state metadata (installed version + bundled hash) to avoid ambiguous overwrite decisions after partial updates or failed init runs.
+  - **Operational safety**: Keep skill sync idempotent and best-effort (warn, do not fail `init_project`) so project startup is resilient even if one skill update path is malformed.
+
 - **2026-02-27**: Recorded frontend E2E test architecture decisions for expanded Playwright coverage.
   - **Spec organization**: Split detailed E2E tests by feature/page (`design-detail`, `catalog`, `rules`, `history`, `cross-tab`) and keep `smoke.spec.ts` as a fast gate.
   - **Parallelism strategy**: Prefer file-level parallel execution (Playwright default across files). Keep tests isolated so workers can scale without order dependencies.

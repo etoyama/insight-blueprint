@@ -1,10 +1,11 @@
 ---
 name: catalog-register
+version: "1.0.0"
 description: |
   Guides Claude through discovering data source schemas and registering them
   in the insight-blueprint data catalog. Supports CSV, API, and SQL sources.
-  Triggers: "データカタログ登録", "ソース登録", "register data source",
-  "カタログにデータを追加", "add to catalog", "catalog register".
+  Triggers: "register data source", "add to catalog", "catalog register",
+  "データカタログ登録", "ソース登録", "カタログにデータを追加".
 disable-model-invocation: true
 argument-hint: "[source_type: csv|api|sql]"
 ---
@@ -223,6 +224,6 @@ add_catalog_entry(
 | `"Invalid source type 'parquet'"` | Unsupported type | Use csv, api, or sql |
 
 ## Language Rules
-- Respond to users in **Japanese**
-- source_id, column names, and tool names stay in English
+- Follow project CLAUDE.md language settings. Default to Japanese if no setting.
+- Code, IDs, tool names, and YAML fields always stay in English.
 - Descriptions can be in the user's preferred language

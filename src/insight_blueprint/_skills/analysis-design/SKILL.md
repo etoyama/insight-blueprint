@@ -1,10 +1,11 @@
 ---
 name: analysis-design
+version: "1.0.0"
 description: |
   Guides Claude through creating analysis design documents for hypothesis-driven EDA.
   Use when the user wants to create, manage, or review analysis designs.
-  Triggers: "仮説を立てたい", "分析設計を作りたい", "create analysis design",
-  "新しい仮説", "hypothesis document".
+  Triggers: "create analysis design", "hypothesis document", "new hypothesis",
+  "分析設計を作りたい", "仮説を立てたい", "新しい仮説", "仮説ドキュメント".
 disable-model-invocation: true
 argument-hint: "[theme_id]"
 ---
@@ -111,6 +112,6 @@ Only provided fields are updated; all others remain unchanged.
 | `{"error": "Design 'FP-H99' not found"}` | Non-existent design_id | Confirm ID via `list_analysis_designs()` |
 
 ## Language Rules
-- Respond to users in **Japanese**
+- Follow project CLAUDE.md language settings. Default to Japanese if no setting.
+- Code, IDs, tool names, and YAML fields always stay in English.
 - Hypothesis text follows the user's language (usually Japanese)
-- Code, IDs, tool names, and YAML fields stay in English

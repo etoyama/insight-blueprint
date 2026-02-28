@@ -44,7 +44,7 @@ Each spec builds on the previous. Use `/spec-start` in a new session to implemen
 | **SPEC-3** | review-workflow | Review comment system, status lifecycle, domain knowledge auto-save, 5 review+context tools (submit/save/extract/get_project_context/suggest_cautions) | Full flow: `submit_for_review()` → review comment saved → knowledge persisted to YAML |
 | **SPEC-4a** | webui-backend | Service registry refactor, FastAPI + uvicorn daemon thread, 14 REST endpoints (17 methods), poe build pipeline (hatch artifacts for static/) | `pytest` で全 REST endpoint が TestClient 経由で応答; `uv build` で static/ 込み wheel 生成 |
 | **SPEC-4b** | webui-frontend | React 19 + Vite 6 + Tailwind CSS + shadcn/ui, 4-tab dashboard (Designs/Catalog/Rules/History), API integration | Browser opens at localhost; all 4 tabs functional with live data from REST API |
-| **SPEC-5** | skills-distribution | Bundled Skills (English), README, PyPI publishing | `uvx insight-blueprint` installs from PyPI; `/analysis-design` skill appears in `.claude/skills/` |
+| **SPEC-5** | skills-distribution | Bundled Skills (bilingual), README, PyPI packaging, skill update mechanism | Local wheel install works: `pip install dist/*.whl` → `insight-blueprint --project /tmp/test` → skills copied to `.claude/skills/`, WebUI starts. PyPI publish is manual after team review. |
 
 ### Implementation Order
 

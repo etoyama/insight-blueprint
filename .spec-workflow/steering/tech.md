@@ -38,6 +38,9 @@
 - **Timeout**: `MCP_TIMEOUT=10000` (first run downloads uvx package)
 - **Skills**: bundled at `src/insight_blueprint/_skills/`, copied to `.claude/skills/` on init
   - All bundled SKILL.md files must include YAML frontmatter per `.claude/rules/skill-format.md`
+  - Frontmatter includes `version` field (semver) for update tracking
+  - Update mechanism: version comparison on init; auto-update if unchanged, skip + notify + `.bundled-update` if user-customized
+  - Language: body in English, `description` bilingual (EN + JP triggers), response language follows project CLAUDE.md (default: Japanese)
 - **Path resolution**: `importlib.resources.files()` for installed package paths
 
 ## Development Methodology
