@@ -49,14 +49,22 @@ ls src/insight_blueprint/static/
 
 ## Step 3: Build the Package
 
-Clean previous builds and create new distributions:
+Clean previous builds and create the wheel:
 
 ```bash
 rm -rf dist/
-uv build
+uv build --wheel
 ```
 
-This creates both a source distribution (.tar.gz) and a wheel (.whl) in `dist/`.
+This creates a wheel (.whl) in `dist/`.
+
+> **Important**: Use `--wheel` to build the wheel directly. Do NOT use bare
+> `uv build` — it builds an sdist first then creates the wheel from that sdist.
+> Since `src/insight_blueprint/static/` is in `.gitignore` (build artifacts
+> should not be committed), hatchling's sdist excludes it, and the resulting
+> wheel will be missing frontend assets. Building the wheel directly honors the
+> `artifacts` setting in `[tool.hatch.build.targets.wheel]` and includes
+> static files correctly.
 
 ## Step 4: Verify the Wheel
 
@@ -170,4 +178,6 @@ Check `pyproject.toml` build configuration:
 
 ### Frontend assets not included
 
-Run `poe build-frontend` before `uv build`. The static files must exist at build time.
+1. Run `poe build-frontend` before building. The static files must exist at build time.
+2. Use `uv build --wheel` (not bare `uv build`). The sdist path excludes `.gitignore`
+   entries, which includes `src/insight_blueprint/static/`.
