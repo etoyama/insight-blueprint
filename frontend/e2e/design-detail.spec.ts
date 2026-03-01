@@ -65,10 +65,8 @@ test("#5: overview panel displays design fields and metrics", async ({
   await expect(page.getByText("Test background")).toBeVisible();
   await expect(page.getByText("s-001, s-002")).toBeVisible();
 
-  // Metrics rendered via JsonTree (collapsed by default — expand it)
+  // Metrics rendered via JsonTree (expanded by default)
   await expect(page.getByText("Metrics")).toBeVisible();
-  // Click the expand button "► {2}" to reveal metric keys
-  await page.locator("button", { hasText: "{2}" }).click();
   await expect(page.getByText("accuracy")).toBeVisible();
   await expect(page.getByText("0.95")).toBeVisible();
 });

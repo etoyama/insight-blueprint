@@ -5,7 +5,7 @@ interface JsonTreeProps {
   defaultExpanded?: boolean;
 }
 
-export function JsonTree({ data, defaultExpanded = false }: JsonTreeProps) {
+export function JsonTree({ data, defaultExpanded = true }: JsonTreeProps) {
   return (
     <div className="font-mono text-sm">
       <JsonNode value={data} defaultExpanded={defaultExpanded} />
@@ -48,7 +48,7 @@ function ArrayNode({ items, defaultExpanded }: { items: unknown[]; defaultExpand
         <div className="ml-4 border-l pl-2">
           {items.map((item, i) => (
             <div key={i}>
-              <JsonNode value={item} defaultExpanded={false} />
+              <JsonNode value={item} defaultExpanded={defaultExpanded} />
             </div>
           ))}
         </div>
@@ -75,7 +75,7 @@ function ObjectNode({ entries, defaultExpanded }: { entries: [string, unknown][]
           {entries.map(([k, v]) => (
             <div key={k}>
               <span className="text-purple-600">{k}</span>:{" "}
-              <JsonNode value={v} defaultExpanded={false} />
+              <JsonNode value={v} defaultExpanded={defaultExpanded} />
             </div>
           ))}
         </div>
