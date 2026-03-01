@@ -1103,6 +1103,21 @@ in the project catalog, including schema and domain knowledge.
 
 ## 12. Changelog
 
+- **2026-03-01**: Recorded inline review comments (section-anchored + ReviewBatch) design risk assessment.
+  - **Anchor model boundary**: Keep anchors as a closed enum (`hypothesis_statement`, `hypothesis_background`, `metrics`, `explanatory`, `chart`, `next_action`) and store optional stable `anchor_version` to detect stale drafts when section content changes before submit.
+  - **ReviewBatch semantics**: Treat batch as immutable submission artifact (`drafts[] -> one POST -> persisted batch + comments`) and prevent mixed per-comment status transitions after submit to avoid state divergence.
+  - **Backward compatibility**: Add read-time adapter for legacy `ReviewComment` (`comments:` list) into synthetic single-comment batches; defer destructive migration and support lazy rewrite on next successful batch write.
+  - **API direction**: Prefer explicit batch endpoints (`GET /api/designs/{id}/review-batches`, `POST /api/designs/{id}/review-batches`) over overloading `/comments`, and define idempotency key + partial failure contract.
+  - **Frontend complexity control**: Avoid a monolithic `OverviewPanel` by splitting into section components plus a shared `InlineCommentAnchor` primitive and draft store hook; keep tab shell simple (`Overview | History | Knowledge`).
+  - **Critical edge handling**: Define behavior for deleted/renamed anchors, duplicate drafts on same section, navigation with unsaved drafts, and batch submit retry after network failure.
+
+- **2026-03-01**: Recorded revised inline review comments test-design gap analysis (post-simplification).
+  - **Model validation coverage**: Add explicit tests for `target_section` -> `target_content` dependency (`model_validator`) and `extra="forbid"` rejection on both model and API payloads.
+  - **JsonValue enforcement**: Add negative tests that reject non-JSON-compatible payloads (e.g., `set`, `datetime`, arbitrary objects) for `target_content`.
+  - **Reliability edges**: Add corruption-path test for malformed `{design_id}_reviews.yaml` (GET returns empty list + warning), and add status-update-failure-after-write test to lock in documented write order semantics.
+  - **Frontend snapshot contract**: Add E2E/integration assertion that draft `target_content` is an immutable snapshot (`structuredClone`) and does not mutate after subsequent UI edits.
+  - **Section registry consistency**: Add a contract test ensuring backend `ALLOWED_TARGET_SECTIONS` and frontend `COMMENTABLE_SECTIONS` ids remain in sync.
+
 - **2026-02-27**: Recorded SPEC-5 (skills-distribution) design review decisions.
   - **Skill discovery**: Auto-discover bundled skills from `src/insight_blueprint/_skills/` by traversing `importlib.resources.files("insight_blueprint") / "_skills"` and selecting directories that contain `SKILL.md` (remove hardcoded skill name list).
   - **Version policy**: Add `version` to bundled skill frontmatter and compare against installed skill frontmatter using strict SemVer parsing; treat missing/invalid local version as `0.0.0` for migration compatibility.
