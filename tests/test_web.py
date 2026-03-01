@@ -745,3 +745,253 @@ def test_get_cautions_with_matches(client: TestClient) -> None:
 def test_get_cautions_missing_table_names_returns_422(client: TestClient) -> None:
     resp = client.get("/api/rules/cautions")
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Review batch endpoints (Inline Review Comments)
+# ---------------------------------------------------------------------------
+
+
+class TestReviewBatchAPI:
+    """Integration tests for POST/GET /api/designs/{id}/review-batches."""
+
+    def test_submit_batch_success(self, client: TestClient) -> None:
+        """FR-12: Valid batch returns 201 with batch_id."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Good analysis"}],
+            },
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert "batch_id" in data
+        assert data["status_after"] == "supported"
+        assert data["comment_count"] == 1
+
+    def test_submit_batch_transitions_status(self, client: TestClient) -> None:
+        """FR-8: Status transitions after batch submission."""
+        design_id = _create_pending_design_via_api(client)
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Approved"}],
+            },
+        )
+        design = client.get(f"/api/designs/{design_id}").json()
+        assert design["status"] == "supported"
+
+    @pytest.mark.parametrize(
+        "status", ["supported", "rejected", "inconclusive", "active"]
+    )
+    def test_submit_batch_all_statuses(self, client: TestClient, status: str) -> None:
+        """FR-7: All 4 post-review statuses work."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": status,
+                "comments": [{"comment": f"Setting to {status}"}],
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["status_after"] == status
+
+    def test_submit_batch_non_pending_returns_400(self, client: TestClient) -> None:
+        """AC: Non-pending_review design returns 400."""
+        design_id = _create_active_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Should fail"}],
+            },
+        )
+        assert resp.status_code == 400
+        assert "error" in resp.json()
+
+    def test_submit_batch_invalid_design_returns_404(self, client: TestClient) -> None:
+        """Error#5: Nonexistent design_id returns 404."""
+        resp = client.post(
+            "/api/designs/NONEXIST-H99/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Ghost"}],
+            },
+        )
+        assert resp.status_code == 404
+        assert "error" in resp.json()
+
+    def test_submit_batch_invalid_section_returns_422(self, client: TestClient) -> None:
+        """NFR-7: Invalid target_section returns 422."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [
+                    {
+                        "comment": "Bad section",
+                        "target_section": "nonexistent",
+                        "target_content": "x",
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+    def test_submit_batch_empty_comments_returns_422(self, client: TestClient) -> None:
+        """Error#6: Empty comments list returns 422."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [],
+            },
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+    def test_submit_batch_overlength_comment_returns_422(
+        self, client: TestClient
+    ) -> None:
+        """Error#6: 2001-char comment returns 422."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "a" * 2001}],
+            },
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+    def test_submit_batch_missing_target_content_returns_422(
+        self, client: TestClient
+    ) -> None:
+        """FR-11: target_section set without target_content returns 422."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [
+                    {"comment": "Missing content", "target_section": "metrics"}
+                ],
+            },
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+    def test_submit_batch_extra_field_returns_422(self, client: TestClient) -> None:
+        """extra='forbid': Unknown fields return 422."""
+        design_id = _create_pending_design_via_api(client)
+        resp = client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Extra", "unknown_field": "bad"}],
+            },
+        )
+        assert resp.status_code == 422
+        assert "error" in resp.json()
+
+    def test_submit_batch_with_target_content(self, client: TestClient) -> None:
+        """FR-11: target_content round-trip through POST + GET."""
+        design_id = _create_pending_design_via_api(client)
+        content = {"kpi": "CVR", "value": 2.5}
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [
+                    {
+                        "comment": "Check",
+                        "target_section": "metrics",
+                        "target_content": content,
+                    }
+                ],
+            },
+        )
+        resp = client.get(f"/api/designs/{design_id}/review-batches")
+        data = resp.json()
+        assert len(data["batches"]) == 1
+        assert data["batches"][0]["comments"][0]["target_content"] == content
+
+    def test_list_batches_success(self, client: TestClient) -> None:
+        """FR-13: GET returns batch list."""
+        design_id = _create_pending_design_via_api(client)
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Listed"}],
+            },
+        )
+        resp = client.get(f"/api/designs/{design_id}/review-batches")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["design_id"] == design_id
+        assert data["count"] == 1
+        assert len(data["batches"]) == 1
+
+    def test_list_batches_empty(self, client: TestClient) -> None:
+        """No batches returns empty list."""
+        design_id = _create_active_design_via_api(client)
+        resp = client.get(f"/api/designs/{design_id}/review-batches")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 0
+        assert data["batches"] == []
+
+    def test_list_batches_descending_order(self, client: TestClient) -> None:
+        """FR-13: Batches sorted descending by created_at."""
+        design_id = _create_pending_design_via_api(client)
+        # First batch
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "active",
+                "comments": [{"comment": "Earlier"}],
+            },
+        )
+        # Re-submit for second batch
+        client.post(f"/api/designs/{design_id}/review")
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [{"comment": "Later"}],
+            },
+        )
+        resp = client.get(f"/api/designs/{design_id}/review-batches")
+        batches = resp.json()["batches"]
+        assert len(batches) == 2
+        assert batches[0]["created_at"] >= batches[1]["created_at"]
+
+    def test_list_batches_includes_target_content(self, client: TestClient) -> None:
+        """FR-11: GET response includes target_content."""
+        design_id = _create_pending_design_via_api(client)
+        client.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [
+                    {
+                        "comment": "With content",
+                        "target_section": "metrics",
+                        "target_content": {"kpi": "CVR"},
+                    }
+                ],
+            },
+        )
+        resp = client.get(f"/api/designs/{design_id}/review-batches")
+        comment = resp.json()["batches"][0]["comments"][0]
+        assert comment["target_content"] == {"kpi": "CVR"}
+        assert comment["target_section"] == "metrics"

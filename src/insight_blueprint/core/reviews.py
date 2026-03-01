@@ -1,5 +1,6 @@
 """Review workflow business logic (SPEC-3)."""
 
+import logging
 import re
 import unicodedata
 import uuid
@@ -10,8 +11,10 @@ from insight_blueprint.core.designs import DesignService
 from insight_blueprint.core.validation import validate_id as _validate_id
 from insight_blueprint.models.catalog import DomainKnowledgeEntry, KnowledgeCategory
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
-from insight_blueprint.models.review import ReviewComment
+from insight_blueprint.models.review import BatchComment, ReviewBatch, ReviewComment
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+logger = logging.getLogger(__name__)
 
 # Regex patterns for keyword-based extraction (case-insensitive)
 _CATEGORY_PATTERNS: list[tuple[re.Pattern[str], KnowledgeCategory]] = [
@@ -32,6 +35,15 @@ _CATEGORY_PATTERNS: list[tuple[re.Pattern[str], KnowledgeCategory]] = [
 
 _TABLE_PATTERN = re.compile(r"^(table|テーブル)\s*:\s*", re.IGNORECASE)
 
+
+ALLOWED_TARGET_SECTIONS: set[str] = {
+    "hypothesis_statement",
+    "hypothesis_background",
+    "metrics",
+    "explanatory",
+    "chart",
+    "next_action",
+}
 
 VALID_REVIEW_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
     DesignStatus.active: {DesignStatus.pending_review},
@@ -134,6 +146,128 @@ class ReviewService:
         self._design_service.update_design(design_id, status=target_status)
 
         return review_comment
+
+    def save_review_batch(
+        self,
+        design_id: str,
+        status: str,
+        comments: list[dict],
+        reviewer: str = "analyst",
+    ) -> ReviewBatch | None:
+        """Save a batch of review comments and transition the design status.
+
+        Returns None if design not found.
+        Raises ValueError if design is not pending_review, status is invalid,
+        or target_section is not in ALLOWED_TARGET_SECTIONS.
+        """
+        _validate_id(design_id, "design_id")
+
+        # Validate post-review status
+        try:
+            target_status = DesignStatus(status)
+        except ValueError:
+            valid = ", ".join(
+                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
+            )
+            raise ValueError(
+                f"Invalid post-review status '{status}'. Valid: {valid}"
+            ) from None
+
+        if target_status not in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]:
+            valid = ", ".join(
+                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
+            )
+            raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
+
+        # Validate comments not empty
+        if not comments:
+            raise ValueError("comments must not be empty")
+
+        # Validate target_section values
+        for c in comments:
+            section = c.get("target_section")
+            if section is not None and section not in ALLOWED_TARGET_SECTIONS:
+                raise ValueError(
+                    f"Invalid target_section '{section}'. "
+                    f"Allowed: {sorted(ALLOWED_TARGET_SECTIONS)}"
+                )
+
+        design = self._design_service.get_design(design_id)
+        if design is None:
+            return None
+
+        if design.status != DesignStatus.pending_review:
+            raise ValueError(
+                f"Design must be in 'pending_review' status to save review batch, "
+                f"current status: '{design.status}'"
+            )
+
+        # Create batch
+        batch_id = f"RB-{uuid.uuid4().hex[:8]}"
+        batch_comments = [BatchComment(**c) for c in comments]
+        batch = ReviewBatch(
+            id=batch_id,
+            design_id=design_id,
+            status_after=target_status,
+            reviewer=reviewer,
+            comments=batch_comments,
+        )
+
+        # Persist batch to YAML (atomic write first)
+        reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
+        existing = read_yaml(reviews_path)
+        batches_list: list[dict] = existing.get("batches", [])
+        batches_list.append(batch.model_dump(mode="json"))
+        write_yaml(reviews_path, {**existing, "batches": batches_list})
+
+        # Transition design status (after YAML write succeeds)
+        self._design_service.update_design(design_id, status=target_status)
+
+        return batch
+
+    def list_review_batches(self, design_id: str) -> list[ReviewBatch]:
+        """Read all review batches for a design.
+
+        Returns empty list if no file, no 'batches' key, or corrupted YAML.
+        Sorted by created_at descending (newest first).
+        """
+        _validate_id(design_id, "design_id")
+        reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
+
+        try:
+            data = read_yaml(reviews_path)
+        except Exception:
+            logger.warning("Failed to read reviews YAML for %s", design_id)
+            return []
+
+        if not data:
+            return []
+
+        if "batches" not in data:
+            if "comments" in data:
+                logger.warning(
+                    "Old format (comments key) found for %s, "
+                    "batches key missing — returning empty list",
+                    design_id,
+                )
+            else:
+                logger.warning("No batches key found in reviews YAML for %s", design_id)
+            return []
+
+        raw_batches = data["batches"]
+        if not isinstance(raw_batches, list):
+            logger.warning("Batches key is not a list for %s", design_id)
+            return []
+
+        try:
+            batches = [ReviewBatch(**b) for b in raw_batches]
+        except Exception:
+            logger.warning("Failed to parse review batches for %s", design_id)
+            return []
+
+        # Sort by created_at descending
+        batches.sort(key=lambda b: b.created_at, reverse=True)
+        return batches
 
     def list_comments(self, design_id: str) -> list[ReviewComment]:
         """Read all review comments for a design.

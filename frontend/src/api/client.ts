@@ -3,6 +3,7 @@ import type {
   DataSource,
   ColumnSchema,
   ReviewComment,
+  ReviewBatch,
   KnowledgeEntry,
   RulesContext,
   SearchResult,
@@ -10,6 +11,7 @@ import type {
   CreateDesignRequest,
   AddCommentRequest,
   AddSourceRequest,
+  SubmitBatchRequest,
 } from "@/types/api";
 
 export class ApiError extends Error {
@@ -125,6 +127,30 @@ export async function addComment(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export async function submitReviewBatch(
+  designId: string,
+  body: SubmitBatchRequest,
+): Promise<{ batch_id: string; status_after: string; comment_count: number }> {
+  return request(
+    `/api/designs/${encodeURIComponent(designId)}/review-batches`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function listReviewBatches(
+  designId: string,
+  signal?: AbortSignal,
+): Promise<{ design_id: string; batches: ReviewBatch[]; count: number }> {
+  return request(
+    `/api/designs/${encodeURIComponent(designId)}/review-batches`,
+    { signal },
+  );
 }
 
 export async function extractKnowledge(

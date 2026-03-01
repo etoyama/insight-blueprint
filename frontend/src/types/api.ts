@@ -110,6 +110,48 @@ export interface Caution {
   [key: string]: unknown;
 }
 
+// JSON-compatible recursive type (matches backend JsonValue)
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+// Batch review types
+export interface BatchComment {
+  comment: string;
+  target_section: string | null;
+  target_content: JsonValue;
+}
+
+export interface ReviewBatch {
+  id: string;
+  design_id: string;
+  status_after: DesignStatus;
+  reviewer: string;
+  comments: BatchComment[];
+  created_at: string;
+}
+
+export interface DraftComment {
+  id: string;
+  target_section: string;
+  target_content: JsonValue;
+  comment: string;
+}
+
+export interface SubmitBatchRequest {
+  status_after: DesignStatus;
+  reviewer?: string;
+  comments: {
+    comment: string;
+    target_section?: string;
+    target_content?: JsonValue;
+  }[];
+}
+
 // Request types
 export interface CreateDesignRequest {
   title: string;

@@ -141,6 +141,46 @@ export function makeColumnSchema(
   };
 }
 
+export interface BatchComment {
+  comment: string;
+  target_section: string | null;
+  target_content: unknown;
+}
+
+export function makeBatchComment(
+  overrides?: Partial<BatchComment>,
+): BatchComment {
+  return {
+    comment: "Test comment",
+    target_section: "hypothesis_statement",
+    target_content: "Test hypothesis content",
+    ...overrides,
+  };
+}
+
+export interface ReviewBatch {
+  id: string;
+  design_id: string;
+  status_after: string;
+  reviewer: string;
+  comments: BatchComment[];
+  created_at: string;
+}
+
+export function makeReviewBatch(
+  overrides?: Partial<ReviewBatch>,
+): ReviewBatch {
+  return {
+    id: "RB-test0001",
+    design_id: "DES-test",
+    status_after: "supported",
+    reviewer: "analyst",
+    comments: [makeBatchComment()],
+    created_at: "2026-03-01T10:00:00+09:00",
+    ...overrides,
+  };
+}
+
 export interface SearchResult {
   source_id: string;
   column_name: string;

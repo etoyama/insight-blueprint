@@ -90,7 +90,7 @@ test("S7: clicking design row shows detail sub-tabs", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({
     timeout: 5000,
   });
-  await expect(page.getByRole("tab", { name: /review/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /history/i }).first()).toBeVisible();
   await expect(page.getByRole("tab", { name: /knowledge/i })).toBeVisible();
 });
 

@@ -10,10 +10,11 @@ from insight_blueprint.models.catalog import (
     SourceType,
 )
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
-from insight_blueprint.models.review import ReviewComment
+from insight_blueprint.models.review import BatchComment, ReviewBatch, ReviewComment
 
 __all__ = [
     "AnalysisDesign",
+    "BatchComment",
     "ColumnSchema",
     "DataSource",
     "DesignStatus",
@@ -21,6 +22,7 @@ __all__ = [
     "DomainKnowledgeEntry",
     "KnowledgeCategory",
     "KnowledgeImportance",
+    "ReviewBatch",
     "ReviewComment",
     "SourceType",
 ]

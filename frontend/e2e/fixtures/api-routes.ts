@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import type {
   Design,
   ReviewComment,
+  ReviewBatch,
   KnowledgeEntry,
   DataSource,
   ColumnSchema,
@@ -99,6 +100,47 @@ export async function mockSaveKnowledge(
       },
     }),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Review Batches
+// ---------------------------------------------------------------------------
+
+export async function mockReviewBatches(
+  page: Page,
+  designId: string,
+  batches: ReviewBatch[] = [],
+) {
+  await page.route(`**/api/designs/${designId}/review-batches`, (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { design_id: designId, batches, count: batches.length },
+      });
+    }
+    // POST — submit batch
+    return route.fulfill({
+      status: 201,
+      json: {
+        batch_id: "RB-new00001",
+        status_after: "supported",
+        comment_count: 1,
+      },
+    });
+  });
+}
+
+export async function mockReviewBatchesError(page: Page, designId: string) {
+  await page.route(`**/api/designs/${designId}/review-batches`, (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 500,
+        json: { error: "Internal server error" },
+      });
+    }
+    return route.fulfill({
+      json: { design_id: designId, batches: [], count: 0 },
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

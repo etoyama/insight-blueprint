@@ -10,7 +10,7 @@
 
 ## Phase 1: Models (test-design P1)
 
-- [ ] 1. Write unit tests for `BatchComment` and `ReviewBatch` models (RED)
+- [x] 1. Write unit tests for `BatchComment` and `ReviewBatch` models (RED)
   - File: `tests/test_review_models.py` (modify)
   - Add `TestBatchComment` class: valid construction, optional target_section, target_content_requires_section (model_validator), text/json target_content preservation, non-JSON value rejection (parametrize: datetime, set), empty/whitespace comment rejection, max length boundary (2000/2001), empty string target_section rejection, extra field rejection
   - Add `TestReviewBatch` class: valid construction, id format (RB- prefix + 8 hex), invalid status rejection, empty comments rejection, JST default timestamp, reviewer default, JSON round-trip, extra field rejection
@@ -21,7 +21,7 @@
   - **完了基準**: `TestBatchComment` と `TestReviewBatch` が test-design.md P1 の全ケースを網羅している
   - **確認手順**: `uv run pytest tests/test_review_models.py -v --co -k "TestBatchComment or TestReviewBatch"` でテストケースが収集される（RED 状態で OK）
 
-- [ ] 1.1 Implement `BatchComment` and `ReviewBatch` Pydantic models (GREEN)
+- [x] 1.1 Implement `BatchComment` and `ReviewBatch` Pydantic models (GREEN)
   - File: `src/insight_blueprint/models/review.py` (modify), `src/insight_blueprint/models/__init__.py` (modify)
   - Define `JsonValue` recursive type alias for YAML-safe serializable values
   - Add `BatchComment(BaseModel, extra="forbid")` with `comment`, `target_section`, `target_content: JsonValue`, and `model_validator` ensuring `target_section` set implies `target_content` required
@@ -38,7 +38,7 @@
 
 ## Phase 2: Service Layer (test-design P2 + P3)
 
-- [ ] 2. Write unit tests for `ReviewService` batch methods (RED)
+- [x] 2. Write unit tests for `ReviewService` batch methods (RED)
   - File: `tests/test_reviews.py` (modify), `tests/conftest.py` (modify)
   - Add fixtures to `conftest.py`: `review_batch_data`, `make_batch_payload` (factory), `non_pending_design`, `fixed_now` (dual-patch for `models.common` + `models.review`), `corrupted_reviews_yaml`, `status_update_failure`
   - Add `TestSaveReviewBatch` class: valid save, status transition, YAML persistence, target_section preservation, target_content text/json, non-pending rejection, invalid status, empty comments, invalid design_id (parametrize), missing design, YAML write failure (no status change), status update failure (batch preserved — atomicity order), all 4 status transitions (parametrize), append to existing, create new file
@@ -51,7 +51,7 @@
   - **完了基準**: test-design.md P2 + P3 の全テストケースが定義されている
   - **確認手順**: `uv run pytest tests/test_reviews.py -v --co -k "SaveReviewBatch or ListReviewBatches or TargetSectionValidation"` でテストケースが収集される
 
-- [ ] 2.1 Implement `save_review_batch` in `ReviewService` (GREEN)
+- [x] 2.1 Implement `save_review_batch` in `ReviewService` (GREEN)
   - File: `src/insight_blueprint/core/reviews.py` (modify)
   - Add `ALLOWED_TARGET_SECTIONS` set: `{"hypothesis_statement", "hypothesis_background", "metrics", "explanatory", "chart", "next_action"}`
   - Implement `save_review_batch(design_id, status, comments, reviewer)` method:
@@ -69,7 +69,7 @@
   - **完了基準**: `TestSaveReviewBatch` と `TestSaveReviewBatchTargetSectionValidation` の全テストが GREEN
   - **確認手順**: `uv run pytest tests/test_reviews.py -v -k "SaveReviewBatch or TargetSectionValidation"` で全テストがパスする
 
-- [ ] 2.2 Implement `list_review_batches` in `ReviewService` (GREEN)
+- [x] 2.2 Implement `list_review_batches` in `ReviewService` (GREEN)
   - File: `src/insight_blueprint/core/reviews.py` (modify)
   - Implement `list_review_batches(design_id)` method:
     - Read `{design_id}_reviews.yaml`, extract `batches` key
@@ -87,7 +87,7 @@
 
 ## Phase 3: Transport Layer (test-design P5 + P6)
 
-- [ ] 3. Write integration tests for REST API and MCP tool (RED)
+- [x] 3. Write integration tests for REST API and MCP tool (RED)
   - File: `tests/test_web.py` (modify), `tests/test_server.py` (modify)
   - Add `TestReviewBatchAPI` class to `test_web.py`: submit success (201), status transition, all 4 statuses (parametrize), non-pending 400, invalid design 404, invalid section 422, empty comments 422, overlength comment 422, missing target_content 422, extra field 422, with target_content round-trip, list success, list empty, list descending, list includes target_content
   - Add `TestSaveReviewBatchTool` class to `test_server.py`: success, with sections, non-pending error
@@ -98,7 +98,7 @@
   - **完了基準**: test-design.md P5 + P6 の全テストケースが定義されている
   - **確認手順**: `uv run pytest tests/test_web.py::TestReviewBatchAPI tests/test_server.py::TestSaveReviewBatchTool -v --co` でテストケースが収集される
 
-- [ ] 3.1 Implement REST API endpoints for review batches (GREEN)
+- [x] 3.1 Implement REST API endpoints for review batches (GREEN)
   - File: `src/insight_blueprint/web.py` (modify)
   - Add `SubmitBatchRequest` Pydantic model: `status_after: str`, `reviewer: str = "analyst"`, `comments: list[dict]`
   - Add `POST /api/designs/{design_id}/review-batches` endpoint:
@@ -115,7 +115,7 @@
   - **完了基準**: `TestReviewBatchAPI` の全テストが GREEN
   - **確認手順**: `uv run pytest tests/test_web.py::TestReviewBatchAPI -v` で全テストがパスする
 
-- [ ] 3.2 Implement `save_review_batch` MCP tool (GREEN)
+- [x] 3.2 Implement `save_review_batch` MCP tool (GREEN)
   - File: `src/insight_blueprint/server.py` (modify)
   - Add `save_review_batch` MCP tool with parameters: `design_id`, `status_after`, `comments` (list of dicts with `comment`, `target_section`, `target_content`), `reviewer`
   - Call `review_service.save_review_batch()` internally
@@ -129,7 +129,7 @@
 
 ## Phase 4: Frontend Types + Section Registry (test-design P4)
 
-- [ ] 4. Add frontend types and API client functions
+- [x] 4. Add frontend types and API client functions
   - File: `frontend/src/types/api.ts` (modify), `frontend/src/api/client.ts` (modify)
   - Add to `types/api.ts`: `JsonValue` type alias, `BatchComment`, `ReviewBatch`, `DraftComment`, `SubmitBatchRequest` interfaces
   - Add to `client.ts`: `submitReviewBatch(designId, body: SubmitBatchRequest)` → POST `/review-batches`, `listReviewBatches(designId)` → GET `/review-batches`
@@ -140,7 +140,7 @@
   - **完了基準**: 型定義と API クライアント関数が追加され、既存コードとの整合性がとれている
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする
 
-- [ ] 4.1 Create `COMMENTABLE_SECTIONS` registry and `useReviewDrafts` hook
+- [x] 4.1 Create `COMMENTABLE_SECTIONS` registry and `useReviewDrafts` hook
   - File: `frontend/src/pages/design-detail/components/sections.ts` (new), `frontend/src/pages/design-detail/components/useReviewDrafts.ts` (new)
   - Note: `frontend/src/pages/design-detail/components/` ディレクトリを新規作成する（SPEC-4b SRP パターン）
   - Create `sections.ts` with `COMMENTABLE_SECTIONS` array: `{ id, label, type }` for 6 sections (`hypothesis_statement`, `hypothesis_background`, `metrics`, `explanatory`, `chart`, `next_action`)
@@ -159,7 +159,7 @@
   - **完了基準**: `sections.ts` に6セクション定義、`useReviewDrafts.ts` に hook が実装され、`structuredClone` でスナップショットを取得している
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする
 
-- [ ] 4.2 Add section definition sync contract test
+- [x] 4.2 Add section definition sync contract test
   - File: `tests/test_reviews.py` (modify)
   - Add `TestSectionDefinitionSync` class with 1 test:
     - Read frontend `COMMENTABLE_SECTIONS` from `frontend/src/pages/design-detail/components/sections.ts` (regex parse)
@@ -174,7 +174,7 @@
 
 ## Phase 5: Frontend Components
 
-- [ ] 5. Create `SectionRenderer`, `InlineCommentAnchor`, `DraftCommentForm` components
+- [x] 5. Create `SectionRenderer`, `InlineCommentAnchor`, `DraftCommentForm` components
   - File: `frontend/src/pages/design-detail/components/SectionRenderer.tsx` (new), `frontend/src/pages/design-detail/components/InlineCommentAnchor.tsx` (new), `frontend/src/pages/design-detail/components/DraftCommentForm.tsx` (new)
   - `SectionRenderer`: renders a single design section (text via `<p>`, json via `JsonTree`), passes `structuredClone(value)` as target_content when adding draft
   - `InlineCommentAnchor`: comment button (visible only in review mode), toggles `DraftCommentForm`
@@ -186,7 +186,7 @@
   - **完了基準**: 3つのコンポーネントが作成され、ドラフトカードに破線ボーダー + "draft" ラベルが表示され、`dangerouslySetInnerHTML` が使用されていない
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする。`grep -r "dangerouslySetInnerHTML" frontend/src/pages/design-detail/components/` が 0件
 
-- [ ] 5.1 Create `ReviewBatchComposer` component
+- [x] 5.1 Create `ReviewBatchComposer` component
   - File: `frontend/src/pages/design-detail/components/ReviewBatchComposer.tsx` (new)
   - Floating bar (sticky bottom): draft count badge + status selector (supported/rejected/inconclusive/active) + "Submit All" button
   - Visible only when `hasDrafts` is true
@@ -201,7 +201,7 @@
   - **完了基準**: sticky bottom で表示され、ステータスセレクタと Submit All ボタンが機能する。送信中は Submit ボタンが disabled
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする
 
-- [ ] 5.2 Create `ReviewHistoryPanel` component
+- [x] 5.2 Create `ReviewHistoryPanel` component
   - File: `frontend/src/pages/design-detail/components/ReviewHistoryPanel.tsx` (new)
   - Read-only history view — 旧 `ReviewPanel` のコンセプトを再設計
   - Fetch batches via `listReviewBatches(designId)`
@@ -216,7 +216,7 @@
 
 ## Phase 6: Frontend Integration
 
-- [ ] 6. Restructure tabs and integrate inline comments into OverviewPanel
+- [x] 6. Restructure tabs and integrate inline comments into OverviewPanel
   - File: `frontend/src/pages/design-detail/DesignDetail.tsx` (modify), `frontend/src/pages/design-detail/OverviewPanel.tsx` (modify)
   - Change tabs: `overview | review | knowledge` → `overview | history | knowledge`
   - Replace `review` tab content with `ReviewHistoryPanel`
@@ -234,7 +234,7 @@
   - **完了基準**: タブが Overview | History | Knowledge の3つ。Overview で inline comment が可能。OverviewPanel ≤ 400行
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする。`wc -l frontend/src/pages/design-detail/OverviewPanel.tsx` が 400 以下
 
-- [ ] 6.1 Clean up `ReviewPanel.tsx`
+- [x] 6.1 Clean up `ReviewPanel.tsx`
   - File: `frontend/src/pages/design-detail/ReviewPanel.tsx` (delete or archive)
   - Remove `ReviewPanel.tsx` — 機能は `OverviewPanel`（submit-for-review ボタン）と `ReviewHistoryPanel`（履歴表示）に分散済み
   - Update `index.ts` の re-export を確認
@@ -248,7 +248,7 @@
 
 ## Phase 7: E2E Tests (test-design P7 + P8 + P9)
 
-- [ ] 7. Add E2E test fixtures and mock routes for review batches
+- [x] 7. Add E2E test fixtures and mock routes for review batches
   - File: `frontend/e2e/fixtures/mock-data.ts` (modify), `frontend/e2e/fixtures/api-routes.ts` (modify)
   - Add `makeBatchComment()` and `makeReviewBatch()` factory functions to `mock-data.ts`
   - Add `mockReviewBatches(page, batches)` and `mockReviewBatchesError(page)` route helpers to `api-routes.ts`
@@ -259,7 +259,7 @@
   - **完了基準**: `makeBatchComment`, `makeReviewBatch`, `mockReviewBatches`, `mockReviewBatchesError` が追加されている
   - **確認手順**: `cd frontend && npx tsc --noEmit` がパスする
 
-- [ ] 7.1 Write E2E tests for tab restructuring (P7)
+- [x] 7.1 Write E2E tests for tab restructuring (P7)
   - File: `frontend/e2e/design-detail.spec.ts` (modify)
   - Add `test.describe("Tab Restructuring")` block:
     - tabs show Overview, History, Knowledge
@@ -272,7 +272,7 @@
   - **完了基準**: 3つのタブ構成テストが追加され、全テストが GREEN
   - **確認手順**: `cd frontend && npx playwright test --grep "Tab Restructuring"` で全テストがパスする
 
-- [ ] 7.2 Write E2E tests for inline comment flow (P8)
+- [x] 7.2 Write E2E tests for inline comment flow (P8)
   - File: `frontend/e2e/design-detail.spec.ts` (modify)
   - Add `test.describe("Inline Review Comments")` block:
     - Comment buttons: visible on pending_review, hidden on non-pending, click opens form
@@ -286,7 +286,7 @@
   - **完了基準**: test-design.md P8 の全テストケースが E2E テストとして追加され、全テストが GREEN
   - **確認手順**: `cd frontend && npx playwright test --grep "Inline Review Comments"` で全テストがパスする
 
-- [ ] 7.3 Write E2E tests for History tab (P9)
+- [x] 7.3 Write E2E tests for History tab (P9)
   - File: `frontend/e2e/design-detail.spec.ts` (modify)
   - Add `test.describe("Review History")` block:
     - History tab shows past review batches
@@ -302,7 +302,7 @@
 
 ## Phase 8: Final Verification
 
-- [ ] 8. Run full quality check and verify all requirements
+- [x] 8. Run full quality check and verify all requirements
   - File: (all modified files)
   - Run backend quality checks: `poe all` (lint + typecheck + test)
   - Run frontend type check: `cd frontend && npx tsc --noEmit`

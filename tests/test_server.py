@@ -809,3 +809,69 @@ def test_update_design_rejects_pending_review(
     )
     assert "error" in result
     assert "submit_for_review" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# save_review_batch MCP tool tests (Inline Review Comments)
+# ---------------------------------------------------------------------------
+
+
+def _create_pending_design_mcp(theme_id: str = "FP") -> str:
+    """Helper: create design, activate, submit for review. Returns design_id."""
+    design_id = _create_active_design(theme_id=theme_id)
+    asyncio.run(server_module.submit_for_review(design_id))
+    return design_id
+
+
+class TestSaveReviewBatchTool:
+    """Tests for save_review_batch MCP tool (FR-18)."""
+
+    def test_save_review_batch_tool_success(
+        self, initialized_review_server: Path
+    ) -> None:
+        """FR-18: Valid batch creation via MCP tool."""
+        design_id = _create_pending_design_mcp()
+        result = asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="supported",
+                comments=[{"comment": "Good analysis"}],
+            )
+        )
+        assert "batch_id" in result
+        assert result["status_after"] == "supported"
+
+    def test_save_review_batch_tool_with_sections(
+        self, initialized_review_server: Path
+    ) -> None:
+        """FR-18: Batch with target_section + target_content."""
+        design_id = _create_pending_design_mcp()
+        result = asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="supported",
+                comments=[
+                    {
+                        "comment": "Check metrics",
+                        "target_section": "metrics",
+                        "target_content": {"kpi": "CVR"},
+                    }
+                ],
+            )
+        )
+        assert "batch_id" in result
+        assert result["status_after"] == "supported"
+
+    def test_save_review_batch_tool_non_pending(
+        self, initialized_review_server: Path
+    ) -> None:
+        """FR-18: Non-pending_review design returns error."""
+        design_id = _create_active_design()
+        result = asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="supported",
+                comments=[{"comment": "Should fail"}],
+            )
+        )
+        assert "error" in result

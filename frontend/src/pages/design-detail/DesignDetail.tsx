@@ -5,7 +5,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewPanel } from "./OverviewPanel";
-import { ReviewPanel } from "./ReviewPanel";
+import { ReviewHistoryPanel } from "./components/ReviewHistoryPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 
 interface DesignDetailProps {
@@ -73,18 +73,18 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
         <Tabs defaultValue="overview">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="review">Review</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <OverviewPanel design={design} />
-          </TabsContent>
-          <TabsContent value="review">
-            <ReviewPanel
+            <OverviewPanel
+              design={design}
               designId={designId}
-              status={design.status}
-              onStatusChanged={refreshDesign}
+              onDesignUpdated={refreshDesign}
             />
+          </TabsContent>
+          <TabsContent value="history">
+            <ReviewHistoryPanel designId={designId} />
           </TabsContent>
           <TabsContent value="knowledge">
             <KnowledgePanel designId={designId} />

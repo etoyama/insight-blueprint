@@ -397,6 +397,37 @@ async def save_review_comment(
 
 
 @mcp.tool()
+async def save_review_batch(
+    design_id: str,
+    status_after: str,
+    comments: list[dict],
+    reviewer: str = "analyst",
+) -> dict:
+    """Save a batch of review comments and transition the design status.
+
+    The design must be in 'pending_review' status. Each comment can optionally
+    include target_section and target_content for inline anchoring.
+
+    Valid status_after values: active, supported, rejected, inconclusive.
+
+    Returns: dict with batch_id and status_after on success; {error} on failure
+    """
+    if err := _validate_design_id(design_id):
+        return err
+    svc = get_review_service()
+    try:
+        result = svc.save_review_batch(design_id, status_after, comments, reviewer)
+    except (ValueError, Exception) as e:
+        return {"error": str(e)}
+    if result is None:
+        return {"error": f"Design '{design_id}' not found"}
+    return {
+        "batch_id": result.id,
+        "status_after": result.status_after.value,
+    }
+
+
+@mcp.tool()
 async def extract_domain_knowledge(design_id: str) -> dict:
     """Extract domain knowledge from review comments as preview.
 

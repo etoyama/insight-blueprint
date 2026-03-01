@@ -1,5 +1,7 @@
 """Tests for core/reviews.py (SPEC-3 Tasks 2.1 + 2.2)."""
 
+import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ from insight_blueprint.core.designs import DesignService
 from insight_blueprint.core.reviews import ReviewService
 from insight_blueprint.models.catalog import DomainKnowledgeEntry
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
+from insight_blueprint.models.review import ReviewBatch
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 
@@ -535,3 +538,542 @@ class TestImmutability:
         # Verify file now has both entries
         data_after = read_yaml(ek_path)
         assert len(data_after["entries"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Inline Review Comments — save_review_batch tests (P2)
+# ---------------------------------------------------------------------------
+
+_BAD_DESIGN_IDS = [
+    "../etc/passwd",
+    "foo/bar",
+    "id with spaces",
+    "",
+    "valid-id\n",
+    "back\\slash",
+]
+
+
+class TestSaveReviewBatch:
+    """Tests for ReviewService.save_review_batch (FR-8, FR-12, FR-14, NFR-8)."""
+
+    def test_save_batch_with_valid_data(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        review_batch_data: dict,
+    ) -> None:
+        """FR-8, FR-12: Valid batch is saved and returns ReviewBatch."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            review_batch_data["status_after"],
+            review_batch_data["comments"],
+            review_batch_data["reviewer"],
+        )
+        assert result is not None
+        assert isinstance(result, ReviewBatch)
+        assert result.id.startswith("RB-")
+        assert result.design_id == pending_design.id
+        assert len(result.comments) == 2
+
+    def test_save_batch_transitions_design_status(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        design_service: DesignService,
+    ) -> None:
+        """FR-8: Design status transitions to status_after."""
+        review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [{"comment": "Good"}],
+        )
+        reloaded = design_service.get_design(pending_design.id)
+        assert reloaded is not None
+        assert reloaded.status == DesignStatus.supported
+
+    def test_save_batch_persists_to_yaml(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """FR-14: Batch is persisted to YAML file."""
+        review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [{"comment": "Persisted"}],
+        )
+        reviews_path = (
+            tmp_path / ".insight" / "designs" / f"{pending_design.id}_reviews.yaml"
+        )
+        data = read_yaml(reviews_path)
+        assert "batches" in data
+        assert len(data["batches"]) == 1
+
+    def test_save_batch_preserves_target_section(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """FR-4: target_section is preserved in saved batch."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [
+                {
+                    "comment": "Check this",
+                    "target_section": "hypothesis_statement",
+                    "target_content": "Test",
+                }
+            ],
+        )
+        assert result is not None
+        assert result.comments[0].target_section == "hypothesis_statement"
+
+    def test_save_batch_preserves_target_content_text(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """FR-11: Text target_content is preserved."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [
+                {
+                    "comment": "Note",
+                    "target_section": "hypothesis_statement",
+                    "target_content": "CVR will improve by 10%",
+                }
+            ],
+        )
+        assert result is not None
+        assert result.comments[0].target_content == "CVR will improve by 10%"
+
+    def test_save_batch_preserves_target_content_json(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """FR-11: JSON target_content (dict) is preserved."""
+        content = {"kpi_name": "CVR", "current_value": "2.5%"}
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [
+                {
+                    "comment": "Metrics",
+                    "target_section": "metrics",
+                    "target_content": content,
+                }
+            ],
+        )
+        assert result is not None
+        assert result.comments[0].target_content == content
+
+    def test_save_batch_rejects_non_pending_review(
+        self,
+        review_service: ReviewService,
+        non_pending_design: AnalysisDesign,
+    ) -> None:
+        """AC: Non-pending_review design raises ValueError."""
+        with pytest.raises(ValueError, match="pending_review"):
+            review_service.save_review_batch(
+                non_pending_design.id,
+                "supported",
+                [{"comment": "Should fail"}],
+            )
+
+    def test_save_batch_rejects_invalid_status(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """Invalid status_after is rejected."""
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.save_review_batch(
+                pending_design.id,
+                "pending_review",
+                [{"comment": "Bad status"}],
+            )
+
+    def test_save_batch_rejects_empty_comments(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """Empty comments list is rejected."""
+        with pytest.raises((ValueError, Exception)):
+            review_service.save_review_batch(
+                pending_design.id,
+                "supported",
+                [],
+            )
+
+    @pytest.mark.parametrize("bad_id", _BAD_DESIGN_IDS)
+    def test_save_batch_rejects_invalid_design_id(
+        self,
+        review_service: ReviewService,
+        bad_id: str,
+    ) -> None:
+        """Path traversal and invalid IDs are rejected."""
+        with pytest.raises(ValueError, match="Invalid"):
+            review_service.save_review_batch(
+                bad_id,
+                "supported",
+                [{"comment": "Bad ID"}],
+            )
+
+    def test_save_batch_missing_design(
+        self,
+        review_service: ReviewService,
+    ) -> None:
+        """Nonexistent design_id returns None."""
+        result = review_service.save_review_batch(
+            "NONEXIST-H99",
+            "supported",
+            [{"comment": "Ghost"}],
+        )
+        assert result is None
+
+    def test_save_batch_yaml_write_failure_no_status_change(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        design_service: DesignService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """NFR-8: YAML write failure prevents status transition."""
+        monkeypatch.setattr(
+            "insight_blueprint.core.reviews.write_yaml",
+            lambda *a, **kw: (_ for _ in ()).throw(OSError("Disk full")),
+        )
+        with pytest.raises(OSError):
+            review_service.save_review_batch(
+                pending_design.id,
+                "supported",
+                [{"comment": "Fail write"}],
+            )
+        reloaded = design_service.get_design(pending_design.id)
+        assert reloaded is not None
+        assert reloaded.status == DesignStatus.pending_review
+
+    def test_save_batch_status_update_failure_keeps_batch(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        status_update_failure: None,
+        tmp_path: Path,
+    ) -> None:
+        """NFR-8: YAML succeeds but status update fails — batch is preserved."""
+        with pytest.raises(RuntimeError, match="Simulated"):
+            review_service.save_review_batch(
+                pending_design.id,
+                "supported",
+                [{"comment": "Batch saved, status not"}],
+            )
+        # Batch should be persisted even though status update failed
+        reviews_path = (
+            tmp_path / ".insight" / "designs" / f"{pending_design.id}_reviews.yaml"
+        )
+        data = read_yaml(reviews_path)
+        assert "batches" in data
+        assert len(data["batches"]) == 1
+
+    @pytest.mark.parametrize(
+        "status", ["supported", "rejected", "inconclusive", "active"]
+    )
+    def test_save_batch_all_status_transitions(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+        status: str,
+    ) -> None:
+        """FR-7: All 4 post-review status transitions work."""
+        # Submit for review each time
+        review_service.submit_for_review(active_design.id)
+        result = review_service.save_review_batch(
+            active_design.id,
+            status,
+            [{"comment": f"Setting to {status}"}],
+        )
+        assert result is not None
+        assert result.status_after.value == status
+        reloaded = design_service.get_design(active_design.id)
+        assert reloaded is not None
+        assert reloaded.status.value == status
+        # Reset for next iteration if needed
+        if status == "active":
+            return
+        design_service.update_design(active_design.id, status=DesignStatus.active)
+
+    def test_save_batch_appends_to_existing_batches(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """Appends to existing batches in the YAML file."""
+        # First batch
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_batch(
+            active_design.id,
+            "active",
+            [{"comment": "First batch"}],
+        )
+        # Second batch
+        review_service.submit_for_review(active_design.id)
+        result = review_service.save_review_batch(
+            active_design.id,
+            "supported",
+            [{"comment": "Second batch"}],
+        )
+        assert result is not None
+        batches = review_service.list_review_batches(active_design.id)
+        assert len(batches) == 2
+
+    def test_save_batch_creates_new_file(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """Creates reviews.yaml if it doesn't exist."""
+        reviews_path = (
+            tmp_path / ".insight" / "designs" / f"{pending_design.id}_reviews.yaml"
+        )
+        assert not reviews_path.exists()
+        review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [{"comment": "Creates file"}],
+        )
+        assert reviews_path.exists()
+
+
+class TestSaveReviewBatchTargetSectionValidation:
+    """Tests for target_section validation against ALLOWED_TARGET_SECTIONS (NFR-7)."""
+
+    @pytest.mark.parametrize(
+        "section",
+        [
+            "hypothesis_statement",
+            "hypothesis_background",
+            "metrics",
+            "explanatory",
+            "chart",
+            "next_action",
+        ],
+    )
+    def test_valid_target_sections_accepted(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        section: str,
+    ) -> None:
+        """NFR-7: All 6 valid sections are accepted."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [
+                {
+                    "comment": "Valid section",
+                    "target_section": section,
+                    "target_content": "x",
+                }
+            ],
+        )
+        assert result is not None
+
+    def test_invalid_target_section_rejected(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """NFR-7: Invalid section name is rejected."""
+        with pytest.raises(ValueError, match="target_section"):
+            review_service.save_review_batch(
+                pending_design.id,
+                "supported",
+                [
+                    {
+                        "comment": "Bad section",
+                        "target_section": "nonexistent_section",
+                        "target_content": "x",
+                    }
+                ],
+            )
+
+    def test_null_target_section_accepted(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """NFR-7: None target_section is allowed (no anchor)."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [{"comment": "No anchor"}],
+        )
+        assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Inline Review Comments — list_review_batches tests (P3)
+# ---------------------------------------------------------------------------
+
+
+class TestListReviewBatches:
+    """Tests for ReviewService.list_review_batches (FR-13)."""
+
+    def test_list_batches_returns_all(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """FR-13: Returns all batches for a design."""
+        # Create two batches
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_batch(
+            active_design.id, "active", [{"comment": "First"}]
+        )
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_batch(
+            active_design.id, "supported", [{"comment": "Second"}]
+        )
+        batches = review_service.list_review_batches(active_design.id)
+        assert len(batches) == 2
+
+    def test_list_batches_descending_order(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """FR-13: Batches are sorted by created_at descending."""
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_batch(
+            active_design.id, "active", [{"comment": "Earlier"}]
+        )
+        review_service.submit_for_review(active_design.id)
+        review_service.save_review_batch(
+            active_design.id, "supported", [{"comment": "Later"}]
+        )
+        batches = review_service.list_review_batches(active_design.id)
+        assert len(batches) == 2
+        assert batches[0].created_at >= batches[1].created_at
+
+    def test_list_batches_empty(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """No batches returns empty list."""
+        batches = review_service.list_review_batches(pending_design.id)
+        assert batches == []
+
+    def test_list_batches_nonexistent_design(
+        self,
+        review_service: ReviewService,
+    ) -> None:
+        """Nonexistent design_id returns empty list."""
+        batches = review_service.list_review_batches("NONEXIST-H99")
+        assert batches == []
+
+    def test_list_batches_no_file(
+        self,
+        review_service: ReviewService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """No reviews file returns empty list."""
+        batches = review_service.list_review_batches(active_design.id)
+        assert batches == []
+
+    def test_list_batches_no_batches_key(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """YAML without 'batches' key returns empty list + warning."""
+        reviews_path = (
+            tmp_path / ".insight" / "designs" / f"{pending_design.id}_reviews.yaml"
+        )
+        write_yaml(reviews_path, {"comments": [{"old": "format"}]})
+        with caplog.at_level(logging.WARNING):
+            batches = review_service.list_review_batches(pending_design.id)
+        assert batches == []
+        assert (
+            any(
+                "batches" in r.message.lower() or "warning" in r.message.lower()
+                for r in caplog.records
+            )
+            or len(caplog.records) > 0
+        )
+
+    def test_list_batches_preserves_target_content(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """target_content is preserved through save + list round-trip."""
+        content = {"kpi": "CVR", "value": 2.5}
+        review_service.save_review_batch(
+            pending_design.id,
+            "supported",
+            [
+                {
+                    "comment": "With content",
+                    "target_section": "metrics",
+                    "target_content": content,
+                }
+            ],
+        )
+        batches = review_service.list_review_batches(pending_design.id)
+        assert len(batches) == 1
+        assert batches[0].comments[0].target_content == content
+
+    def test_list_batches_corrupted_yaml(
+        self,
+        review_service: ReviewService,
+        corrupted_reviews_yaml: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Error#7: Corrupted YAML returns empty list + warning."""
+        with caplog.at_level(logging.WARNING):
+            batches = review_service.list_review_batches("DES-corrupt")
+        assert batches == []
+        assert len(caplog.records) > 0
+
+
+# ---------------------------------------------------------------------------
+# Section Definition Sync Contract Test (P4 — Task 4.2)
+# ---------------------------------------------------------------------------
+
+_SECTIONS_TS_PATH = Path(__file__).resolve().parent.parent / (
+    "frontend/src/pages/design-detail/components/sections.ts"
+)
+
+
+class TestSectionDefinitionSync:
+    """NFR-7: Backend ALLOWED_TARGET_SECTIONS must match frontend COMMENTABLE_SECTIONS."""
+
+    def test_backend_and_frontend_section_ids_match(self) -> None:
+        """Contract test: section IDs are identical between backend and frontend."""
+        from insight_blueprint.core.reviews import ALLOWED_TARGET_SECTIONS
+
+        # Parse frontend TypeScript source to extract section IDs
+        ts_source = _SECTIONS_TS_PATH.read_text(encoding="utf-8")
+        # Match lines like: { id: "hypothesis_statement", ...
+        frontend_ids = set(re.findall(r'id:\s*"([^"]+)"', ts_source))
+
+        assert frontend_ids, "Failed to parse any section IDs from sections.ts"
+        assert frontend_ids == ALLOWED_TARGET_SECTIONS, (
+            f"Section ID mismatch!\n"
+            f"  Backend only:  {sorted(ALLOWED_TARGET_SECTIONS - frontend_ids)}\n"
+            f"  Frontend only: {sorted(frontend_ids - ALLOWED_TARGET_SECTIONS)}"
+        )

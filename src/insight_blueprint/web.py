@@ -130,6 +130,12 @@ class UpdateSourceRequest(BaseModel):
     tags: list[str] | None = None
 
 
+class SubmitBatchRequest(BaseModel):
+    status_after: str
+    reviewer: str = "analyst"
+    comments: list[dict]
+
+
 class SaveKnowledgeRequest(BaseModel):
     entries: list[dict]
 
@@ -470,6 +476,59 @@ async def knowledge_endpoint(
         "saved_entries": [e.model_dump(mode="json") for e in saved],
         "count": len(saved),
         "message": f"Saved {len(saved)} knowledge entries.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Review batch endpoints (Inline Review Comments)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/designs/{design_id}/review-batches", status_code=201)
+async def submit_review_batch(
+    design_id: str = Path(pattern=_ID_PATTERN),
+    *,
+    body: SubmitBatchRequest,
+) -> dict:
+    """Submit a batch of review comments and transition design status."""
+    from pydantic import ValidationError
+
+    from insight_blueprint._registry import get_review_service
+
+    svc = get_review_service()
+    try:
+        result = svc.save_review_batch(
+            design_id, body.status_after, body.comments, body.reviewer
+        )
+    except ValidationError as e:
+        raise HTTPException(422, detail=str(e)) from None
+    except ValueError as e:
+        error_msg = str(e)
+        if "target_section" in error_msg or "comments" in error_msg:
+            raise HTTPException(422, detail=error_msg) from None
+        raise
+    if result is None:
+        raise HTTPException(404, detail=f"Design '{design_id}' not found")
+    return {
+        "batch_id": result.id,
+        "status_after": result.status_after.value,
+        "comment_count": len(result.comments),
+    }
+
+
+@app.get("/api/designs/{design_id}/review-batches")
+async def list_review_batches(
+    design_id: str = Path(pattern=_ID_PATTERN),
+) -> dict:
+    """List all review batches for a design."""
+    from insight_blueprint._registry import get_review_service
+
+    svc = get_review_service()
+    batches = svc.list_review_batches(design_id)
+    return {
+        "design_id": design_id,
+        "batches": [b.model_dump(mode="json") for b in batches],
+        "count": len(batches),
     }
 
 
