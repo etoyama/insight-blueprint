@@ -417,8 +417,10 @@ async def save_review_batch(
     svc = get_review_service()
     try:
         result = svc.save_review_batch(design_id, status_after, comments, reviewer)
-    except (ValueError, Exception) as e:
+    except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to save review batch"}
     if result is None:
         return {"error": f"Design '{design_id}' not found"}
     return {

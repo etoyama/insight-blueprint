@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 
@@ -96,9 +96,9 @@ class CreateDesignRequest(BaseModel):
 
 
 class AddCommentRequest(BaseModel):
-    comment: str
+    comment: str = Field(min_length=1, max_length=2000)
     status: str
-    reviewer: str = "analyst"
+    reviewer: str = Field(default="analyst", min_length=1, max_length=100)
 
 
 class AddSourceRequest(BaseModel):
@@ -132,7 +132,7 @@ class UpdateSourceRequest(BaseModel):
 
 class SubmitBatchRequest(BaseModel):
     status_after: str
-    reviewer: str = "analyst"
+    reviewer: str = Field(default="analyst", min_length=1, max_length=100)
     comments: list[dict]
 
 

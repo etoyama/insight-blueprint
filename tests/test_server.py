@@ -875,3 +875,31 @@ class TestSaveReviewBatchTool:
             )
         )
         assert "error" in result
+
+    def test_save_review_batch_tool_not_found(
+        self, initialized_review_server: Path
+    ) -> None:
+        """MCP tool returns error for non-existent design_id."""
+        result = asyncio.run(
+            server_module.save_review_batch(
+                design_id="nonexistent-id",
+                status_after="supported",
+                comments=[{"comment": "Should fail"}],
+            )
+        )
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_save_review_batch_tool_validation_error(
+        self, initialized_review_server: Path
+    ) -> None:
+        """MCP tool returns error for invalid comment (exceeds max_length)."""
+        design_id = _create_pending_design_mcp()
+        result = asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="supported",
+                comments=[{"comment": "x" * 2001}],
+            )
+        )
+        assert "error" in result

@@ -56,6 +56,39 @@ VALID_REVIEW_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
 }
 
 
+def _validate_post_review_status(status: str) -> DesignStatus:
+    """Parse and validate a post-review status string.
+
+    Raises ValueError if status is not a valid post-review transition target.
+    """
+    try:
+        target_status = DesignStatus(status)
+    except ValueError:
+        valid = ", ".join(
+            s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
+        )
+        raise ValueError(
+            f"Invalid post-review status '{status}'. Valid: {valid}"
+        ) from None
+
+    if target_status not in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]:
+        valid = ", ".join(
+            s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
+        )
+        raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
+
+    return target_status
+
+
+def _ensure_pending_review(design: AnalysisDesign | None, operation: str) -> None:
+    """Raise ValueError if design is not in pending_review status."""
+    if design is not None and design.status != DesignStatus.pending_review:
+        raise ValueError(
+            f"Design must be in 'pending_review' status to {operation}, "
+            f"current status: '{design.status}'"
+        )
+
+
 class ReviewService:
     """Service for managing the review workflow on analysis designs."""
 
@@ -98,32 +131,12 @@ class ReviewService:
         or if status is not a valid post-review status.
         """
         _validate_id(design_id, "design_id")
-        # Validate post-review status
-        try:
-            target_status = DesignStatus(status)
-        except ValueError:
-            valid = ", ".join(
-                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-            )
-            raise ValueError(
-                f"Invalid post-review status '{status}'. Valid: {valid}"
-            ) from None
-
-        if target_status not in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]:
-            valid = ", ".join(
-                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-            )
-            raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
+        target_status = _validate_post_review_status(status)
 
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-
-        if design.status != DesignStatus.pending_review:
-            raise ValueError(
-                f"Design must be in 'pending_review' status to save review comment, "
-                f"current status: '{design.status}'"
-            )
+        _ensure_pending_review(design, "save review comment")
 
         # Create comment
         comment_id = f"RC-{uuid.uuid4().hex[:8]}"
@@ -161,23 +174,7 @@ class ReviewService:
         or target_section is not in ALLOWED_TARGET_SECTIONS.
         """
         _validate_id(design_id, "design_id")
-
-        # Validate post-review status
-        try:
-            target_status = DesignStatus(status)
-        except ValueError:
-            valid = ", ".join(
-                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-            )
-            raise ValueError(
-                f"Invalid post-review status '{status}'. Valid: {valid}"
-            ) from None
-
-        if target_status not in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]:
-            valid = ", ".join(
-                s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-            )
-            raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
+        target_status = _validate_post_review_status(status)
 
         # Validate comments not empty
         if not comments:
@@ -195,12 +192,7 @@ class ReviewService:
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-
-        if design.status != DesignStatus.pending_review:
-            raise ValueError(
-                f"Design must be in 'pending_review' status to save review batch, "
-                f"current status: '{design.status}'"
-            )
+        _ensure_pending_review(design, "save review batch")
 
         # Create batch
         batch_id = f"RB-{uuid.uuid4().hex[:8]}"
@@ -397,8 +389,10 @@ class ReviewService:
                         )
                         if keys_for_comment:
                             ek_list = comment_data.get("extracted_knowledge", [])
-                            ek_list.extend(keys_for_comment)
-                            comment_data["extracted_knowledge"] = ek_list
+                            comment_data["extracted_knowledge"] = [
+                                *ek_list,
+                                *keys_for_comment,
+                            ]
                     write_yaml(reviews_path, reviews_data)
 
         return saved

@@ -29,7 +29,7 @@ export function OverviewPanel({
   const isReviewMode = design.status === "pending_review";
 
   const getSectionValue = (sectionId: string): unknown => {
-    return (design as unknown as Record<string, unknown>)[sectionId];
+    return design[sectionId as keyof Design];
   };
 
   const handleSubmitReview = () => {

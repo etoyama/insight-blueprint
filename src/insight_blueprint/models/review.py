@@ -19,8 +19,8 @@ class ReviewComment(BaseModel):
 
     id: str
     design_id: str
-    comment: str
-    reviewer: str = "analyst"
+    comment: str = Field(min_length=1, max_length=2000)
+    reviewer: str = Field(default="analyst", min_length=1, max_length=100)
     status_after: DesignStatus
     created_at: datetime = Field(default_factory=now_jst)
     extracted_knowledge: list[str] = Field(default_factory=list)
@@ -61,6 +61,6 @@ class ReviewBatch(BaseModel, extra="forbid"):
     id: str
     design_id: str
     status_after: DesignStatus
-    reviewer: str = "analyst"
+    reviewer: str = Field(default="analyst", min_length=1, max_length=100)
     comments: list[BatchComment] = Field(min_length=1)
     created_at: datetime = Field(default_factory=now_jst)

@@ -18,11 +18,10 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const ctrl = new AbortController();
+  const fetchDesign = (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    getDesign(designId, ctrl.signal)
+    getDesign(designId, signal)
       .then((d) => {
         setDesign(d);
         setLoading(false);
@@ -32,6 +31,11 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
         setError(err.message);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchDesign(ctrl.signal);
     return () => ctrl.abort();
   }, [designId]);
 
@@ -48,19 +52,7 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
     return <p className="py-4 text-center text-muted-foreground">Loading...</p>;
   }
   if (error) {
-    return <ErrorBanner message={error} onRetry={() => {
-      setError(null);
-      setLoading(true);
-      getDesign(designId)
-        .then((d) => {
-          setDesign(d);
-          setLoading(false);
-        })
-        .catch((err) => {
-          setError(err.message);
-          setLoading(false);
-        });
-    }} />;
+    return <ErrorBanner message={error} onRetry={() => fetchDesign()} />;
   }
   if (!design) return null;
 
