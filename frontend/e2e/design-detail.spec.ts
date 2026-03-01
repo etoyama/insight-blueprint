@@ -226,7 +226,7 @@ test.describe("Tab Restructuring", () => {
     await page.getByText("Pending Review Design").click();
 
     // Scope to design detail card to avoid matching top-level navigation tabs
-    const detailCard = page.locator("[data-slot='card']").filter({ hasText: "Pending Review Design" });
+    const detailCard = page.getByTestId("design-detail-card");
     await expect(detailCard.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     await expect(detailCard.getByRole("tab", { name: /history/i })).toBeVisible();
     await expect(detailCard.getByRole("tab", { name: /knowledge/i })).toBeVisible();
@@ -240,7 +240,7 @@ test.describe("Tab Restructuring", () => {
     await page.goto("/?tab=designs");
     await page.getByText("Pending Review Design").click();
 
-    const detailCard = page.locator("[data-slot='card']").filter({ hasText: "Pending Review Design" });
+    const detailCard = page.getByTestId("design-detail-card");
     await expect(detailCard.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     // Design detail should not have a "Review" tab anymore
     const reviewTab = detailCard.getByRole("tab", { name: /^review$/i });
@@ -605,9 +605,11 @@ test.describe("Review History", () => {
   async function goToHistoryTab(page: import("@playwright/test").Page) {
     await page.goto("/?tab=designs");
     await page.getByText("Pending Review Design").click();
-    const detailCard = page.locator("[data-slot='card']").filter({ hasText: "Pending Review Design" });
+    const detailCard = page.getByTestId("design-detail-card");
     await expect(detailCard.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
-    await detailCard.getByRole("tab", { name: /history/i }).click();
+    const historyTab = detailCard.getByRole("tab", { name: /history/i });
+    await historyTab.click();
+    await expect(historyTab).toHaveAttribute("aria-selected", "true", { timeout: 5000 });
   }
 
   test("History tab shows past review batches", async ({ page }) => {

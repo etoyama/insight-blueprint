@@ -57,7 +57,7 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
   if (!design) return null;
 
   return (
-    <Card>
+    <Card data-testid="design-detail-card">
       <CardHeader>
         <CardTitle>{design.title}</CardTitle>
       </CardHeader>
