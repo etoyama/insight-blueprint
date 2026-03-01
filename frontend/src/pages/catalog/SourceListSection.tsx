@@ -10,6 +10,14 @@ import { EmptyState } from "@/components/EmptyState";
 import { addSource } from "@/api/client";
 import type { DataSource, SourceType, AddSourceRequest } from "@/types/api";
 
+const INITIAL_FORM = {
+  source_id: "",
+  name: "",
+  type: "csv" as SourceType,
+  description: "",
+  connection: "",
+};
+
 const SOURCE_COLUMNS: ColumnDef<DataSource>[] = [
   { key: "name", label: "Name" },
   { key: "type", label: "Type", render: (v) => <Badge variant="outline">{String(v)}</Badge> },
@@ -30,17 +38,17 @@ export function SourceListSection({
   onSourceAdded: () => void;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({
-    source_id: "",
-    name: "",
-    type: "csv" as SourceType,
-    description: "",
-    connection: "",
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const MAX_CONNECTION_JSON_LENGTH = 10240;
+
+  function resetForm() {
+    setDialogOpen(false);
+    setForm(INITIAL_FORM);
+    setJsonError(null);
+  }
 
   function parseConnection(raw: string): Record<string, unknown> | null {
     if (raw.length > MAX_CONNECTION_JSON_LENGTH) {
@@ -70,8 +78,7 @@ export function SourceListSection({
         connection,
       };
       await addSource(body);
-      setDialogOpen(false);
-      setForm({ source_id: "", name: "", type: "csv", description: "", connection: "" });
+      resetForm();
       onSourceAdded();
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : "Failed to add source");

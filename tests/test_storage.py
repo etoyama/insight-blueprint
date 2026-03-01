@@ -1,6 +1,7 @@
 """Tests for storage layer: yaml_store and project initialization."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -154,6 +155,8 @@ def test_init_project_registers_mcp_json_when_absent(tmp_path: Path) -> None:
     assert "insight-blueprint" in config["mcpServers"]
     server_config = config["mcpServers"]["insight-blueprint"]
     assert server_config["command"] == "uvx"
+    # Issue #2: relative path for portability
+    assert server_config["args"] == ["insight-blueprint", "--project", "."]
 
 
 def test_init_project_merges_existing_mcp_json(tmp_path: Path) -> None:
@@ -267,3 +270,56 @@ def test_init_project_does_not_overwrite_existing_extracted_knowledge(
     data = read_yaml(ek_path)
     assert len(data["entries"]) == 1
     assert data["entries"][0]["key"] == "custom-1"
+
+
+# === corrupt .mcp.json tests (Issue #4) ===
+
+
+def test_init_project_repairs_corrupt_mcp_json(tmp_path: Path) -> None:
+    """Corrupt .mcp.json is backed up and replaced with a fresh one."""
+    # Create corrupt .mcp.json
+    mcp_json = tmp_path / ".mcp.json"
+    mcp_json.write_text("{invalid json content!!!")
+
+    _init_project(tmp_path)
+
+    # Fresh .mcp.json should be valid
+    with mcp_json.open() as f:
+        config = json.load(f)
+    assert "insight-blueprint" in config["mcpServers"]
+
+    # Backup should exist
+    backups = list(tmp_path.glob(".mcp.json.bak.*"))
+    assert len(backups) == 1
+    assert backups[0].read_text() == "{invalid json content!!!"
+
+
+# === concurrent init safety tests (Issue #1) ===
+
+
+def test_init_project_concurrent_safety(tmp_path: Path) -> None:
+    """Concurrent init_project() calls do not corrupt state."""
+    from insight_blueprint.storage.project import init_project
+
+    errors: list[Exception] = []
+
+    def run_init() -> None:
+        try:
+            init_project(tmp_path)
+        except Exception as e:
+            errors.append(e)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(run_init) for _ in range(4)]
+        for f in futures:
+            f.result()
+
+    assert errors == []
+
+    # All artifacts should be valid
+    assert (tmp_path / ".insight" / "config.yaml").exists()
+    mcp_json = tmp_path / ".mcp.json"
+    with mcp_json.open() as f:
+        config = json.load(f)
+    assert "insight-blueprint" in config["mcpServers"]
+    assert (tmp_path / "CLAUDE.md").exists()

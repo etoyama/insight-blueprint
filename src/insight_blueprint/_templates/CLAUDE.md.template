@@ -1,0 +1,49 @@
+## insight-blueprint
+
+Hypothesis-driven EDA platform. MCP tools manage `.insight/` data;
+Claude Code skills provide interactive workflows.
+
+### Project Structure
+
+```
+.insight/
+├── config.yaml                  # Project configuration
+├── catalog/
+│   ├── sources/<source_id>.yaml # Data source definitions
+│   └── knowledge/<id>.yaml      # Extracted domain knowledge
+├── designs/<design_id>.yaml     # Hypothesis design documents
+└── rules/
+    ├── review_rules.yaml        # Review rule definitions
+    ├── analysis_rules.yaml      # Analysis rule definitions
+    └── extracted_knowledge.yaml # Knowledge seed data
+```
+
+### Skills
+
+| Skill | Trigger | Purpose |
+|-------|---------|---------|
+| `/catalog-register` | Register a data source | Interactive source registration with schema |
+| `/analysis-design` | Create a hypothesis design | Guided hypothesis document creation |
+
+### MCP Tools
+
+| Category | Tools |
+|----------|-------|
+| Catalog | `catalog_add_source`, `catalog_update_source`, `catalog_list_sources`, `catalog_get_source` |
+| Design | `design_create`, `design_update`, `design_list`, `design_get` |
+| Review | `review_add_comment`, `review_submit_batch`, `review_list_comments` |
+| Knowledge | `knowledge_store`, `knowledge_update`, `knowledge_search` |
+| Search | `catalog_search` |
+
+### Workflow
+
+1. **Register** data sources via `/catalog-register`
+2. **Design** hypotheses via `/analysis-design`
+3. **Implement** analysis (code + notebooks)
+4. **Review** via status flow: draft → active → pending_review → disposition
+5. **Extract** domain knowledge for reuse
+
+### Language Rules
+
+- Respond to users in Japanese
+- Code, YAML field names, and tool names stay in English

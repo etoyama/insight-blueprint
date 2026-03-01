@@ -54,12 +54,17 @@ def make_traversable(base_dir: Path) -> Any:
 def create_fake_package(
     base: Path,
     skills: dict[str, str | None],
+    *,
+    include_templates: bool = True,
+    include_rules: bool = True,
 ) -> FakeTraversable:
     """Create a fake package directory with _skills/ and return Traversable.
 
     Args:
         base: Root directory for fake package.
         skills: Mapping of skill_name -> version (None = no version field).
+        include_templates: Also create _templates/ with CLAUDE.md.template.
+        include_rules: Also create _rules/ with bundled rule files.
     """
     skills_dir = base / "_skills"
     skills_dir.mkdir(parents=True, exist_ok=True)
@@ -71,4 +76,26 @@ def create_fake_package(
             frontmatter += f'version: "{version}"\n'
         frontmatter += f"description: {name} skill\n---\n# {name}\n"
         (skill / "SKILL.md").write_text(frontmatter)
+
+    if include_templates:
+        templates_dir = base / "_templates"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        (templates_dir / "__init__.py").write_text("")
+        (templates_dir / "CLAUDE.md.template").write_text(
+            "## insight-blueprint\n\nManaged content.\n"
+        )
+
+    if include_rules:
+        rules_dir = base / "_rules"
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        (rules_dir / "__init__.py").write_text("")
+        for rule_name in (
+            "insight-yaml.md",
+            "analysis-workflow.md",
+            "catalog-workflow.md",
+        ):
+            (rules_dir / rule_name).write_text(
+                f'---\nversion: "1.0.0"\npaths:\n  - ".insight/**"\n---\n# {rule_name}\n'
+            )
+
     return FakeTraversable(base)

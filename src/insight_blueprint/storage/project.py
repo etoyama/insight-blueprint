@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from importlib.resources.abc import Traversable
 from pathlib import Path
 
+from filelock import FileLock
 from packaging.version import InvalidVersion, Version
 
 from insight_blueprint.storage.yaml_store import write_yaml
@@ -24,10 +25,18 @@ def init_project(project_path: Path) -> None:
 
     Idempotent: safe to call multiple times without data corruption.
     Does NOT wire server._service -- that is done in cli.py.
+    Concurrent calls on the same path are serialized via file lock.
     """
-    _create_insight_dirs(project_path)
-    _copy_skills_template(project_path)
-    _register_mcp_server(project_path)
+    lock_path = project_path / ".insight" / ".init.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(lock_path, timeout=30)
+
+    with lock:
+        _create_insight_dirs(project_path)
+        _copy_skills_template(project_path)
+        _register_mcp_server(project_path)
+        _generate_claude_md(project_path)
+        _copy_rules_template(project_path)
 
 
 def _create_insight_dirs(project_path: Path) -> None:
@@ -403,8 +412,20 @@ def _register_mcp_server(project_path: Path) -> None:
 
     # Load existing .mcp.json or start fresh
     if mcp_json_path.exists():
-        with mcp_json_path.open("r", encoding="utf-8") as f:
-            config = json.load(f)
+        try:
+            with mcp_json_path.open("r", encoding="utf-8") as f:
+                config = json.load(f)
+        except json.JSONDecodeError:
+            # Backup corrupt file and start fresh
+            ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+            backup_path = mcp_json_path.parent / f".mcp.json.bak.{ts}"
+            shutil.copy2(mcp_json_path, backup_path)
+            logger.warning(
+                "Corrupt .mcp.json backed up to %s. "
+                "Other server registrations may need to be re-added manually.",
+                backup_path.name,
+            )
+            config = {}
     else:
         config = {}
 
@@ -414,7 +435,7 @@ def _register_mcp_server(project_path: Path) -> None:
     # Upsert insight-blueprint entry
     config["mcpServers"]["insight-blueprint"] = {
         "command": "uvx",
-        "args": ["insight-blueprint", "--project", str(project_path.resolve())],
+        "args": ["insight-blueprint", "--project", "."],
         "env": {
             "PYTHONUNBUFFERED": "1",
             "MCP_TIMEOUT": "10000",
@@ -434,3 +455,216 @@ def _register_mcp_server(project_path: Path) -> None:
         except OSError:
             pass
         raise
+
+
+# ---------------------------------------------------------------------------
+# CLAUDE.md generation (marker-delimited managed section)
+# ---------------------------------------------------------------------------
+
+_CLAUDE_MD_BEGIN = (
+    "<!-- BEGIN insight-blueprint managed section — do not edit manually -->"
+)
+_CLAUDE_MD_END = "<!-- END insight-blueprint managed section -->"
+_CLAUDE_MD_STATE_KEY = "claude_md"
+
+
+def _load_template(name: str) -> str:
+    """Load a bundled template file from _templates/."""
+    pkg_files = importlib.resources.files("insight_blueprint")
+    template = pkg_files / "_templates" / name
+    return template.read_text(encoding="utf-8")
+
+
+def _hash_content(content: str) -> str:
+    """SHA-256 of content (LF-normalized)."""
+    return hashlib.sha256(content.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
+def _load_claude_md_state(project_path: Path) -> dict[str, str | None]:
+    """Load state for CLAUDE.md and rules from .claude/.insight-blueprint-state.json."""
+    state_file = project_path / ".claude" / _STATE_FILENAME
+    if not state_file.exists():
+        return {}
+    try:
+        return json.loads(state_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read state %s: %s", state_file, exc)
+        return {}
+
+
+def _save_claude_md_state(project_path: Path, state: dict[str, str | None]) -> None:
+    """Save state for CLAUDE.md and rules to .claude/.insight-blueprint-state.json."""
+    state_file = project_path / ".claude" / _STATE_FILENAME
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps(state, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _generate_claude_md(project_path: Path) -> None:
+    """Generate or update the insight-blueprint managed section in CLAUDE.md.
+
+    Behavior:
+      - CLAUDE.md absent -> create with managed section
+      - CLAUDE.md exists, no markers -> append managed section
+      - CLAUDE.md exists, markers present -> replace content between markers
+      - Content unchanged (hash match) -> skip rewrite
+    """
+    claude_md_path = project_path / "CLAUDE.md"
+    template_content = _load_template("CLAUDE.md.template")
+    managed_block = f"{_CLAUDE_MD_BEGIN}\n{template_content}\n{_CLAUDE_MD_END}\n"
+
+    # Check hash to avoid unnecessary rewrites
+    new_hash = _hash_content(managed_block)
+    state = _load_claude_md_state(project_path)
+    if state.get(_CLAUDE_MD_STATE_KEY) == new_hash and claude_md_path.exists():
+        # Content hasn't changed and file exists -> skip
+        return
+
+    if not claude_md_path.exists():
+        # Fresh creation
+        claude_md_path.parent.mkdir(parents=True, exist_ok=True)
+        claude_md_path.write_text(managed_block, encoding="utf-8")
+        logger.info("CLAUDE.md created with insight-blueprint section")
+    else:
+        existing = claude_md_path.read_text(encoding="utf-8")
+        if _CLAUDE_MD_BEGIN in existing and _CLAUDE_MD_END in existing:
+            # Replace between markers
+            pattern = re.compile(
+                re.escape(_CLAUDE_MD_BEGIN)
+                + r".*?"
+                + re.escape(_CLAUDE_MD_END)
+                + r"\n?",
+                re.DOTALL,
+            )
+            updated = pattern.sub(managed_block, existing)
+            claude_md_path.write_text(updated, encoding="utf-8")
+            logger.info("CLAUDE.md managed section updated")
+        else:
+            # Append managed section
+            separator = "\n" if existing.endswith("\n") else "\n\n"
+            claude_md_path.write_text(
+                existing + separator + managed_block, encoding="utf-8"
+            )
+            logger.info("CLAUDE.md managed section appended")
+
+    state[_CLAUDE_MD_STATE_KEY] = new_hash
+    _save_claude_md_state(project_path, state)
+
+
+# ---------------------------------------------------------------------------
+# .claude/rules/ template copy (per-file version tracking)
+# ---------------------------------------------------------------------------
+
+
+def _discover_bundled_rules() -> list[str]:
+    """Auto-detect .md files under _rules/ (excluding __init__.py).
+
+    Returns a sorted list of file names.
+    """
+    pkg_files = importlib.resources.files("insight_blueprint")
+    rules_root = pkg_files / "_rules"
+    result: list[str] = []
+    try:
+        for entry in rules_root.iterdir():
+            if not entry.is_file():
+                continue
+            if entry.name.endswith(".md"):
+                result.append(entry.name)
+    except (FileNotFoundError, TypeError):
+        return []
+    return sorted(result)
+
+
+def _copy_rules_template(project_path: Path) -> None:
+    """Copy bundled _rules/*.md to .claude/rules/ with version-aware updates.
+
+    Per-file decision logic (same 6 cases as skills, simplified for files):
+      1. Fresh copy (dest absent) -> copy + save state
+      2. Same version or downgrade -> skip
+      3. Upgrade, unmodified (hash match) -> auto-update
+      4. Upgrade, customized (hash differs) -> skip + write .bundled-update file
+      5. No version, dest exists -> skip (legacy)
+      6. No version, dest absent -> fresh copy (legacy)
+    """
+    pkg_files = importlib.resources.files("insight_blueprint")
+    rules_dest = project_path / ".claude" / "rules"
+    rules_dest.mkdir(parents=True, exist_ok=True)
+
+    state = _load_claude_md_state(project_path)
+    rules_state: dict[str, dict[str, str | None]] = state.get("rules", {})  # type: ignore[assignment]
+    changed = False
+
+    for rule_name in _discover_bundled_rules():
+        bundled_file = pkg_files / "_rules" / rule_name
+        dest_file = rules_dest / rule_name
+
+        bundled_content = bundled_file.read_text(encoding="utf-8")
+        bundled_version = _parse_version_from_content(bundled_content)
+        bundled_hash = _hash_content(bundled_content)
+
+        file_state = rules_state.get(rule_name, {})
+
+        if not dest_file.exists():
+            # Case 1 / Case 6: Fresh copy
+            dest_file.write_text(bundled_content, encoding="utf-8")
+            rules_state[rule_name] = {
+                "installed_version": bundled_version,
+                "installed_bundled_hash": bundled_hash,
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+            changed = True
+            logger.info("Rule '%s' installed (v%s)", rule_name, bundled_version)
+            continue
+
+        installed_version = file_state.get("installed_version")
+
+        # Version comparison
+        if bundled_version and installed_version:
+            try:
+                if Version(bundled_version) <= Version(installed_version):
+                    # Case 2: Same or downgrade -> skip
+                    continue
+            except InvalidVersion:
+                pass
+
+        # No version on bundled side, dest exists -> legacy skip
+        if not bundled_version:
+            continue
+
+        # Bundled is newer -> check for user customization
+        installed_content = dest_file.read_text(encoding="utf-8")
+        installed_hash = _hash_content(installed_content)
+        prev_bundled_hash = file_state.get("installed_bundled_hash")
+
+        if prev_bundled_hash and installed_hash == prev_bundled_hash:
+            # Case 3: Unmodified -> auto-update
+            dest_file.write_text(bundled_content, encoding="utf-8")
+            rules_state[rule_name] = {
+                "installed_version": bundled_version,
+                "installed_bundled_hash": bundled_hash,
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+            changed = True
+            logger.info("Rule '%s' updated to v%s", rule_name, bundled_version)
+        else:
+            # Case 4: Customized -> skip + write bundled update
+            update_file = rules_dest / f".bundled-update.{rule_name}"
+            try:
+                update_file.write_text(bundled_content, encoding="utf-8")
+            except OSError as exc:
+                logger.warning(
+                    "Failed to write bundled update for rule '%s': %s", rule_name, exc
+                )
+            logger.warning(
+                "Rule '%s' v%s available but customized, skipped. "
+                "See .bundled-update.%s for new version.",
+                rule_name,
+                bundled_version,
+                rule_name,
+            )
+
+    if changed:
+        state["rules"] = rules_state  # type: ignore[assignment]
+        _save_claude_md_state(project_path, state)

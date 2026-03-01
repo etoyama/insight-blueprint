@@ -25,6 +25,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.41.0",
     "packaging>=23.0",
+    "filelock>=3.24.2",
 ]
 
 [project.scripts]
