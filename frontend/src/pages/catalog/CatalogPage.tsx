@@ -35,6 +35,7 @@ export function CatalogPage() {
 
   return (
     <div>
+      <SearchSection />
       <SourceListSection
         sources={sources}
         onSelect={setSelectedSourceId}
@@ -42,7 +43,6 @@ export function CatalogPage() {
         onSourceAdded={() => fetchSources()}
       />
       <SchemaSection sourceId={selectedSourceId} />
-      <SearchSection />
       <KnowledgeSection />
     </div>
   );

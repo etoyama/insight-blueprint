@@ -182,18 +182,22 @@ export function makeReviewBatch(
 }
 
 export interface SearchResult {
+  doc_type: string;
   source_id: string;
-  column_name: string;
-  description: string;
+  title: string;
+  snippet: string;
+  rank: number;
 }
 
 export function makeSearchResult(
   overrides?: Partial<SearchResult>,
 ): SearchResult {
   return {
+    doc_type: "source",
     source_id: "s-001",
-    column_name: "email",
-    description: "User email address",
+    title: "email",
+    snippet: "User <b>email</b> address",
+    rank: -1.5,
     ...overrides,
   };
 }

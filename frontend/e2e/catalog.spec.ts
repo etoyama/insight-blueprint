@@ -39,8 +39,8 @@ test("#14: clicking source row shows schema table", async ({ page }) => {
 // #15: Catalog search — enter query, search results shown
 test("#15: catalog search displays results", async ({ page }) => {
   const results = [
-    makeSearchResult({ source_id: "s-1", column_name: "revenue", description: "Monthly revenue" }),
-    makeSearchResult({ source_id: "s-2", column_name: "cost", description: "Operating cost" }),
+    makeSearchResult({ source_id: "s-1", title: "revenue", snippet: "Monthly <b>revenue</b>" }),
+    makeSearchResult({ source_id: "s-2", title: "cost", snippet: "Operating <b>cost</b>" }),
   ];
 
   await mockSourceList(page, [source]);

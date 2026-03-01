@@ -94,9 +94,11 @@ export interface RulesContext {
 }
 
 export interface SearchResult {
+  doc_type: string;
   source_id: string;
-  column_name: string;
-  description: string;
+  title: string;
+  snippet: string;
+  rank: number;
   [key: string]: unknown;
 }
 

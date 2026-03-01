@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/DataTable";
@@ -7,10 +7,36 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { searchCatalog } from "@/api/client";
 import type { SearchResult } from "@/types/api";
 
+/** Parse FTS5 snippet with <b> highlight markers into React nodes. */
+function renderSnippet(raw: unknown): ReactNode {
+  const text = String(raw ?? "");
+  const parts = text.split(/(<b>|<\/b>)/);
+  const nodes: ReactNode[] = [];
+  let bold = false;
+  for (const part of parts) {
+    if (part === "<b>") {
+      bold = true;
+    } else if (part === "</b>") {
+      bold = false;
+    } else if (part) {
+      nodes.push(
+        bold ? (
+          <mark key={nodes.length} className="bg-yellow-200 dark:bg-yellow-800">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      );
+    }
+  }
+  return <>{nodes}</>;
+}
+
 const SEARCH_COLUMNS: ColumnDef<SearchResult>[] = [
-  { key: "source_id", label: "Source ID" },
-  { key: "column_name", label: "Column Name" },
-  { key: "description", label: "Description" },
+  { key: "source_id", label: "Source" },
+  { key: "title", label: "Title" },
+  { key: "snippet", label: "Snippet", render: renderSnippet },
 ];
 
 export function SearchSection() {
@@ -46,7 +72,7 @@ export function SearchSection() {
   };
 
   return (
-    <section className="mt-6">
+    <section className="mb-6">
       <h2 className="mb-2 text-lg font-semibold">Catalog Search</h2>
       <div className="mb-4 flex gap-2">
         <Input
