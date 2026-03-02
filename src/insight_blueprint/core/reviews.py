@@ -375,7 +375,11 @@ class ReviewService:
             comment_keys: dict[str, list[str]] = {}
             for entry in saved:
                 # source format: "review:{comment_id}@{design_id}"
-                if entry.source.startswith("review:") and "@" in entry.source:
+                if (
+                    entry.source
+                    and entry.source.startswith("review:")
+                    and "@" in entry.source
+                ):
                     comment_id = entry.source[len("review:") : entry.source.index("@")]
                     comment_keys.setdefault(comment_id, []).append(entry.key)
 

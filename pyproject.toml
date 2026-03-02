@@ -114,4 +114,5 @@ sequence = ["lint", "typecheck", "test"]
 [dependency-groups]
 dev = [
     "httpx>=0.27",
+    "ty>=0.0.17",
 ]

@@ -1,9 +1,10 @@
 """Pydantic data models for review comments (SPEC-3)."""
 
 from datetime import datetime
-from typing import Self, TypeAliasType
+from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
+from typing_extensions import TypeAliasType
 
 from insight_blueprint.models.common import now_jst
 from insight_blueprint.models.design import DesignStatus

@@ -26,7 +26,7 @@ app = FastAPI(title="insight-blueprint")
 
 # CORS: allow localhost origins only
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,  # type: ignore[arg-type]
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",

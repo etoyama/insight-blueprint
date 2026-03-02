@@ -11,6 +11,7 @@ import tempfile
 from datetime import UTC, datetime
 from importlib.resources.abc import Traversable
 from pathlib import Path
+from typing import Any
 
 from filelock import FileLock
 from packaging.version import InvalidVersion, Version
@@ -480,7 +481,7 @@ def _hash_content(content: str) -> str:
     return hashlib.sha256(content.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
-def _load_claude_md_state(project_path: Path) -> dict[str, str | None]:
+def _load_claude_md_state(project_path: Path) -> dict[str, Any]:
     """Load state for CLAUDE.md and rules from .claude/.insight-blueprint-state.json."""
     state_file = project_path / ".claude" / _STATE_FILENAME
     if not state_file.exists():
@@ -492,7 +493,7 @@ def _load_claude_md_state(project_path: Path) -> dict[str, str | None]:
         return {}
 
 
-def _save_claude_md_state(project_path: Path, state: dict[str, str | None]) -> None:
+def _save_claude_md_state(project_path: Path, state: dict[str, Any]) -> None:
     """Save state for CLAUDE.md and rules to .claude/.insight-blueprint-state.json."""
     state_file = project_path / ".claude" / _STATE_FILENAME
     state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -593,7 +594,7 @@ def _copy_rules_template(project_path: Path) -> None:
     rules_dest.mkdir(parents=True, exist_ok=True)
 
     state = _load_claude_md_state(project_path)
-    rules_state: dict[str, dict[str, str | None]] = state.get("rules", {})  # type: ignore[assignment]
+    rules_state: dict[str, dict[str, str | None]] = state.get("rules", {})
     changed = False
 
     for rule_name in _discover_bundled_rules():
@@ -666,5 +667,5 @@ def _copy_rules_template(project_path: Path) -> None:
             )
 
     if changed:
-        state["rules"] = rules_state  # type: ignore[assignment]
+        state["rules"] = rules_state
         _save_claude_md_state(project_path, state)
