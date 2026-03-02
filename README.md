@@ -83,6 +83,7 @@ When you run `insight-blueprint --project <path>`, skill templates are copied to
 
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
 - `/catalog-register` -- Step-by-step data source registration
+- `/data-lineage` -- Track data transformations and export lineage diagrams (Mermaid)
 
 Skills support both English and Japanese trigger phrases.
 
