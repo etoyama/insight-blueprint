@@ -17,6 +17,14 @@ repos:
         require_serial: true
         exclude: "^\\.claude/"
 
+      - id: ty-check
+        name: "ty: type check"
+        entry: uv run ty check src/
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
       - id: pytest
         name: pytest
         entry: uv run pytest --tb=short -q
