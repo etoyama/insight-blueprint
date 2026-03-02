@@ -1,5 +1,9 @@
 # insight-blueprint
 
+[![CI](https://github.com/etoyama/insight-blueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/etoyama/insight-blueprint/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 A Python MCP server for hypothesis-driven data analysis. Manage analysis designs, data catalogs, and review workflows through Claude Code or any MCP-compatible client.
 
 ## Installation
@@ -93,18 +97,10 @@ insight-blueprint                               # Use current directory
 ## Development
 
 ```bash
-# Quality checks
-poe lint        # ruff check + format
-poe typecheck   # ty type checking
-poe test        # pytest
-poe all         # Run all checks
-
-# Rebuild frontend after changes
-poe build-frontend
-
-# Build wheel (for local install testing)
-uv build --wheel
+poe all   # Run lint + typecheck + test
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, code style, and how to submit pull requests.
 
 ### Tech Stack
 
