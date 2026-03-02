@@ -37,7 +37,8 @@ poe format          # Auto-fix lint issues and format
 poe typecheck       # Type check (ty)
 poe test            # Run tests (pytest)
 poe all             # Run lint + typecheck + test
-poe build-frontend  # Rebuild frontend assets
+poe build-frontend  # Install deps and build frontend assets
+poe ci              # Run the full CI pipeline locally (Python + frontend)
 ```
 
 ## Code Style

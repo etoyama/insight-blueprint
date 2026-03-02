@@ -101,15 +101,23 @@ cmd = "uv run ty check src/"
 [tool.poe.tasks.test]
 cmd = "uv run pytest -v"
 
+[tool.poe.tasks.install-frontend]
+cmd = "npm --prefix frontend ci"
+help = "Install frontend dependencies"
+
 [tool.poe.tasks.build-frontend]
-cmd = "npm --prefix frontend run build"
-help = "Build frontend assets"
+sequence = ["install-frontend", {cmd = "npm --prefix frontend run build"}]
+help = "Install deps and build frontend assets"
 
 [tool.poe.tasks.build]
 sequence = ["build-frontend"]
 
 [tool.poe.tasks.all]
 sequence = ["lint", "typecheck", "test"]
+
+[tool.poe.tasks.ci]
+sequence = ["lint", "typecheck", "test", "build-frontend"]
+help = "Run the full CI pipeline locally (Python + frontend)"
 
 [dependency-groups]
 dev = [
