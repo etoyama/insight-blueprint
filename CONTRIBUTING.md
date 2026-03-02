@@ -16,12 +16,18 @@ Thank you for your interest in contributing! This guide covers everything you ne
 git clone https://github.com/etoyama/insight-blueprint.git
 cd insight-blueprint
 
-# Install all dependencies
+# Install all dependencies (--all-extras is REQUIRED for dev tools: ruff, ty, pytest, poe)
 uv sync --all-extras
+
+# Set up pre-commit hooks (runs lint, typecheck, and tests before each commit)
+uv run pre-commit install
 
 # Build frontend assets
 poe build-frontend
 ```
+
+> **Note**: `uv sync` without `--all-extras` will NOT install development tools.
+> Always use `uv sync --all-extras` to get the full development environment.
 
 ### Common Commands
 
