@@ -69,6 +69,7 @@ src/insight_blueprint/static/
 frontend/node_modules/
 
 # Playwright test artifacts
+test-results/
 frontend/test-results/
 frontend/playwright-report/
 
