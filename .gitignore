@@ -52,6 +52,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Generated images
+summary.png
+
 # Logs
 *.log
 logs/
