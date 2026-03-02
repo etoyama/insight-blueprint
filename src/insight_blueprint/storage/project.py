@@ -48,6 +48,7 @@ def _create_insight_dirs(project_path: Path) -> None:
     (insight / "designs").mkdir(parents=True, exist_ok=True)
     (insight / "catalog" / "knowledge").mkdir(parents=True, exist_ok=True)
     (insight / "rules").mkdir(parents=True, exist_ok=True)
+    (insight / "lineage").mkdir(parents=True, exist_ok=True)
 
     # Create config.yaml (only if absent)
     config_path = insight / "config.yaml"
