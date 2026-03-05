@@ -2,13 +2,42 @@ import { useState } from "react";
 import { submitReview } from "@/api/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { Design } from "@/types/api";
+import type { Design, DesignStatus } from "@/types/api";
 import { COMMENTABLE_SECTIONS } from "./components/sections";
 import { SectionRenderer } from "./components/SectionRenderer";
 import { ReviewBatchComposer } from "./components/ReviewBatchComposer";
 import { useReviewDrafts } from "./components/useReviewDrafts";
+
+const STATUS_GUIDE: Partial<Record<DesignStatus, { title: string; description: string }>> = {
+  active: {
+    title: "Ready for Review",
+    description:
+      "Submit for review to enable inline commenting on each section.",
+  },
+  pending_review: {
+    title: "In Review",
+    description:
+      'Add comments to sections below, then submit with a verdict. Choose "Active" to request revisions, or a final verdict when the design is solid.',
+  },
+  supported: {
+    title: "Approved",
+    description:
+      "Design is finalized. Proceed with your analysis, then return to the Knowledge tab to extract and save domain insights.",
+  },
+  rejected: {
+    title: "Rejected",
+    description:
+      "Hypothesis was rejected. Go to the Knowledge tab to capture lessons learned.",
+  },
+  inconclusive: {
+    title: "Inconclusive",
+    description:
+      "Results are inconclusive. Go to the Knowledge tab to capture observations, then consider refining the hypothesis.",
+  },
+};
 
 interface OverviewPanelProps {
   design: Design;
@@ -53,16 +82,27 @@ export function OverviewPanel({
       <Field label="Created">{formatDateTime(design.created_at)}</Field>
       <Field label="Updated">{formatDateTime(design.updated_at)}</Field>
 
-      {design.status === "active" && (
-        <div className="border-t pt-3">
-          <Button
-            onClick={handleSubmitReview}
-            disabled={submittingReview}
-          >
-            {submittingReview ? "Submitting..." : "Submit for Review"}
-          </Button>
-        </div>
-      )}
+      {(() => {
+        const guide = STATUS_GUIDE[design.status];
+        if (!guide) return null;
+        return (
+          <Alert data-testid="workflow-guide">
+            <AlertTitle>{guide.title}</AlertTitle>
+            <AlertDescription>
+              <p>{guide.description}</p>
+              {design.status === "active" && (
+                <Button
+                  className="mt-2"
+                  onClick={handleSubmitReview}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? "Submitting..." : "Submit for Review"}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        );
+      })()}
 
       {error && <ErrorBanner message={error} />}
 

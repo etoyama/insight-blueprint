@@ -57,7 +57,9 @@ export function KnowledgePanel({ designId }: { designId: string }) {
             {saved ? "Saved" : saving ? "Saving..." : "Save Knowledge"}
           </Button>
           {saved && (
-            <p className="text-sm text-green-600">Knowledge saved successfully.</p>
+            <p className="text-sm text-green-600">
+              Knowledge saved to project rules. View all entries in the Rules tab → Domain Knowledge.
+            </p>
           )}
         </>
       )}

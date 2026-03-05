@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { makeDesign, makeComment } from "./fixtures/mock-data";
+import { makeDesign, makeReviewBatch, makeBatchComment } from "./fixtures/mock-data";
 
 // #21: Timeline display — all designs in updated_at descending order
 test("#21: history timeline shows designs in descending order", async ({
@@ -38,23 +38,23 @@ test("#21: history timeline shows designs in descending order", async ({
   expect(firstCardText).toContain("New Design");
 });
 
-// #22: History expand — click entry, review comment history shown
-test("#22: clicking history entry shows review comments", async ({ page }) => {
+// #22: History expand — click entry, review batch history shown
+test("#22: clicking history entry shows review batches", async ({ page }) => {
   const design = makeDesign({ id: "d-hist", title: "History Design" });
-  const comments = [
-    makeComment({
-      id: "c-h1",
+  const batches = [
+    makeReviewBatch({
+      id: "RB-h1",
       design_id: "d-hist",
-      comment: "First review note",
-      reviewer: "alice",
       status_after: "supported",
+      reviewer: "alice",
+      comments: [makeBatchComment({ comment: "First review note" })],
     }),
-    makeComment({
-      id: "c-h2",
+    makeReviewBatch({
+      id: "RB-h2",
       design_id: "d-hist",
-      comment: "Second review note",
-      reviewer: "bob",
       status_after: "rejected",
+      reviewer: "bob",
+      comments: [makeBatchComment({ comment: "Second review note" })],
     }),
   ];
 
@@ -66,9 +66,9 @@ test("#22: clicking history entry shows review comments", async ({ page }) => {
     }
     return route.continue();
   });
-  await page.route(`**/api/designs/${design.id}/comments`, (route) =>
+  await page.route(`**/api/designs/${design.id}/review-batches`, (route) =>
     route.fulfill({
-      json: { design_id: design.id, comments, count: comments.length },
+      json: { design_id: design.id, batches, count: batches.length },
     }),
   );
 
@@ -78,7 +78,7 @@ test("#22: clicking history entry shows review comments", async ({ page }) => {
   // Click to expand
   await page.getByText("History Design").click();
 
-  // Review comments should appear
+  // Review batch comments should appear
   await expect(page.getByText("First review note")).toBeVisible({
     timeout: 5000,
   });

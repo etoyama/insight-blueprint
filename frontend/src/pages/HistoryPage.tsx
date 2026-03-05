@@ -3,19 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { listDesigns, listComments } from "@/api/client";
-import type { Design, ReviewComment } from "@/types/api";
+import { listDesigns } from "@/api/client";
+import type { Design } from "@/types/api";
 import { formatDateTime } from "@/lib/utils";
+import { ReviewHistoryPanel } from "@/pages/design-detail/components/ReviewHistoryPanel";
 
 export function HistoryPage() {
   const [designs, setDesigns] = useState<Design[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [comments, setComments] = useState<ReviewComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsError, setCommentsError] = useState<string | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -32,23 +29,6 @@ export function HistoryPage() {
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, []);
-
-  useEffect(() => {
-    if (!expandedId) {
-      setComments([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    setCommentsLoading(true);
-    setCommentsError(null);
-    listComments(expandedId, ctrl.signal)
-      .then((res) => setComments(res.comments))
-      .catch((err) => {
-        if (err.name !== "AbortError") setCommentsError(err.message);
-      })
-      .finally(() => setCommentsLoading(false));
-    return () => ctrl.abort();
-  }, [expandedId]);
 
   const handleToggle = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -81,7 +61,6 @@ export function HistoryPage() {
       {designs.map((design) => {
         const isCreated = design.created_at === design.updated_at;
         const isExpanded = expandedId === design.id;
-        const showEmptyComments = isExpanded && !commentsLoading && !commentsError && comments.length === 0;
 
         return (
           <Card
@@ -102,35 +81,7 @@ export function HistoryPage() {
 
             {isExpanded && (
               <CardContent onClick={(e) => e.stopPropagation()}>
-                <h3 className="mb-2 text-sm font-semibold">Review History</h3>
-                {commentsLoading && (
-                  <p className="text-sm text-muted-foreground">Loading...</p>
-                )}
-                {commentsError && <ErrorBanner message={commentsError} />}
-                {showEmptyComments && (
-                  <p className="text-sm text-muted-foreground">
-                    No review comments
-                  </p>
-                )}
-                {comments.length > 0 && (
-                  <div className="space-y-3">
-                    {comments.map((c) => (
-                      <div
-                        key={c.id}
-                        className="rounded border p-3 text-sm"
-                      >
-                        <div className="mb-1 flex items-center gap-2">
-                          <span className="font-medium">{c.reviewer}</span>
-                          <StatusBadge status={c.status_after} />
-                          <span className="text-muted-foreground">
-                            {formatDateTime(c.created_at)}
-                          </span>
-                        </div>
-                        <p>{c.comment}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ReviewHistoryPanel designId={design.id} />
               </CardContent>
             )}
           </Card>

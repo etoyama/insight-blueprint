@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
   makeDesign,
-  makeComment,
   makeKnowledgeEntry,
   makeBatchComment,
   makeReviewBatch,
@@ -208,7 +207,7 @@ test("#10: save knowledge shows confirmation", async ({ page }) => {
 
   // Now save
   await page.getByRole("button", { name: "Save Knowledge" }).click();
-  await expect(page.getByText(/saved successfully/i)).toBeVisible({
+  await expect(page.getByText(/knowledge saved to project rules/i)).toBeVisible({
     timeout: 5000,
   });
 });
