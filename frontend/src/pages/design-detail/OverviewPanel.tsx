@@ -72,17 +72,12 @@ export function OverviewPanel({
       <Field label="Created">{formatDateTime(design.created_at)}</Field>
       <Field label="Updated">{formatDateTime(design.updated_at)}</Field>
 
-      {(() => {
-        const guide = STATUS_GUIDE[design.status];
-        return (
-          <Alert data-testid="workflow-guide">
-            <AlertTitle>{guide.title}</AlertTitle>
-            <AlertDescription>
-              <p>{guide.description}</p>
-            </AlertDescription>
-          </Alert>
-        );
-      })()}
+      <Alert data-testid="workflow-guide">
+        <AlertTitle>{STATUS_GUIDE[design.status].title}</AlertTitle>
+        <AlertDescription>
+          <p>{STATUS_GUIDE[design.status].description}</p>
+        </AlertDescription>
+      </Alert>
 
       <div className="space-y-4 border-t pt-3">
         {COMMENTABLE_SECTIONS.map((section) => (

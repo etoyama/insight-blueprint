@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
@@ -14,9 +14,10 @@ export function HistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const ctrl = new AbortController();
-    listDesigns(undefined, ctrl.signal)
+  const fetchDesigns = useCallback((signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
+    listDesigns(undefined, signal)
       .then((res) => {
         const sorted = [...res.designs].sort(
           (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
@@ -27,28 +28,16 @@ export function HistoryPage() {
         if (err.name !== "AbortError") setError(err.message);
       })
       .finally(() => setLoading(false));
-    return () => ctrl.abort();
   }, []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchDesigns(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchDesigns]);
 
   const handleToggle = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
-  };
-
-  const fetchDesigns = () => {
-    setLoading(true);
-    setError(null);
-    const ctrl = new AbortController();
-    listDesigns(undefined, ctrl.signal)
-      .then((res) => {
-        const sorted = [...res.designs].sort(
-          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-        );
-        setDesigns(sorted);
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError") setError(err.message);
-      })
-      .finally(() => setLoading(false));
   };
 
   if (loading)
