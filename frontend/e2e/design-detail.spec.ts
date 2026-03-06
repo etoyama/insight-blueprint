@@ -86,7 +86,7 @@ test("#6: workflow guide displays for in_review design", async ({ page }) => {
 
   // Workflow guide should be visible with "In Review" title
   await expect(page.getByTestId("workflow-guide")).toBeVisible();
-  await expect(page.getByText("In Review")).toBeVisible();
+  await expect(page.getByTestId("workflow-guide").getByText("In Review")).toBeVisible();
 
   // Submit for Review button should NOT exist (removed in new workflow)
   await expect(
@@ -109,7 +109,7 @@ test("#7: comment buttons hidden when not in_review", async ({ page }) => {
 
   // Workflow guide should show "Revision Requested"
   await expect(page.getByTestId("workflow-guide")).toBeVisible();
-  await expect(page.getByText("Revision Requested")).toBeVisible();
+  await expect(page.getByTestId("workflow-guide").getByText("Revision Requested")).toBeVisible();
 
   // Comment buttons should not be visible for non-in_review designs
   await expect(page.getByTestId("comment-button")).not.toBeVisible();
@@ -373,12 +373,12 @@ test.describe("Inline Review Comments", () => {
     // Open status selector
     await page.getByTestId("status-selector").click();
 
-    // Verify all 5 options
-    await expect(page.getByRole("option", { name: "supported" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "rejected" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "inconclusive" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "revision_requested" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "analyzing" })).toBeVisible();
+    // Verify all 5 options (labels from DESIGN_STATUS_LABELS)
+    await expect(page.getByRole("option", { name: "Supported" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Rejected" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Inconclusive" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Revision Requested" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Analyzing" })).toBeVisible();
   });
 
   test("Submit All sends batch and refreshes design", async ({ page }) => {
