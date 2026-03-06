@@ -14,42 +14,80 @@ from insight_blueprint.models.review import ReviewBatch
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 
-class TestSubmitForReview:
-    def test_submit_for_review_active_design(
-        self,
-        review_service: ReviewService,
-        active_design: AnalysisDesign,
-        design_service: DesignService,
-    ) -> None:
-        """R2-AC1: active design transitions to pending_review."""
-        result = review_service.submit_for_review(active_design.id)
-        assert result is not None
-        assert result.status == DesignStatus.pending_review
-        reloaded = design_service.get_design(active_design.id)
-        assert reloaded is not None
-        assert reloaded.status == DesignStatus.pending_review
-        assert reloaded.updated_at > active_design.updated_at
+class TestTransitionStatus:
+    """Unit-03: transition_status valid/invalid transitions."""
 
-    def test_submit_for_review_draft_raises_value_error(
+    @pytest.mark.parametrize(
+        "from_status,to_status",
+        [
+            ("in_review", "revision_requested"),
+            ("in_review", "analyzing"),
+            ("in_review", "supported"),
+            ("in_review", "rejected"),
+            ("in_review", "inconclusive"),
+            ("revision_requested", "in_review"),
+            ("analyzing", "in_review"),
+        ],
+    )
+    def test_valid_transitions(
         self,
         review_service: ReviewService,
         design_service: DesignService,
+        from_status: str,
+        to_status: str,
     ) -> None:
-        """R2-AC2: submitting a draft design raises ValueError."""
-        draft = design_service.create_design(
-            title="Draft",
-            hypothesis_statement="stmt",
-            hypothesis_background="bg",
+        """Valid transitions succeed and update the design status."""
+        design = design_service.create_design(
+            title="Trans", hypothesis_statement="s", hypothesis_background="b"
         )
-        with pytest.raises(ValueError, match="active"):
-            review_service.submit_for_review(draft.id)
+        design_service.update_design(design.id, status=DesignStatus(from_status))
+        result = review_service.transition_status(design.id, to_status)
+        assert result is not None
+        assert result.status == DesignStatus(to_status)
 
-    def test_submit_for_review_missing_returns_none(
+    @pytest.mark.parametrize(
+        "from_status,to_status",
+        [
+            ("supported", "in_review"),
+            ("rejected", "in_review"),
+            ("inconclusive", "in_review"),
+            ("revision_requested", "supported"),
+        ],
+    )
+    def test_invalid_transitions(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        from_status: str,
+        to_status: str,
+    ) -> None:
+        """Invalid transitions raise ValueError."""
+        design = design_service.create_design(
+            title="Trans", hypothesis_statement="s", hypothesis_background="b"
+        )
+        design_service.update_design(design.id, status=DesignStatus(from_status))
+        with pytest.raises(ValueError, match="Cannot transition"):
+            review_service.transition_status(design.id, to_status)
+
+    def test_invalid_transition_error_message(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+    ) -> None:
+        """Error message includes current status and valid targets."""
+        design = design_service.create_design(
+            title="Trans", hypothesis_statement="s", hypothesis_background="b"
+        )
+        design_service.update_design(design.id, status=DesignStatus.supported)
+        with pytest.raises(ValueError, match="Valid targets: none"):
+            review_service.transition_status(design.id, "in_review")
+
+    def test_transition_missing_design_returns_none(
         self,
         review_service: ReviewService,
     ) -> None:
-        """R2-AC3: nonexistent design returns None."""
-        result = review_service.submit_for_review("NONEXISTENT-H99")
+        """Nonexistent design returns None."""
+        result = review_service.transition_status("NONEXISTENT-H99", "in_review")
         assert result is None
 
 
@@ -72,21 +110,21 @@ class TestSaveReviewComment:
         assert reloaded is not None
         assert reloaded.status == DesignStatus.supported
 
-    def test_save_review_comment_sets_status_active(
+    def test_save_review_comment_sets_status_revision_requested(
         self,
         review_service: ReviewService,
         pending_design: AnalysisDesign,
         design_service: DesignService,
     ) -> None:
-        """R2-AC5: save comment with status active (request changes)."""
+        """R2-AC5: save comment with status revision_requested (request changes)."""
         comment = review_service.save_review_comment(
-            pending_design.id, "Needs more data", "active"
+            pending_design.id, "Needs more data", "revision_requested"
         )
         assert comment is not None
-        assert comment.status_after == DesignStatus.active
+        assert comment.status_after == DesignStatus.revision_requested
         reloaded = design_service.get_design(pending_design.id)
         assert reloaded is not None
-        assert reloaded.status == DesignStatus.active
+        assert reloaded.status == DesignStatus.revision_requested
 
     def test_save_review_comment_sets_status_rejected(
         self,
@@ -114,29 +152,30 @@ class TestSaveReviewComment:
         assert comment is not None
         assert comment.status_after == DesignStatus.inconclusive
 
-    def test_save_review_comment_on_draft_raises_value_error(
+    def test_save_review_comment_on_non_in_review_raises_value_error(
         self,
         review_service: ReviewService,
         design_service: DesignService,
     ) -> None:
-        """R2-AC6: commenting on a draft design raises ValueError."""
-        draft = design_service.create_design(
-            title="Draft",
+        """R2-AC6: commenting on a non-in_review design raises ValueError."""
+        design = design_service.create_design(
+            title="Terminal",
             hypothesis_statement="stmt",
             hypothesis_background="bg",
         )
-        with pytest.raises(ValueError, match="pending_review"):
-            review_service.save_review_comment(draft.id, "comment", "supported")
+        design_service.update_design(design.id, status=DesignStatus.supported)
+        with pytest.raises(ValueError, match="in_review"):
+            review_service.save_review_comment(design.id, "comment", "supported")
 
-    def test_save_review_comment_pending_review_invalid(
+    def test_save_review_comment_invalid_status_value(
         self,
         review_service: ReviewService,
         pending_design: AnalysisDesign,
     ) -> None:
-        """R2-AC7: pending_review is not a valid post-review status."""
+        """R2-AC7: invalid status value is rejected."""
         with pytest.raises(ValueError, match="Invalid post-review status"):
             review_service.save_review_comment(
-                pending_design.id, "comment", "pending_review"
+                pending_design.id, "comment", "nonexistent_status"
             )
 
     def test_save_review_comment_missing_returns_none(
@@ -158,12 +197,12 @@ class TestListComments:
         active_design: AnalysisDesign,
     ) -> None:
         """R2-AC8: two comments listed in chronological order."""
-        # First review cycle
-        review_service.submit_for_review(active_design.id)
-        review_service.save_review_comment(active_design.id, "First comment", "active")
-        # Second review cycle (re-submit)
-        design_service.update_design(active_design.id, status=DesignStatus.active)
-        review_service.submit_for_review(active_design.id)
+        # First review cycle: in_review -> revision_requested
+        review_service.save_review_comment(
+            active_design.id, "First comment", "revision_requested"
+        )
+        # Second review cycle: transition back to in_review, then to supported
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
         review_service.save_review_comment(
             active_design.id, "Second comment", "supported"
         )
@@ -199,7 +238,6 @@ class TestExtractDomainKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """R3-AC1: caution prefix extracts as caution category."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: watch for nulls in column X",
@@ -217,7 +255,6 @@ class TestExtractDomainKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """R3-AC2: definition prefix extracts as definition category."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "definition: MAU = Monthly Active Users",
@@ -236,7 +273,6 @@ class TestExtractDomainKnowledge:
         tmp_path: Path,
     ) -> None:
         """R3-AC3: extract returns preview, NOT persisted to YAML."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: check data quality",
@@ -266,7 +302,6 @@ class TestExtractDomainKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """R3-AC7: lines without prefix default to context category."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "This analysis targets Q3 planning",
@@ -283,7 +318,6 @@ class TestExtractDomainKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """R3-AC8: table: annotation sets affects_columns."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "table: population_stats\ncaution: data changed in 2015",
@@ -301,7 +335,6 @@ class TestExtractDomainKnowledge:
     ) -> None:
         """R3-AC9: design.source_ids used as default scope."""
         design_service.update_design(active_design.id, source_ids=["src-A", "src-B"])
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: handle missing values",
@@ -318,7 +351,6 @@ class TestExtractDomainKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """R3-AC10: no annotation + no source_ids = unscoped."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: general data warning",
@@ -338,7 +370,6 @@ class TestSaveExtractedKnowledge:
         tmp_path: Path,
     ) -> None:
         """R3-AC4: save persists entries to extracted_knowledge.yaml."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: check nulls",
@@ -361,7 +392,6 @@ class TestSaveExtractedKnowledge:
         tmp_path: Path,
     ) -> None:
         """R3-AC5: duplicate keys are skipped on re-save."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: check nulls",
@@ -384,7 +414,6 @@ class TestSaveExtractedKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """Extra: save updates ReviewComment.extracted_knowledge with saved keys."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "caution: check nulls",
@@ -405,15 +434,15 @@ class TestSaveExtractedKnowledge:
         active_design: AnalysisDesign,
     ) -> None:
         """Regression: keys must only be added to originating comment, not all."""
-        # Comment 1: request changes (returns to active)
-        review_service.submit_for_review(active_design.id)
+        # Comment 1: request changes (returns to revision_requested)
         review_service.save_review_comment(
             active_design.id,
             "caution: null check needed",
-            "active",
+            "revision_requested",
         )
+        # Reset to in_review for second comment
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
         # Comment 2: supported
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_comment(
             active_design.id,
             "definition: MAU means monthly active users",
@@ -449,13 +478,13 @@ _BAD_IDS = [
 
 class TestIdValidation:
     @pytest.mark.parametrize("bad_id", _BAD_IDS)
-    def test_submit_for_review_invalid_id_raises_error(
+    def test_transition_status_invalid_id_raises_error(
         self,
         review_service: ReviewService,
         bad_id: str,
     ) -> None:
         with pytest.raises(ValueError, match="Invalid"):
-            review_service.submit_for_review(bad_id)
+            review_service.transition_status(bad_id, "in_review")
 
     @pytest.mark.parametrize("bad_id", _BAD_IDS)
     def test_save_review_comment_invalid_id_raises_error(
@@ -672,13 +701,13 @@ class TestSaveReviewBatch:
         assert result is not None
         assert result.comments[0].target_content == content
 
-    def test_save_batch_rejects_non_pending_review(
+    def test_save_batch_rejects_non_in_review(
         self,
         review_service: ReviewService,
         non_pending_design: AnalysisDesign,
     ) -> None:
-        """AC: Non-pending_review design raises ValueError."""
-        with pytest.raises(ValueError, match="pending_review"):
+        """AC: Non-in_review design raises ValueError."""
+        with pytest.raises(ValueError, match="in_review"):
             review_service.save_review_batch(
                 non_pending_design.id,
                 "supported",
@@ -694,7 +723,7 @@ class TestSaveReviewBatch:
         with pytest.raises(ValueError, match="Invalid"):
             review_service.save_review_batch(
                 pending_design.id,
-                "pending_review",
+                "nonexistent_status",
                 [{"comment": "Bad status"}],
             )
 
@@ -757,7 +786,7 @@ class TestSaveReviewBatch:
             )
         reloaded = design_service.get_design(pending_design.id)
         assert reloaded is not None
-        assert reloaded.status == DesignStatus.pending_review
+        assert reloaded.status == DesignStatus.in_review
 
     def test_save_batch_status_update_failure_keeps_batch(
         self,
@@ -782,7 +811,14 @@ class TestSaveReviewBatch:
         assert len(data["batches"]) == 1
 
     @pytest.mark.parametrize(
-        "status", ["supported", "rejected", "inconclusive", "active"]
+        "status",
+        [
+            "supported",
+            "rejected",
+            "inconclusive",
+            "revision_requested",
+            "analyzing",
+        ],
     )
     def test_save_batch_all_status_transitions(
         self,
@@ -791,9 +827,7 @@ class TestSaveReviewBatch:
         active_design: AnalysisDesign,
         status: str,
     ) -> None:
-        """FR-7: All 4 post-review status transitions work."""
-        # Submit for review each time
-        review_service.submit_for_review(active_design.id)
+        """FR-7: All 5 post-review status transitions work."""
         result = review_service.save_review_batch(
             active_design.id,
             status,
@@ -804,10 +838,8 @@ class TestSaveReviewBatch:
         reloaded = design_service.get_design(active_design.id)
         assert reloaded is not None
         assert reloaded.status.value == status
-        # Reset for next iteration if needed
-        if status == "active":
-            return
-        design_service.update_design(active_design.id, status=DesignStatus.active)
+        # Reset for next iteration
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
 
     def test_save_batch_appends_to_existing_batches(
         self,
@@ -816,15 +848,15 @@ class TestSaveReviewBatch:
         active_design: AnalysisDesign,
     ) -> None:
         """Appends to existing batches in the YAML file."""
-        # First batch
-        review_service.submit_for_review(active_design.id)
+        # First batch: in_review -> revision_requested
         review_service.save_review_batch(
             active_design.id,
-            "active",
+            "revision_requested",
             [{"comment": "First batch"}],
         )
-        # Second batch
-        review_service.submit_for_review(active_design.id)
+        # Reset to in_review for second batch
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
+        # Second batch: in_review -> supported
         result = review_service.save_review_batch(
             active_design.id,
             "supported",
@@ -936,11 +968,10 @@ class TestListReviewBatches:
     ) -> None:
         """FR-13: Returns all batches for a design."""
         # Create two batches
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_batch(
-            active_design.id, "active", [{"comment": "First"}]
+            active_design.id, "revision_requested", [{"comment": "First"}]
         )
-        review_service.submit_for_review(active_design.id)
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
         review_service.save_review_batch(
             active_design.id, "supported", [{"comment": "Second"}]
         )
@@ -954,11 +985,10 @@ class TestListReviewBatches:
         active_design: AnalysisDesign,
     ) -> None:
         """FR-13: Batches are sorted by created_at descending."""
-        review_service.submit_for_review(active_design.id)
         review_service.save_review_batch(
-            active_design.id, "active", [{"comment": "Earlier"}]
+            active_design.id, "revision_requested", [{"comment": "Earlier"}]
         )
-        review_service.submit_for_review(active_design.id)
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
         review_service.save_review_batch(
             active_design.id, "supported", [{"comment": "Later"}]
         )

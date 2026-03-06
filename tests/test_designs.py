@@ -14,6 +14,32 @@ def service(tmp_path: Path) -> DesignService:
     return DesignService(tmp_path)
 
 
+def test_design_status_members() -> None:
+    members = set(DesignStatus.__members__.keys())
+    expected = {
+        "in_review",
+        "revision_requested",
+        "analyzing",
+        "supported",
+        "rejected",
+        "inconclusive",
+    }
+    assert members == expected
+
+
+def test_design_status_values() -> None:
+    values = {s.value for s in DesignStatus}
+    expected = {
+        "in_review",
+        "revision_requested",
+        "analyzing",
+        "supported",
+        "rejected",
+        "inconclusive",
+    }
+    assert values == expected
+
+
 def test_create_design_returns_design_with_generated_id(
     service: DesignService,
 ) -> None:
@@ -23,7 +49,7 @@ def test_create_design_returns_design_with_generated_id(
         hypothesis_background="Background info",
     )
     assert design.id == "DEFAULT-H01"
-    assert design.status == DesignStatus.draft
+    assert design.status == DesignStatus.in_review
 
 
 def test_create_design_saves_yaml_file(service: DesignService, tmp_path: Path) -> None:
@@ -87,10 +113,10 @@ def test_list_designs_filtered_by_status(service: DesignService) -> None:
     service.create_design(
         title="T2", hypothesis_statement="s2", hypothesis_background="b2"
     )
-    drafts = service.list_designs(status=DesignStatus.draft)
-    assert len(drafts) == 2
-    active = service.list_designs(status=DesignStatus.active)
-    assert len(active) == 0
+    in_review = service.list_designs(status=DesignStatus.in_review)
+    assert len(in_review) == 2
+    analyzing = service.list_designs(status=DesignStatus.analyzing)
+    assert len(analyzing) == 0
 
 
 def test_create_design_with_theme_id_uses_theme_prefix(

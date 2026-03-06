@@ -67,7 +67,7 @@ create_analysis_design(
 
 Expected success response:
 ```json
-{"id": "FP-H01", "title": "...", "status": "draft", "message": "Analysis design 'FP-H01' created successfully."}
+{"id": "FP-H01", "title": "...", "status": "in_review", "message": "Analysis design 'FP-H01' created successfully."}
 ```
 
 ### Step 3b: Update an Existing Design (optional)

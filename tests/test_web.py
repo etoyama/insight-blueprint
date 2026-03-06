@@ -214,7 +214,7 @@ def test_create_design_returns_201(client: TestClient) -> None:
     data = resp.json()
     assert "design" in data
     assert "message" in data
-    assert data["design"]["status"] == "draft"
+    assert data["design"]["status"] == "in_review"
 
 
 def test_list_designs_returns_created(client: TestClient) -> None:
@@ -227,9 +227,9 @@ def test_list_designs_returns_created(client: TestClient) -> None:
 
 def test_list_designs_status_filter(client: TestClient) -> None:
     _create_design(client)
-    resp = client.get("/api/designs?status=active")
+    resp = client.get("/api/designs?status=analyzing")
     data = resp.json()
-    assert data["count"] == 0  # draft, not active
+    assert data["count"] == 0  # in_review, not analyzing
 
 
 def test_list_designs_invalid_status(client: TestClient) -> None:
@@ -555,47 +555,63 @@ def test_get_knowledge_list(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _create_active_design_via_api(client: TestClient) -> str:
-    """Helper: create a design and move it to active, return design_id."""
+def _create_in_review_design_via_api(client: TestClient) -> str:
+    """Helper: create a design (defaults to in_review), return design_id."""
     created = _create_design(client)
-    design_id = created["design"]["id"]
-    client.put(f"/api/designs/{design_id}", json={"status": "active"})
-    return design_id
+    return created["design"]["id"]
 
 
-def _create_pending_design_via_api(client: TestClient) -> str:
-    """Helper: create → activate → submit for review, return design_id."""
-    design_id = _create_active_design_via_api(client)
-    client.post(f"/api/designs/{design_id}/review")
-    return design_id
-
-
-def test_submit_review_success(client: TestClient) -> None:
-    design_id = _create_active_design_via_api(client)
-    resp = client.post(f"/api/designs/{design_id}/review")
+def test_transition_design_success(client: TestClient) -> None:
+    design_id = _create_in_review_design_via_api(client)
+    resp = client.post(
+        f"/api/designs/{design_id}/transition",
+        json={"status": "revision_requested"},
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["design_id"] == design_id
-    assert data["status"] == "pending_review"
-    assert "message" in data
+    assert data["status"] == "revision_requested"
 
 
-def test_submit_review_non_active_returns_400(client: TestClient) -> None:
-    created = _create_design(client)
-    design_id = created["design"]["id"]
-    resp = client.post(f"/api/designs/{design_id}/review")
+def test_transition_design_invalid(client: TestClient) -> None:
+    design_id = _create_in_review_design_via_api(client)
+    # Move to terminal state
+    client.put(f"/api/designs/{design_id}", json={"status": "supported"})
+    resp = client.post(
+        f"/api/designs/{design_id}/transition",
+        json={"status": "in_review"},
+    )
     assert resp.status_code == 400
     assert "error" in resp.json()
 
 
-def test_submit_review_not_found(client: TestClient) -> None:
-    resp = client.post("/api/designs/NONEXIST-H99/review")
+def test_transition_design_invalid_status_value(client: TestClient) -> None:
+    design_id = _create_in_review_design_via_api(client)
+    resp = client.post(
+        f"/api/designs/{design_id}/transition",
+        json={"status": "nonexistent_status"},
+    )
+    assert resp.status_code == 400
+    assert "error" in resp.json()
+
+
+def test_transition_design_not_found(client: TestClient) -> None:
+    resp = client.post(
+        "/api/designs/NONEXIST-H99/transition",
+        json={"status": "in_review"},
+    )
     assert resp.status_code == 404
     assert "error" in resp.json()
 
 
+def test_old_review_endpoint_removed(client: TestClient) -> None:
+    design_id = _create_in_review_design_via_api(client)
+    resp = client.post(f"/api/designs/{design_id}/review")
+    assert resp.status_code in (404, 405)
+
+
 def test_list_comments_empty(client: TestClient) -> None:
-    design_id = _create_active_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     resp = client.get(f"/api/designs/{design_id}/comments")
     assert resp.status_code == 200
     data = resp.json()
@@ -604,7 +620,7 @@ def test_list_comments_empty(client: TestClient) -> None:
 
 
 def test_add_comment_success(client: TestClient) -> None:
-    design_id = _create_pending_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     resp = client.post(
         f"/api/designs/{design_id}/comments",
         json={"comment": "Good analysis", "status": "supported"},
@@ -616,10 +632,10 @@ def test_add_comment_success(client: TestClient) -> None:
 
 
 def test_add_comment_invalid_status_returns_400(client: TestClient) -> None:
-    design_id = _create_pending_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     resp = client.post(
         f"/api/designs/{design_id}/comments",
-        json={"comment": "Bad", "status": "pending_review"},
+        json={"comment": "Bad", "status": "nonexistent_status"},
     )
     assert resp.status_code == 400
     assert "error" in resp.json()
@@ -634,8 +650,10 @@ def test_add_comment_not_found(client: TestClient) -> None:
     assert "error" in resp.json()
 
 
-def test_add_comment_non_pending_returns_400(client: TestClient) -> None:
-    design_id = _create_active_design_via_api(client)
+def test_add_comment_non_in_review_returns_400(client: TestClient) -> None:
+    design_id = _create_in_review_design_via_api(client)
+    # Move to terminal status
+    client.put(f"/api/designs/{design_id}", json={"status": "supported"})
     resp = client.post(
         f"/api/designs/{design_id}/comments",
         json={"comment": "Bad", "status": "supported"},
@@ -644,13 +662,11 @@ def test_add_comment_non_pending_returns_400(client: TestClient) -> None:
 
 
 def test_knowledge_preview(client: TestClient) -> None:
-    design_id = _create_pending_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     client.post(
         f"/api/designs/{design_id}/comments",
         json={"comment": "caution: watch for nulls", "status": "supported"},
     )
-    # Re-activate for extraction
-    client.put(f"/api/designs/{design_id}", json={"status": "active"})
     resp = client.post(f"/api/designs/{design_id}/knowledge")
     assert resp.status_code == 200
     data = resp.json()
@@ -660,12 +676,11 @@ def test_knowledge_preview(client: TestClient) -> None:
 
 
 def test_knowledge_save(client: TestClient) -> None:
-    design_id = _create_pending_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     client.post(
         f"/api/designs/{design_id}/comments",
         json={"comment": "caution: watch for nulls", "status": "supported"},
     )
-    client.put(f"/api/designs/{design_id}", json={"status": "active"})
     # Preview first
     preview = client.post(f"/api/designs/{design_id}/knowledge").json()
     entries = preview["entries"]
@@ -722,7 +737,7 @@ def test_get_rules_context_with_data(client: TestClient) -> None:
 
 def test_get_cautions_with_matches(client: TestClient) -> None:
     # Create a full flow to get caution data
-    design_id = _create_pending_design_via_api(client)
+    design_id = _create_in_review_design_via_api(client)
     client.post(
         f"/api/designs/{design_id}/comments",
         json={
@@ -730,7 +745,6 @@ def test_get_cautions_with_matches(client: TestClient) -> None:
             "status": "supported",
         },
     )
-    client.put(f"/api/designs/{design_id}", json={"status": "active"})
     preview = client.post(f"/api/designs/{design_id}/knowledge").json()
     client.post(
         f"/api/designs/{design_id}/knowledge",
@@ -757,7 +771,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_success(self, client: TestClient) -> None:
         """FR-12: Valid batch returns 201 with batch_id."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -773,7 +787,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_transitions_status(self, client: TestClient) -> None:
         """FR-8: Status transitions after batch submission."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -785,11 +799,18 @@ class TestReviewBatchAPI:
         assert design["status"] == "supported"
 
     @pytest.mark.parametrize(
-        "status", ["supported", "rejected", "inconclusive", "active"]
+        "status",
+        [
+            "supported",
+            "rejected",
+            "inconclusive",
+            "revision_requested",
+            "analyzing",
+        ],
     )
     def test_submit_batch_all_statuses(self, client: TestClient, status: str) -> None:
-        """FR-7: All 4 post-review statuses work."""
-        design_id = _create_pending_design_via_api(client)
+        """FR-7: All 5 post-review statuses work."""
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -800,9 +821,11 @@ class TestReviewBatchAPI:
         assert resp.status_code == 201
         assert resp.json()["status_after"] == status
 
-    def test_submit_batch_non_pending_returns_400(self, client: TestClient) -> None:
-        """AC: Non-pending_review design returns 400."""
-        design_id = _create_active_design_via_api(client)
+    def test_submit_batch_non_in_review_returns_400(self, client: TestClient) -> None:
+        """AC: Non-in_review design returns 400."""
+        design_id = _create_in_review_design_via_api(client)
+        # Move to terminal status
+        client.put(f"/api/designs/{design_id}", json={"status": "supported"})
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -827,7 +850,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_invalid_section_returns_422(self, client: TestClient) -> None:
         """NFR-7: Invalid target_section returns 422."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -846,7 +869,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_empty_comments_returns_422(self, client: TestClient) -> None:
         """Error#6: Empty comments list returns 422."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -861,7 +884,7 @@ class TestReviewBatchAPI:
         self, client: TestClient
     ) -> None:
         """Error#6: 2001-char comment returns 422."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -876,7 +899,7 @@ class TestReviewBatchAPI:
         self, client: TestClient
     ) -> None:
         """FR-11: target_section set without target_content returns 422."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -891,7 +914,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_extra_field_returns_422(self, client: TestClient) -> None:
         """extra='forbid': Unknown fields return 422."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -904,7 +927,7 @@ class TestReviewBatchAPI:
 
     def test_submit_batch_with_target_content(self, client: TestClient) -> None:
         """FR-11: target_content round-trip through POST + GET."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         content = {"kpi": "CVR", "value": 2.5}
         client.post(
             f"/api/designs/{design_id}/review-batches",
@@ -926,7 +949,7 @@ class TestReviewBatchAPI:
 
     def test_list_batches_success(self, client: TestClient) -> None:
         """FR-13: GET returns batch list."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -943,7 +966,7 @@ class TestReviewBatchAPI:
 
     def test_list_batches_empty(self, client: TestClient) -> None:
         """No batches returns empty list."""
-        design_id = _create_active_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         resp = client.get(f"/api/designs/{design_id}/review-batches")
         assert resp.status_code == 200
         data = resp.json()
@@ -952,17 +975,17 @@ class TestReviewBatchAPI:
 
     def test_list_batches_descending_order(self, client: TestClient) -> None:
         """FR-13: Batches sorted descending by created_at."""
-        design_id = _create_pending_design_via_api(client)
-        # First batch
+        design_id = _create_in_review_design_via_api(client)
+        # First batch: in_review -> revision_requested
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
-                "status_after": "active",
+                "status_after": "revision_requested",
                 "comments": [{"comment": "Earlier"}],
             },
         )
-        # Re-submit for second batch
-        client.post(f"/api/designs/{design_id}/review")
+        # Reset to in_review for second batch
+        client.put(f"/api/designs/{design_id}", json={"status": "in_review"})
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -977,7 +1000,7 @@ class TestReviewBatchAPI:
 
     def test_list_batches_includes_target_content(self, client: TestClient) -> None:
         """FR-11: GET response includes target_content."""
-        design_id = _create_pending_design_via_api(client)
+        design_id = _create_in_review_design_via_api(client)
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={

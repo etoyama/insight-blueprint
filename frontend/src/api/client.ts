@@ -100,11 +100,14 @@ export async function getDesign(
 // Review endpoints
 // ---------------------------------------------------------------------------
 
-export async function submitReview(
+export async function transitionDesign(
   designId: string,
+  status: string,
 ): Promise<{ design_id: string; status: string; message: string }> {
-  return request(`/api/designs/${encodeURIComponent(designId)}/review`, {
+  return request(`/api/designs/${encodeURIComponent(designId)}/transition`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
   });
 }
 

@@ -23,7 +23,7 @@ export function makeDesign(overrides?: Partial<Design>): Design {
   return {
     id: "d-001",
     title: "Test Design",
-    status: "active",
+    status: "in_review",
     theme_id: "t-001",
     hypothesis_statement: "Test hypothesis",
     hypothesis_background: "Test background",

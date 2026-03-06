@@ -47,7 +47,7 @@ test("S4: empty project shows EmptyState", async ({ page }) => {
 test("S5: create design dialog submits and refreshes list", async ({
   page,
 }) => {
-  const design = makeDesign({ status: "draft" });
+  const design = makeDesign({ status: "in_review" });
   await page.route("**/api/designs", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ json: { designs: [design], count: 1 } });
@@ -65,7 +65,7 @@ test("S5: create design dialog submits and refreshes list", async ({
   await expect(page.getByText("Test Design")).toBeVisible({ timeout: 5000 });
 });
 
-// S6: Status filter — select "draft" filter, verify filtered results
+// S6: Status filter — select "in_review" filter, verify filtered results
 test("S6: status filter sends correct API request", async ({ page }) => {
   let requestedUrl = "";
   await page.route("**/api/designs**", (route) => {
@@ -74,8 +74,8 @@ test("S6: status filter sends correct API request", async ({ page }) => {
   });
   await page.goto("/?tab=designs");
   await page.getByRole("combobox").click();
-  await page.getByRole("option", { name: /draft/i }).click();
-  await expect(() => expect(requestedUrl).toContain("status=draft")).toPass({
+  await page.getByRole("option", { name: /in.review/i }).click();
+  await expect(() => expect(requestedUrl).toContain("status=in_review")).toPass({
     timeout: 5000,
   });
 });

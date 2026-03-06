@@ -16,7 +16,8 @@ const BATCH_STATUSES: DesignStatus[] = [
   "supported",
   "rejected",
   "inconclusive",
-  "active",
+  "revision_requested",
+  "analyzing",
 ];
 
 interface ReviewBatchComposerProps {

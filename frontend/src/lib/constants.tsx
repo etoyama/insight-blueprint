@@ -6,9 +6,9 @@ export const DEFAULT_THEME_ID = "DEFAULT";
 export const DEFAULT_SOURCE_TYPE: SourceType = "csv";
 
 export const DESIGN_STATUS_LABELS: Record<DesignStatus, string> = {
-  draft: "Draft",
-  active: "Active",
-  pending_review: "Pending Review",
+  in_review: "In Review",
+  revision_requested: "Revision Requested",
+  analyzing: "Analyzing",
   supported: "Supported",
   rejected: "Rejected",
   inconclusive: "Inconclusive",

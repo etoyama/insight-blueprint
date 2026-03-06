@@ -36,17 +36,17 @@ export async function mockDesignDetail(page: Page, design: Design) {
   );
 }
 
-export async function mockSubmitReview(
+export async function mockTransitionDesign(
   page: Page,
   designId: string,
   response?: Record<string, unknown>,
 ) {
-  await page.route(`**/api/designs/${designId}/review`, (route) =>
+  await page.route(`**/api/designs/${designId}/transition`, (route) =>
     route.fulfill({
       json: response ?? {
         design_id: designId,
-        status: "pending_review",
-        message: "Review submitted",
+        status: "in_review",
+        message: "Transition completed",
       },
     }),
   );

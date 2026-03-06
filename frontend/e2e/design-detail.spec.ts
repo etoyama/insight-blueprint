@@ -8,7 +8,7 @@ import {
 import {
   mockDesignList,
   mockDesignDetail,
-  mockSubmitReview,
+  mockTransitionDesign,
   mockComments,
   mockReviewBatches,
   mockReviewBatchesError,
@@ -20,21 +20,21 @@ import {
 const activeDesign = makeDesign({
   id: "d-detail",
   title: "Detail Test Design",
-  status: "active",
+  status: "in_review",
   metrics: { accuracy: 0.95, recall: 0.88 },
   source_ids: ["s-001", "s-002"],
 });
 
-const draftDesign = makeDesign({
-  id: "d-draft",
-  title: "Draft Design",
-  status: "draft",
+const nonReviewDesign = makeDesign({
+  id: "d-non-review",
+  title: "Non-Review Design",
+  status: "revision_requested",
 });
 
 const pendingDesign = makeDesign({
   id: "d-pending",
   title: "Pending Review Design",
-  status: "pending_review",
+  status: "in_review",
   hypothesis_statement: "Test hypothesis statement",
   hypothesis_background: "Test hypothesis background",
   metrics: { kpi: "CVR", value: 0.03 },
@@ -70,31 +70,13 @@ test("#5: overview panel displays design fields and metrics", async ({
   await expect(page.getByText("0.95")).toBeVisible();
 });
 
-// #6: Review submission — click "Submit for Review" on active design (now on Overview tab)
-test("#6: submit for review changes status", async ({ page }) => {
-  const designAfterReview = makeDesign({
-    ...activeDesign,
-    status: "pending_review",
-  });
-
-  // Use mutable ref so the same route handler can return different data
-  let currentDesign = activeDesign;
-  let currentDesigns = [activeDesign];
-
-  await page.route("**/api/designs", (route) => {
-    if (route.request().method() === "GET") {
-      return route.fulfill({
-        json: { designs: currentDesigns, count: currentDesigns.length },
-      });
-    }
-    return route.continue();
-  });
-  await page.route(`**/api/designs/${activeDesign.id}`, (route) =>
-    route.fulfill({ json: currentDesign }),
-  );
+// #6: Workflow guide display — verify workflow guide shows for in_review design
+test("#6: workflow guide displays for in_review design", async ({ page }) => {
+  await mockDesignList(page, [activeDesign]);
+  await mockDesignDetail(page, activeDesign);
   await mockComments(page, activeDesign.id, []);
   await mockReviewBatches(page, activeDesign.id, []);
-  await mockSubmitReview(page, activeDesign.id);
+  await mockTransitionDesign(page, activeDesign.id);
 
   await page.goto("/?tab=designs");
   await page.getByText("Detail Test Design").click();
@@ -102,39 +84,35 @@ test("#6: submit for review changes status", async ({ page }) => {
     timeout: 5000,
   });
 
-  // Submit for Review is now on the Overview tab
-  const submitBtn = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitBtn).toBeEnabled();
+  // Workflow guide should be visible with "In Review" title
+  await expect(page.getByTestId("workflow-guide")).toBeVisible();
+  await expect(page.getByText("In Review")).toBeVisible();
 
-  // Update the mutable refs before clicking — subsequent API calls will return updated data
-  currentDesign = designAfterReview;
-  currentDesigns = [designAfterReview];
-
-  await submitBtn.click();
-
-  // Status badge should update — use .first() because it appears in both table and detail
-  await expect(page.getByText(/pending.review/i).first()).toBeVisible({
-    timeout: 5000,
-  });
+  // Submit for Review button should NOT exist (removed in new workflow)
+  await expect(
+    page.getByRole("button", { name: "Submit for Review" }),
+  ).not.toBeVisible();
 });
 
-// #7: Review button not shown for non-active design (now on Overview tab)
-test("#7: submit for review not shown when not active", async ({ page }) => {
-  await mockDesignList(page, [draftDesign]);
-  await mockDesignDetail(page, draftDesign);
-  await mockComments(page, draftDesign.id, []);
-  await mockReviewBatches(page, draftDesign.id, []);
+// #7: Comment buttons hidden for non-in_review design
+test("#7: comment buttons hidden when not in_review", async ({ page }) => {
+  await mockDesignList(page, [nonReviewDesign]);
+  await mockDesignDetail(page, nonReviewDesign);
+  await mockComments(page, nonReviewDesign.id, []);
+  await mockReviewBatches(page, nonReviewDesign.id, []);
 
   await page.goto("/?tab=designs");
-  await page.getByText("Draft Design").click();
+  await page.getByText("Non-Review Design").click();
   await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({
     timeout: 5000,
   });
 
-  // Submit for Review button should not be visible for non-active designs
-  await expect(
-    page.getByRole("button", { name: "Submit for Review" }),
-  ).not.toBeVisible();
+  // Workflow guide should show "Revision Requested"
+  await expect(page.getByTestId("workflow-guide")).toBeVisible();
+  await expect(page.getByText("Revision Requested")).toBeVisible();
+
+  // Comment buttons should not be visible for non-in_review designs
+  await expect(page.getByTestId("comment-button")).not.toBeVisible();
 });
 
 // #8: Legacy add-comment test removed — ReviewPanel deleted.
@@ -246,7 +224,7 @@ test.describe("Tab Restructuring", () => {
     await expect(reviewTab).toHaveCount(0);
   });
 
-  test("inline comments available without tab switch on pending_review", async ({ page }) => {
+  test("inline comments available without tab switch on in_review", async ({ page }) => {
     await mockDesignList(page, [pendingDesign]);
     await mockDesignDetail(page, pendingDesign);
     await mockReviewBatches(page, pendingDesign.id, []);
@@ -264,7 +242,7 @@ test.describe("Tab Restructuring", () => {
 // Inline Review Comments (P8)
 // ---------------------------------------------------------------------------
 test.describe("Inline Review Comments", () => {
-  test("comment buttons visible on pending_review design", async ({ page }) => {
+  test("comment buttons visible on in_review design", async ({ page }) => {
     await mockDesignList(page, [pendingDesign]);
     await mockDesignDetail(page, pendingDesign);
     await mockReviewBatches(page, pendingDesign.id, []);
@@ -279,13 +257,13 @@ test.describe("Inline Review Comments", () => {
     await expect(buttons).toHaveCount(6);
   });
 
-  test("comment buttons hidden on non-pending_review design", async ({ page }) => {
-    await mockDesignList(page, [activeDesign]);
-    await mockDesignDetail(page, activeDesign);
-    await mockReviewBatches(page, activeDesign.id, []);
+  test("comment buttons hidden on non-in_review design", async ({ page }) => {
+    await mockDesignList(page, [nonReviewDesign]);
+    await mockDesignDetail(page, nonReviewDesign);
+    await mockReviewBatches(page, nonReviewDesign.id, []);
 
     await page.goto("/?tab=designs");
-    await page.getByText("Detail Test Design").click();
+    await page.getByText("Non-Review Design").click();
 
     await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     // Wait for content to render, then verify no comment buttons
@@ -377,7 +355,7 @@ test.describe("Inline Review Comments", () => {
     await expect(page.getByTestId("draft-count")).toContainText("2 drafts");
   });
 
-  test("status selector shows all 4 options", async ({ page }) => {
+  test("status selector shows all 5 options", async ({ page }) => {
     await mockDesignList(page, [pendingDesign]);
     await mockDesignDetail(page, pendingDesign);
     await mockReviewBatches(page, pendingDesign.id, []);
@@ -395,11 +373,12 @@ test.describe("Inline Review Comments", () => {
     // Open status selector
     await page.getByTestId("status-selector").click();
 
-    // Verify all 4 options
+    // Verify all 5 options
     await expect(page.getByRole("option", { name: "supported" })).toBeVisible();
     await expect(page.getByRole("option", { name: "rejected" })).toBeVisible();
     await expect(page.getByRole("option", { name: "inconclusive" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "active" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "revision_requested" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "analyzing" })).toBeVisible();
   });
 
   test("Submit All sends batch and refreshes design", async ({ page }) => {

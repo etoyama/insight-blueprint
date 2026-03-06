@@ -1,8 +1,8 @@
 // Enum union types
 export type DesignStatus =
-  | "draft"
-  | "active"
-  | "pending_review"
+  | "in_review"
+  | "revision_requested"
+  | "analyzing"
   | "supported"
   | "rejected"
   | "inconclusive";

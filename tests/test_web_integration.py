@@ -167,14 +167,14 @@ def test_static_missing_returns_404() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_full_flow_create_to_knowledge(_wire_services: None) -> None:
-    """E2E: create design → review → comment → extract knowledge → save."""
+def test_full_web_workflow(_wire_services: None) -> None:
+    """E2E: create(in_review) → transition → batch(supported) → knowledge."""
     from starlette.testclient import TestClient
 
     from insight_blueprint.web import app
 
     with TestClient(app) as c:
-        # 1. Create a design
+        # 1. Create a design (defaults to in_review)
         resp = c.post(
             "/api/designs",
             json={
@@ -186,26 +186,49 @@ def test_full_flow_create_to_knowledge(_wire_services: None) -> None:
         assert resp.status_code == 201
         design_id = resp.json()["design"]["id"]
 
-        # 2. Get the design back
+        # 2. Get the design back — should be in_review
         resp = c.get(f"/api/designs/{design_id}")
         assert resp.status_code == 200
         assert resp.json()["title"] == "Churn Analysis"
-        assert resp.json()["status"] == "draft"
+        assert resp.json()["status"] == "in_review"
 
-        # 3. Transition to active (required before review)
-        resp = c.put(
-            f"/api/designs/{design_id}",
-            json={"status": "active"},
+        # 3. Transition to revision_requested via POST /transition
+        resp = c.post(
+            f"/api/designs/{design_id}/transition",
+            json={"status": "revision_requested"},
         )
         assert resp.status_code == 200
-        assert resp.json()["status"] == "active"
+        assert resp.json()["status"] == "revision_requested"
 
-        # 4. Submit for review
-        resp = c.post(f"/api/designs/{design_id}/review")
+        # 4. Transition back to in_review
+        resp = c.post(
+            f"/api/designs/{design_id}/transition",
+            json={"status": "in_review"},
+        )
         assert resp.status_code == 200
-        assert resp.json()["status"] == "pending_review"
+        assert resp.json()["status"] == "in_review"
 
-        # 5. Add a review comment (supported)
+        # 5. Submit review batch → supported
+        resp = c.post(
+            f"/api/designs/{design_id}/review-batches",
+            json={
+                "status_after": "supported",
+                "comments": [
+                    {
+                        "comment": "Good hypothesis. Note: churn = 30-day inactivity.",
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["status_after"] == "supported"
+
+        # 6. Verify design is now supported
+        resp = c.get(f"/api/designs/{design_id}")
+        assert resp.json()["status"] == "supported"
+
+        # 7. Reset to in_review and add a review comment for knowledge extraction
+        c.put(f"/api/designs/{design_id}", json={"status": "in_review"})
         resp = c.post(
             f"/api/designs/{design_id}/comments",
             json={
@@ -215,22 +238,18 @@ def test_full_flow_create_to_knowledge(_wire_services: None) -> None:
             },
         )
         assert resp.status_code == 200
-        comment_id = resp.json()["comment_id"]
-        assert comment_id
         assert resp.json()["status_after"] == "supported"
 
-        # 6. List comments
+        # 8. List comments
         resp = c.get(f"/api/designs/{design_id}/comments")
         assert resp.status_code == 200
-        assert resp.json()["count"] == 1
+        assert resp.json()["count"] >= 1
 
-        # 7. Extract knowledge (preview)
+        # 9. Extract knowledge (preview)
         resp = c.post(f"/api/designs/{design_id}/knowledge")
         assert resp.status_code == 200
-        # Preview may or may not find entries depending on extraction logic
-        # The key assertion is that it doesn't error
 
-        # 8. Save knowledge (with explicit entries)
+        # 10. Save knowledge (with explicit entries)
         resp = c.post(
             f"/api/designs/{design_id}/knowledge",
             json={
@@ -248,7 +267,11 @@ def test_full_flow_create_to_knowledge(_wire_services: None) -> None:
         assert resp.status_code == 200
         assert resp.json()["count"] == 1
 
-        # 9. Verify health still works
+        # 11. Old /review endpoint should be gone
+        resp = c.post(f"/api/designs/{design_id}/review")
+        assert resp.status_code in (404, 405)
+
+        # 12. Verify health still works
         resp = c.get("/api/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"

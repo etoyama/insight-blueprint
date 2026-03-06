@@ -11,9 +11,9 @@ from insight_blueprint.models.common import now_jst
 class DesignStatus(StrEnum):
     """Status of an analysis design."""
 
-    draft = "draft"
-    active = "active"
-    pending_review = "pending_review"
+    in_review = "in_review"
+    revision_requested = "revision_requested"
+    analyzing = "analyzing"
     supported = "supported"
     rejected = "rejected"
     inconclusive = "inconclusive"
@@ -27,7 +27,7 @@ class AnalysisDesign(BaseModel):
     title: str
     hypothesis_statement: str
     hypothesis_background: str
-    status: DesignStatus = DesignStatus.draft
+    status: DesignStatus = DesignStatus.in_review
     parent_id: str | None = None
     metrics: dict = Field(default_factory=dict)
     explanatory: list[dict] = Field(default_factory=list)

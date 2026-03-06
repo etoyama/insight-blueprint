@@ -46,7 +46,7 @@ async def create_analysis_design(
 ) -> dict:
     """Create a new analysis design document.
 
-    Creates a YAML file in .insight/designs/ with 'draft' status.
+    Creates a YAML file in .insight/designs/ with 'in_review' status.
     theme_id must match [A-Z][A-Z0-9]* pattern (e.g., 'FP', 'TX', 'DEFAULT').
 
     Returns: dict with id, title, status, message
@@ -111,11 +111,6 @@ async def update_analysis_design(
         if v is not None
     }
     if status is not None:
-        if status == DesignStatus.pending_review.value:
-            return {
-                "error": "Cannot set status to 'pending_review' directly. "
-                "Use submit_for_review() instead."
-            }
         try:
             updates["status"] = DesignStatus(status)
         except ValueError:
@@ -147,7 +142,7 @@ async def list_analysis_designs(status: str | None = None) -> dict:
     """List all analysis designs, optionally filtered by status.
 
     Args:
-        status: Optional filter (draft|active|supported|rejected|inconclusive)
+        status: Optional filter (in_review|revision_requested|analyzing|supported|rejected|inconclusive)
 
     Returns: dict with 'designs' list and 'count' integer
     """
@@ -341,19 +336,22 @@ async def get_domain_knowledge(
 
 
 @mcp.tool()
-async def submit_for_review(design_id: str) -> dict:
-    """Submit an analysis design for review.
+async def transition_design_status(design_id: str, status: str) -> dict:
+    """Transition a design to the given target status.
 
-    Transitions the design from 'active' to 'pending_review'.
-    Only designs in 'active' status can be submitted.
+    Valid transitions depend on the current status:
+    - in_review -> revision_requested, analyzing, supported, rejected, inconclusive
+    - revision_requested -> in_review
+    - analyzing -> in_review
+    - supported, rejected, inconclusive -> (terminal, no transitions)
 
-    Returns: dict with design_id, status, message on success; {error} on failure
+    Returns: dict with design_id, status on success; {error} on failure
     """
     if err := _validate_design_id(design_id):
         return err
     svc = get_review_service()
     try:
-        result = svc.submit_for_review(design_id)
+        result = svc.transition_status(design_id, status)
     except ValueError as e:
         return {"error": str(e)}
     if result is None:
@@ -361,7 +359,6 @@ async def submit_for_review(design_id: str) -> dict:
     return {
         "design_id": result.id,
         "status": result.status.value,
-        "message": f"Design '{design_id}' submitted for review.",
     }
 
 
@@ -374,8 +371,8 @@ async def save_review_comment(
 ) -> dict:
     """Save a review comment and transition the design status.
 
-    The design must be in 'pending_review' status. Valid post-review statuses:
-    active (request changes), supported, rejected, inconclusive.
+    The design must be in 'in_review' status. Valid post-review statuses:
+    revision_requested, analyzing, supported, rejected, inconclusive.
 
     Returns: dict with comment_id, design_id, status_after, message
     """
@@ -405,10 +402,10 @@ async def save_review_batch(
 ) -> dict:
     """Save a batch of review comments and transition the design status.
 
-    The design must be in 'pending_review' status. Each comment can optionally
+    The design must be in 'in_review' status. Each comment can optionally
     include target_section and target_content for inline anchoring.
 
-    Valid status_after values: active, supported, rejected, inconclusive.
+    Valid status_after values: revision_requested, analyzing, supported, rejected, inconclusive.
 
     Returns: dict with batch_id and status_after on success; {error} on failure
     """

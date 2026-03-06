@@ -392,19 +392,24 @@ async def get_knowledge_list() -> dict:
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/designs/{design_id}/review")
-async def submit_review(design_id: str = Path(pattern=_ID_PATTERN)) -> dict:
-    """Submit a design for review."""
+class TransitionRequest(BaseModel):
+    status: str
+
+
+@app.post("/api/designs/{design_id}/transition")
+async def transition_design(
+    body: TransitionRequest, design_id: str = Path(pattern=_ID_PATTERN)
+) -> dict:
+    """Transition a design to a new status."""
     from insight_blueprint._registry import get_review_service
 
     svc = get_review_service()
-    result = svc.submit_for_review(design_id)
+    result = svc.transition_status(design_id, body.status)
     if result is None:
         raise HTTPException(404, detail=f"Design '{design_id}' not found")
     return {
         "design_id": result.id,
         "status": result.status.value,
-        "message": f"Design '{design_id}' submitted for review.",
     }
 
 

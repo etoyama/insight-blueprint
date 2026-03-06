@@ -45,14 +45,19 @@ ALLOWED_TARGET_SECTIONS: set[str] = {
     "next_action",
 }
 
-VALID_REVIEW_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
-    DesignStatus.active: {DesignStatus.pending_review},
-    DesignStatus.pending_review: {
-        DesignStatus.active,
+VALID_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
+    DesignStatus.in_review: {
+        DesignStatus.revision_requested,
+        DesignStatus.analyzing,
         DesignStatus.supported,
         DesignStatus.rejected,
         DesignStatus.inconclusive,
     },
+    DesignStatus.revision_requested: {DesignStatus.in_review},
+    DesignStatus.analyzing: {DesignStatus.in_review},
+    DesignStatus.supported: set(),
+    DesignStatus.rejected: set(),
+    DesignStatus.inconclusive: set(),
 }
 
 
@@ -64,28 +69,39 @@ def _validate_post_review_status(status: str) -> DesignStatus:
     try:
         target_status = DesignStatus(status)
     except ValueError:
-        valid = ", ".join(
-            s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-        )
+        valid = ", ".join(s.value for s in VALID_TRANSITIONS[DesignStatus.in_review])
         raise ValueError(
             f"Invalid post-review status '{status}'. Valid: {valid}"
         ) from None
 
-    if target_status not in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]:
-        valid = ", ".join(
-            s.value for s in VALID_REVIEW_TRANSITIONS[DesignStatus.pending_review]
-        )
+    if target_status not in VALID_TRANSITIONS[DesignStatus.in_review]:
+        valid = ", ".join(s.value for s in VALID_TRANSITIONS[DesignStatus.in_review])
         raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
 
     return target_status
 
 
-def _ensure_pending_review(design: AnalysisDesign | None, operation: str) -> None:
-    """Raise ValueError if design is not in pending_review status."""
-    if design is not None and design.status != DesignStatus.pending_review:
+def _ensure_in_review(design: AnalysisDesign | None, operation: str) -> None:
+    """Raise ValueError if design is not in in_review status."""
+    if design is not None and design.status != DesignStatus.in_review:
         raise ValueError(
-            f"Design must be in 'pending_review' status to {operation}, "
+            f"Design must be in 'in_review' status to {operation}, "
             f"current status: '{design.status}'"
+        )
+
+
+def _validate_transition(current: DesignStatus, target: DesignStatus) -> None:
+    """Validate that a transition from current to target is allowed."""
+    valid_targets = VALID_TRANSITIONS.get(current, set())
+    if target not in valid_targets:
+        valid_str = (
+            ", ".join(sorted(s.value for s in valid_targets))
+            if valid_targets
+            else "none"
+        )
+        raise ValueError(
+            f"Cannot transition from '{current.value}' to '{target.value}'. "
+            f"Valid targets: {valid_str}"
         )
 
 
@@ -98,24 +114,27 @@ class ReviewService:
         self._rules_dir = project_path / ".insight" / "rules"
         self._design_service = design_service
 
-    def submit_for_review(self, design_id: str) -> AnalysisDesign | None:
-        """Transition an active design to pending_review.
+    def transition_status(
+        self, design_id: str, target_status: str
+    ) -> AnalysisDesign | None:
+        """Transition a design to the given target status.
 
         Returns None if design not found.
-        Raises ValueError if design is not in active status.
+        Raises ValueError if the transition is invalid.
         """
         _validate_id(design_id, "design_id")
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-        if design.status != DesignStatus.active:
-            raise ValueError(
-                f"Design must be in 'active' status to submit for review, "
-                f"current status: '{design.status}'"
-            )
-        return self._design_service.update_design(
-            design_id, status=DesignStatus.pending_review
-        )
+
+        try:
+            target = DesignStatus(target_status)
+        except ValueError:
+            raise ValueError(f"Invalid status '{target_status}'") from None
+
+        _validate_transition(design.status, target)
+
+        return self._design_service.update_design(design_id, status=target)
 
     def save_review_comment(
         self,
@@ -136,7 +155,7 @@ class ReviewService:
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-        _ensure_pending_review(design, "save review comment")
+        _ensure_in_review(design, "save review comment")
 
         # Create comment
         comment_id = f"RC-{uuid.uuid4().hex[:8]}"
@@ -192,7 +211,7 @@ class ReviewService:
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-        _ensure_pending_review(design, "save review batch")
+        _ensure_in_review(design, "save review batch")
 
         # Create batch
         batch_id = f"RB-{uuid.uuid4().hex[:8]}"

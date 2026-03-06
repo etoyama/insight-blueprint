@@ -36,27 +36,29 @@ def review_service(tmp_path: Path, design_service: DesignService) -> ReviewServi
 
 @pytest.fixture
 def active_design(design_service: DesignService) -> AnalysisDesign:
-    """Create and return an active design."""
+    """Create and return an in_review design (default status)."""
     design = design_service.create_design(
         title="Active Design",
         hypothesis_statement="Test hypothesis",
         hypothesis_background="Test background",
     )
-    updated = design_service.update_design(design.id, status=DesignStatus.active)
-    assert updated is not None
-    return updated
+    # Default status is now in_review, no transition needed
+    assert design.status == DesignStatus.in_review
+    return design
 
 
 @pytest.fixture
 def pending_design(
     design_service: DesignService,
-    review_service: ReviewService,
-    active_design: AnalysisDesign,
 ) -> AnalysisDesign:
-    """Create and return a design in pending_review status."""
-    result = review_service.submit_for_review(active_design.id)
-    assert result is not None
-    return result
+    """Create and return a design in in_review status."""
+    design = design_service.create_design(
+        title="Pending Design",
+        hypothesis_statement="Test hypothesis",
+        hypothesis_background="Test background",
+    )
+    assert design.status == DesignStatus.in_review
+    return design
 
 
 # ---------------------------------------------------------------------------
@@ -104,12 +106,15 @@ def make_batch_payload(**overrides: object) -> dict:
 
 @pytest.fixture
 def non_pending_design(design_service: DesignService) -> AnalysisDesign:
-    """Draft status design for rejection testing."""
-    return design_service.create_design(
+    """Non-in_review design for rejection testing (terminal state)."""
+    design = design_service.create_design(
         title="Non-Pending Design",
         hypothesis_statement="Test hypothesis",
         hypothesis_background="Test background",
     )
+    updated = design_service.update_design(design.id, status=DesignStatus.supported)
+    assert updated is not None
+    return updated
 
 
 @pytest.fixture

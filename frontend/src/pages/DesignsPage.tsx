@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/dialog";
 
 const ALL_STATUSES: DesignStatus[] = [
-  "draft",
-  "active",
-  "pending_review",
+  "in_review",
+  "revision_requested",
+  "analyzing",
   "supported",
   "rejected",
   "inconclusive",

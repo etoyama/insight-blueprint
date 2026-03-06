@@ -16,7 +16,7 @@ test("#21: history timeline shows designs in descending order", async ({
     makeDesign({
       id: "d-new",
       title: "New Design",
-      status: "active",
+      status: "in_review",
       updated_at: "2026-02-15T00:00:00",
       created_at: "2026-02-15T00:00:00",
     }),

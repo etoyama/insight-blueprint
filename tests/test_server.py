@@ -41,7 +41,7 @@ def test_create_analysis_design_returns_dict_with_id_and_status(
         )
     )
     assert result["id"] == "FP-H01"
-    assert result["status"] == "draft"
+    assert result["status"] == "in_review"
     assert "message" in result
 
 
@@ -107,7 +107,7 @@ def test_create_analysis_design_accepts_enrichment_fields(
         )
     )
     assert "id" in result
-    assert result["status"] == "draft"
+    assert result["status"] == "in_review"
 
 
 def test_update_analysis_design_mcp_patches_fields(initialized_server: Path) -> None:
@@ -167,10 +167,10 @@ def test_update_analysis_design_mcp_updates_status(initialized_server: Path) -> 
     )
     result = asyncio.run(
         server_module.update_analysis_design(
-            design_id=create_result["id"], status="active"
+            design_id=create_result["id"], status="analyzing"
         )
     )
-    assert result["status"] == "active"
+    assert result["status"] == "analyzing"
 
 
 # ---------------------------------------------------------------------------
@@ -497,8 +497,8 @@ def initialized_review_server(tmp_project: Path) -> Path:
     return tmp_project
 
 
-def _create_active_design(theme_id: str = "FP") -> str:
-    """Helper to create a design and move it to active status."""
+def _create_in_review_design(theme_id: str = "FP") -> str:
+    """Helper to create a design (defaults to in_review status)."""
     result = asyncio.run(
         server_module.create_analysis_design(
             title="Test Design",
@@ -507,11 +507,7 @@ def _create_active_design(theme_id: str = "FP") -> str:
             theme_id=theme_id,
         )
     )
-    design_id = result["id"]
-    asyncio.run(
-        server_module.update_analysis_design(design_id=design_id, status="active")
-    )
-    return design_id
+    return result["id"]
 
 
 # -- get_review_service / get_rules_service guards --
@@ -591,37 +587,36 @@ def test_get_domain_knowledge_invalid_source_id(
     assert "Invalid source_id" in result["error"]
 
 
-# -- submit_for_review tool --
+# -- transition_design_status tool --
 
 
-def test_submit_for_review_tool_success(initialized_review_server: Path) -> None:
-    design_id = _create_active_design()
-    result = asyncio.run(server_module.submit_for_review(design_id))
-    assert result["design_id"] == design_id
-    assert result["status"] == "pending_review"
-    assert "message" in result
-
-
-def test_submit_for_review_tool_non_active_error(
-    initialized_review_server: Path,
-) -> None:
-    create_result = asyncio.run(
-        server_module.create_analysis_design(
-            title="Draft",
-            hypothesis_statement="s",
-            hypothesis_background="b",
-        )
+def test_transition_design_status_success(initialized_review_server: Path) -> None:
+    design_id = _create_in_review_design()
+    result = asyncio.run(
+        server_module.transition_design_status(design_id, "revision_requested")
     )
-    result = asyncio.run(server_module.submit_for_review(create_result["id"]))
-    assert "error" in result
+    assert result["design_id"] == design_id
+    assert result["status"] == "revision_requested"
 
 
-def test_submit_for_review_tool_not_found(
+def test_transition_design_status_invalid(
     initialized_review_server: Path,
 ) -> None:
-    result = asyncio.run(server_module.submit_for_review("NONEXIST-H99"))
+    design_id = _create_in_review_design()
+    # Move to terminal state
+    asyncio.run(
+        server_module.update_analysis_design(design_id=design_id, status="supported")
+    )
+    result = asyncio.run(server_module.transition_design_status(design_id, "in_review"))
     assert "error" in result
-    assert "not found" in result["error"]
+    assert "Cannot transition" in result["error"]
+
+
+def test_submit_for_review_removed(
+    initialized_review_server: Path,
+) -> None:
+    """submit_for_review MCP tool no longer exists."""
+    assert not hasattr(server_module, "submit_for_review")
 
 
 # -- save_review_comment tool --
@@ -630,8 +625,7 @@ def test_submit_for_review_tool_not_found(
 def test_save_review_comment_tool_success(
     initialized_review_server: Path,
 ) -> None:
-    design_id = _create_active_design()
-    asyncio.run(server_module.submit_for_review(design_id))
+    design_id = _create_in_review_design()
     result = asyncio.run(
         server_module.save_review_comment(
             design_id=design_id,
@@ -648,13 +642,12 @@ def test_save_review_comment_tool_success(
 def test_save_review_comment_tool_invalid_status(
     initialized_review_server: Path,
 ) -> None:
-    design_id = _create_active_design()
-    asyncio.run(server_module.submit_for_review(design_id))
+    design_id = _create_in_review_design()
     result = asyncio.run(
         server_module.save_review_comment(
             design_id=design_id,
             comment="Bad",
-            status="pending_review",
+            status="nonexistent_status",
         )
     )
     assert "error" in result
@@ -680,18 +673,13 @@ def test_save_review_comment_tool_not_found(
 def test_extract_domain_knowledge_tool_preview(
     initialized_review_server: Path,
 ) -> None:
-    design_id = _create_active_design()
-    asyncio.run(server_module.submit_for_review(design_id))
+    design_id = _create_in_review_design()
     asyncio.run(
         server_module.save_review_comment(
             design_id=design_id,
             comment="caution: watch for nulls",
             status="supported",
         )
-    )
-    # Re-submit to pending_review for extraction
-    asyncio.run(
-        server_module.update_analysis_design(design_id=design_id, status="active")
     )
     result = asyncio.run(server_module.extract_domain_knowledge(design_id))
     assert result["design_id"] == design_id
@@ -706,17 +694,13 @@ def test_extract_domain_knowledge_tool_preview(
 def test_save_extracted_knowledge_tool_success(
     initialized_review_server: Path,
 ) -> None:
-    design_id = _create_active_design()
-    asyncio.run(server_module.submit_for_review(design_id))
+    design_id = _create_in_review_design()
     asyncio.run(
         server_module.save_review_comment(
             design_id=design_id,
             comment="caution: watch for nulls",
             status="supported",
         )
-    )
-    asyncio.run(
-        server_module.update_analysis_design(design_id=design_id, status="active")
     )
     preview = asyncio.run(server_module.extract_domain_knowledge(design_id))
     entries = preview["entries"]
@@ -763,17 +747,13 @@ def test_get_project_context_tool(initialized_review_server: Path) -> None:
 def test_suggest_cautions_tool_with_matches(
     initialized_review_server: Path,
 ) -> None:
-    design_id = _create_active_design()
-    asyncio.run(server_module.submit_for_review(design_id))
+    design_id = _create_in_review_design()
     asyncio.run(
         server_module.save_review_comment(
             design_id=design_id,
             comment="table: test_data\ncaution: watch for nulls",
             status="supported",
         )
-    )
-    asyncio.run(
-        server_module.update_analysis_design(design_id=design_id, status="active")
     )
     preview = asyncio.run(server_module.extract_domain_knowledge(design_id))
     asyncio.run(
@@ -795,32 +775,9 @@ def test_suggest_cautions_tool_no_matches(
     assert result["cautions"] == []
 
 
-# -- pending_review guard on update_analysis_design --
-
-
-def test_update_design_rejects_pending_review(
-    initialized_review_server: Path,
-) -> None:
-    design_id = _create_active_design()
-    result = asyncio.run(
-        server_module.update_analysis_design(
-            design_id=design_id, status="pending_review"
-        )
-    )
-    assert "error" in result
-    assert "submit_for_review" in result["error"]
-
-
 # ---------------------------------------------------------------------------
 # save_review_batch MCP tool tests (Inline Review Comments)
 # ---------------------------------------------------------------------------
-
-
-def _create_pending_design_mcp(theme_id: str = "FP") -> str:
-    """Helper: create design, activate, submit for review. Returns design_id."""
-    design_id = _create_active_design(theme_id=theme_id)
-    asyncio.run(server_module.submit_for_review(design_id))
-    return design_id
 
 
 class TestSaveReviewBatchTool:
@@ -830,7 +787,7 @@ class TestSaveReviewBatchTool:
         self, initialized_review_server: Path
     ) -> None:
         """FR-18: Valid batch creation via MCP tool."""
-        design_id = _create_pending_design_mcp()
+        design_id = _create_in_review_design()
         result = asyncio.run(
             server_module.save_review_batch(
                 design_id=design_id,
@@ -845,7 +802,7 @@ class TestSaveReviewBatchTool:
         self, initialized_review_server: Path
     ) -> None:
         """FR-18: Batch with target_section + target_content."""
-        design_id = _create_pending_design_mcp()
+        design_id = _create_in_review_design()
         result = asyncio.run(
             server_module.save_review_batch(
                 design_id=design_id,
@@ -862,11 +819,17 @@ class TestSaveReviewBatchTool:
         assert "batch_id" in result
         assert result["status_after"] == "supported"
 
-    def test_save_review_batch_tool_non_pending(
+    def test_save_review_batch_tool_non_in_review(
         self, initialized_review_server: Path
     ) -> None:
-        """FR-18: Non-pending_review design returns error."""
-        design_id = _create_active_design()
+        """FR-18: Non-in_review design returns error."""
+        design_id = _create_in_review_design()
+        # Move to terminal state
+        asyncio.run(
+            server_module.update_analysis_design(
+                design_id=design_id, status="supported"
+            )
+        )
         result = asyncio.run(
             server_module.save_review_batch(
                 design_id=design_id,
@@ -894,7 +857,7 @@ class TestSaveReviewBatchTool:
         self, initialized_review_server: Path
     ) -> None:
         """MCP tool returns error for invalid comment (exceeds max_length)."""
-        design_id = _create_pending_design_mcp()
+        design_id = _create_in_review_design()
         result = asyncio.run(
             server_module.save_review_batch(
                 design_id=design_id,

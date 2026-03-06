@@ -11,10 +11,10 @@ from insight_blueprint.models.review import BatchComment, ReviewBatch, ReviewCom
 
 
 class TestDesignStatusExtension:
-    def test_design_status_pending_review_value(self) -> None:
-        """AC1: pending_review enum value is stored correctly."""
-        assert DesignStatus.pending_review == "pending_review"
-        assert DesignStatus("pending_review") == DesignStatus.pending_review
+    def test_design_status_in_review_value(self) -> None:
+        """AC1: in_review enum value is stored correctly."""
+        assert DesignStatus.in_review == "in_review"
+        assert DesignStatus("in_review") == DesignStatus.in_review
 
 
 class TestAnalysisDesignSourceIds:
@@ -70,7 +70,7 @@ class TestReviewComment:
             design_id="TEST-H01",
             comment="Needs more data",
             reviewer="senior_analyst",
-            status_after=DesignStatus.active,
+            status_after=DesignStatus.revision_requested,
             extracted_knowledge=["TEST-H01-0"],
         )
         data = comment.model_dump(mode="json")
@@ -274,7 +274,7 @@ class TestReviewBatch:
         batch = ReviewBatch(
             id="RB-a1b2c3d4",
             design_id="DES-001",
-            status_after=DesignStatus.active,
+            status_after=DesignStatus.revision_requested,
             reviewer="senior",
             comments=[
                 BatchComment(
