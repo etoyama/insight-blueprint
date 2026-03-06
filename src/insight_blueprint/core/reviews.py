@@ -35,6 +35,8 @@ _CATEGORY_PATTERNS: list[tuple[re.Pattern[str], KnowledgeCategory]] = [
 
 _TABLE_PATTERN = re.compile(r"^(table|テーブル)\s*:\s*", re.IGNORECASE)
 
+_TITLE_MAX_LENGTH = 80
+
 
 ALLOWED_TARGET_SECTIONS: set[str] = {
     "hypothesis_statement",
@@ -61,22 +63,32 @@ VALID_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
 }
 
 
+def _parse_knowledge_line(line: str) -> tuple[KnowledgeCategory, str]:
+    """Parse a single line for category prefix and return (category, content)."""
+    for pattern, cat in _CATEGORY_PATTERNS:
+        match = pattern.match(line)
+        if match:
+            return cat, line[match.end() :].strip()
+    return KnowledgeCategory.context, line
+
+
 def _validate_post_review_status(status: str) -> DesignStatus:
     """Parse and validate a post-review status string.
 
     Raises ValueError if status is not a valid post-review transition target.
     """
+    valid_targets = VALID_TRANSITIONS[DesignStatus.in_review]
+    valid_str = ", ".join(s.value for s in valid_targets)
+
     try:
         target_status = DesignStatus(status)
     except ValueError:
-        valid = ", ".join(s.value for s in VALID_TRANSITIONS[DesignStatus.in_review])
         raise ValueError(
-            f"Invalid post-review status '{status}'. Valid: {valid}"
+            f"Invalid post-review status '{status}'. Valid: {valid_str}"
         ) from None
 
-    if target_status not in VALID_TRANSITIONS[DesignStatus.in_review]:
-        valid = ", ".join(s.value for s in VALID_TRANSITIONS[DesignStatus.in_review])
-        raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid}")
+    if target_status not in valid_targets:
+        raise ValueError(f"Invalid post-review status '{status}'. Valid: {valid_str}")
 
     return target_status
 
@@ -183,7 +195,7 @@ class ReviewService:
         self,
         design_id: str,
         status: str,
-        comments: list[dict],
+        comments: list[dict[str, Any]],
         reviewer: str = "analyst",
     ) -> ReviewBatch | None:
         """Save a batch of review comments and transition the design status.
@@ -245,14 +257,32 @@ class ReviewService:
         _validate_id(design_id, "design_id")
         reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
 
+        raw_batches = self._read_raw_batches(reviews_path, design_id)
+        if raw_batches is None:
+            return []
+
+        try:
+            batches = [ReviewBatch(**b) for b in raw_batches]
+        except Exception:
+            logger.warning("Failed to parse review batches for %s", design_id)
+            return []
+
+        batches.sort(key=lambda b: b.created_at, reverse=True)
+        return batches
+
+    @staticmethod
+    def _read_raw_batches(
+        reviews_path: Path, design_id: str
+    ) -> list[dict[str, Any]] | None:
+        """Read and validate raw batch data from YAML. Returns None on failure."""
         try:
             data = read_yaml(reviews_path)
         except Exception:
             logger.warning("Failed to read reviews YAML for %s", design_id)
-            return []
+            return None
 
         if not data:
-            return []
+            return None
 
         if "batches" not in data:
             if "comments" in data:
@@ -263,22 +293,14 @@ class ReviewService:
                 )
             else:
                 logger.warning("No batches key found in reviews YAML for %s", design_id)
-            return []
+            return None
 
         raw_batches = data["batches"]
         if not isinstance(raw_batches, list):
             logger.warning("Batches key is not a list for %s", design_id)
-            return []
+            return None
 
-        try:
-            batches = [ReviewBatch(**b) for b in raw_batches]
-        except Exception:
-            logger.warning("Failed to parse review batches for %s", design_id)
-            return []
-
-        # Sort by created_at descending
-        batches.sort(key=lambda b: b.created_at, reverse=True)
-        return batches
+        return raw_batches
 
     def list_comments(self, design_id: str) -> list[ReviewComment]:
         """Read all review comments for a design.
@@ -327,25 +349,15 @@ class ReviewService:
                     current_scope = [table_name] if table_name else []
                     continue
 
-                # Check for category prefix
-                category = KnowledgeCategory.context  # default
-                content = line
-                for pattern, cat in _CATEGORY_PATTERNS:
-                    match = pattern.match(line)
-                    if match:
-                        category = cat
-                        content = line[match.end() :].strip()
-                        break
-
+                category, content = _parse_knowledge_line(line)
                 if not content:
                     continue
 
-                # Determine scope
                 scope = current_scope if current_scope is not None else default_scope
 
                 entry = DomainKnowledgeEntry(
                     key=f"{design_id}-{index}",
-                    title=content[:80],
+                    title=content[:_TITLE_MAX_LENGTH],
                     content=content,
                     category=category,
                     source=f"review:{comment.id}@{design_id}",
@@ -388,34 +400,38 @@ class ReviewService:
         data = {**data, "entries": [*existing_entries, *new_entries]}
         write_yaml(ek_path, data)
 
-        # Update ReviewComment.extracted_knowledge per comment
         if saved:
-            # Build comment_id -> [keys] mapping from entry source field
-            comment_keys: dict[str, list[str]] = {}
-            for entry in saved:
-                # source format: "review:{comment_id}@{design_id}"
-                if (
-                    entry.source
-                    and entry.source.startswith("review:")
-                    and "@" in entry.source
-                ):
-                    comment_id = entry.source[len("review:") : entry.source.index("@")]
-                    comment_keys.setdefault(comment_id, []).append(entry.key)
-
-            if comment_keys:
-                reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
-                reviews_data = read_yaml(reviews_path)
-                if reviews_data and "comments" in reviews_data:
-                    for comment_data in reviews_data["comments"]:
-                        keys_for_comment = comment_keys.get(
-                            comment_data.get("id", ""), []
-                        )
-                        if keys_for_comment:
-                            ek_list = comment_data.get("extracted_knowledge", [])
-                            comment_data["extracted_knowledge"] = [
-                                *ek_list,
-                                *keys_for_comment,
-                            ]
-                    write_yaml(reviews_path, reviews_data)
+            self._update_comment_extracted_keys(design_id, saved)
 
         return saved
+
+    def _update_comment_extracted_keys(
+        self, design_id: str, saved: list[DomainKnowledgeEntry]
+    ) -> None:
+        """Update ReviewComment.extracted_knowledge with saved entry keys."""
+        # Build comment_id -> [keys] mapping from entry source field
+        comment_keys: dict[str, list[str]] = {}
+        for entry in saved:
+            # source format: "review:{comment_id}@{design_id}"
+            if (
+                entry.source
+                and entry.source.startswith("review:")
+                and "@" in entry.source
+            ):
+                comment_id = entry.source[len("review:") : entry.source.index("@")]
+                comment_keys.setdefault(comment_id, []).append(entry.key)
+
+        if not comment_keys:
+            return
+
+        reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
+        reviews_data = read_yaml(reviews_path)
+        if not reviews_data or "comments" not in reviews_data:
+            return
+
+        for comment_data in reviews_data["comments"]:
+            keys_for_comment = comment_keys.get(comment_data.get("id", ""), [])
+            if keys_for_comment:
+                ek_list = comment_data.get("extracted_knowledge", [])
+                comment_data["extracted_knowledge"] = [*ek_list, *keys_for_comment]
+        write_yaml(reviews_path, reviews_data)
