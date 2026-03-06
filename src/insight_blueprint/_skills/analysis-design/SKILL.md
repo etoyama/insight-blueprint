@@ -92,9 +92,9 @@ Only provided fields are updated; all others remain unchanged.
 
 | Tool | Purpose | Key Parameters |
 |------|---------|----------------|
-| `list_analysis_designs(status?)` | List existing designs | `status`: draft \| active \| supported \| rejected \| inconclusive |
+| `list_analysis_designs(status?)` | List existing designs | `status`: in_review \| revision_requested \| analyzing \| supported \| rejected \| inconclusive |
 | `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
-| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `status?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
+| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
 | `get_analysis_design(design_id)` | Retrieve a specific design | `design_id`: str (e.g., "FP-H01") |
 
 ## theme_id Rules

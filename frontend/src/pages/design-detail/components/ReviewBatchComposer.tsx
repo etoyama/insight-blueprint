@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { submitReviewBatch } from "@/api/client";
 import type { DraftComment, DesignStatus } from "@/types/api";
+import { DESIGN_STATUS_LABELS } from "@/lib/constants";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ export function ReviewBatchComposer({
         <SelectContent>
           {BATCH_STATUSES.map((s) => (
             <SelectItem key={s} value={s}>
-              {s}
+              {DESIGN_STATUS_LABELS[s]}
             </SelectItem>
           ))}
         </SelectContent>

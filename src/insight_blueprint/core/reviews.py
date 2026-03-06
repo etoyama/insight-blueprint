@@ -146,7 +146,7 @@ class ReviewService:
         """Save a review comment and transition the design status.
 
         Returns None if design not found.
-        Raises ValueError if design is not in pending_review status
+        Raises ValueError if design is not in 'in_review' status
         or if status is not a valid post-review status.
         """
         _validate_id(design_id, "design_id")
@@ -189,8 +189,8 @@ class ReviewService:
         """Save a batch of review comments and transition the design status.
 
         Returns None if design not found.
-        Raises ValueError if design is not pending_review, status is invalid,
-        or target_section is not in ALLOWED_TARGET_SECTIONS.
+        Raises ValueError if design is not in 'in_review' status,
+        status is invalid, or target_section is not in ALLOWED_TARGET_SECTIONS.
         """
         _validate_id(design_id, "design_id")
         target_status = _validate_post_review_status(status)

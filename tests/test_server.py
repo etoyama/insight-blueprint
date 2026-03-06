@@ -142,9 +142,10 @@ def test_update_analysis_design_mcp_returns_error_for_missing_id(
     assert "FP-H99" in result["error"]
 
 
-def test_update_analysis_design_mcp_returns_error_for_invalid_status(
+def test_update_analysis_design_mcp_does_not_accept_status(
     initialized_server: Path,
 ) -> None:
+    """update_analysis_design no longer accepts status parameter."""
     create_result = asyncio.run(
         server_module.create_analysis_design(
             title="T", hypothesis_statement="s", hypothesis_background="b"
@@ -152,25 +153,11 @@ def test_update_analysis_design_mcp_returns_error_for_invalid_status(
     )
     result = asyncio.run(
         server_module.update_analysis_design(
-            design_id=create_result["id"], status="invalid_status"
+            design_id=create_result["id"], title="Updated"
         )
     )
-    assert "error" in result
-    assert "invalid_status" in result["error"]
-
-
-def test_update_analysis_design_mcp_updates_status(initialized_server: Path) -> None:
-    create_result = asyncio.run(
-        server_module.create_analysis_design(
-            title="T", hypothesis_statement="s", hypothesis_background="b"
-        )
-    )
-    result = asyncio.run(
-        server_module.update_analysis_design(
-            design_id=create_result["id"], status="analyzing"
-        )
-    )
-    assert result["status"] == "analyzing"
+    assert result["title"] == "Updated"
+    assert result["status"] == "in_review"  # status unchanged
 
 
 # ---------------------------------------------------------------------------
@@ -603,10 +590,8 @@ def test_transition_design_status_invalid(
     initialized_review_server: Path,
 ) -> None:
     design_id = _create_in_review_design()
-    # Move to terminal state
-    asyncio.run(
-        server_module.update_analysis_design(design_id=design_id, status="supported")
-    )
+    # Move to terminal state via valid transition
+    asyncio.run(server_module.transition_design_status(design_id, "supported"))
     result = asyncio.run(server_module.transition_design_status(design_id, "in_review"))
     assert "error" in result
     assert "Cannot transition" in result["error"]
@@ -824,12 +809,8 @@ class TestSaveReviewBatchTool:
     ) -> None:
         """FR-18: Non-in_review design returns error."""
         design_id = _create_in_review_design()
-        # Move to terminal state
-        asyncio.run(
-            server_module.update_analysis_design(
-                design_id=design_id, status="supported"
-            )
-        )
+        # Move to terminal state via valid transition
+        asyncio.run(server_module.transition_design_status(design_id, "supported"))
         result = asyncio.run(
             server_module.save_review_batch(
                 design_id=design_id,

@@ -115,7 +115,6 @@ class UpdateDesignRequest(BaseModel):
     title: str | None = None
     hypothesis_statement: str | None = None
     hypothesis_background: str | None = None
-    status: str | None = None
     metrics: dict | None = None
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
@@ -210,9 +209,11 @@ async def update_design(
     body: UpdateDesignRequest,
     design_id: str = Path(pattern=_ID_PATTERN),
 ) -> dict:
-    """Update an existing design."""
+    """Update an existing design.
+
+    Status changes must go through POST /api/designs/{id}/transition.
+    """
     from insight_blueprint._registry import get_design_service
-    from insight_blueprint.models.design import DesignStatus
 
     svc = get_design_service()
     updates: dict = {
@@ -228,12 +229,6 @@ async def update_design(
         }.items()
         if v is not None
     }
-
-    if body.status is not None:
-        try:
-            updates["status"] = DesignStatus(body.status)
-        except ValueError:
-            raise HTTPException(400, detail=f"Invalid status '{body.status}'") from None
 
     design = svc.update_design(design_id, **updates)
     if design is None:

@@ -283,15 +283,17 @@ def test_create_design_invalid_theme_id_returns_400(client: TestClient) -> None:
     assert "error" in resp.json()
 
 
-def test_update_design_invalid_status_returns_400(client: TestClient) -> None:
+def test_update_design_ignores_status_field(client: TestClient) -> None:
+    """PUT /api/designs/{id} does not accept status — use POST /transition instead."""
     created = _create_design(client)
     design_id = created["design"]["id"]
     resp = client.put(
         f"/api/designs/{design_id}",
-        json={"status": "invalid_status_value"},
+        json={"title": "Updated Title", "status": "supported"},
     )
-    assert resp.status_code == 400
-    assert "error" in resp.json()
+    assert resp.status_code == 200
+    # status should remain in_review (status field is ignored)
+    assert resp.json()["status"] == "in_review"
 
 
 def test_design_path_traversal_returns_422(client: TestClient) -> None:
@@ -575,8 +577,8 @@ def test_transition_design_success(client: TestClient) -> None:
 
 def test_transition_design_invalid(client: TestClient) -> None:
     design_id = _create_in_review_design_via_api(client)
-    # Move to terminal state
-    client.put(f"/api/designs/{design_id}", json={"status": "supported"})
+    # Move to terminal state via valid transition
+    client.post(f"/api/designs/{design_id}/transition", json={"status": "supported"})
     resp = client.post(
         f"/api/designs/{design_id}/transition",
         json={"status": "in_review"},
@@ -652,8 +654,8 @@ def test_add_comment_not_found(client: TestClient) -> None:
 
 def test_add_comment_non_in_review_returns_400(client: TestClient) -> None:
     design_id = _create_in_review_design_via_api(client)
-    # Move to terminal status
-    client.put(f"/api/designs/{design_id}", json={"status": "supported"})
+    # Move to terminal status via valid transition
+    client.post(f"/api/designs/{design_id}/transition", json={"status": "supported"})
     resp = client.post(
         f"/api/designs/{design_id}/comments",
         json={"comment": "Bad", "status": "supported"},
@@ -824,8 +826,10 @@ class TestReviewBatchAPI:
     def test_submit_batch_non_in_review_returns_400(self, client: TestClient) -> None:
         """AC: Non-in_review design returns 400."""
         design_id = _create_in_review_design_via_api(client)
-        # Move to terminal status
-        client.put(f"/api/designs/{design_id}", json={"status": "supported"})
+        # Move to terminal status via valid transition
+        client.post(
+            f"/api/designs/{design_id}/transition", json={"status": "supported"}
+        )
         resp = client.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -984,8 +988,10 @@ class TestReviewBatchAPI:
                 "comments": [{"comment": "Earlier"}],
             },
         )
-        # Reset to in_review for second batch
-        client.put(f"/api/designs/{design_id}", json={"status": "in_review"})
+        # Reset to in_review for second batch via valid transition
+        client.post(
+            f"/api/designs/{design_id}/transition", json={"status": "in_review"}
+        )
         client.post(
             f"/api/designs/{design_id}/review-batches",
             json={

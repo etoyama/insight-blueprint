@@ -81,7 +81,6 @@ async def update_analysis_design(
     title: str | None = None,
     hypothesis_statement: str | None = None,
     hypothesis_background: str | None = None,
-    status: str | None = None,
     metrics: dict | None = None,
     explanatory: list[dict] | None = None,
     chart: list[dict] | None = None,
@@ -90,11 +89,11 @@ async def update_analysis_design(
     """Partially update an existing analysis design.
 
     Only provided fields are updated. Returns the updated design as a dict,
-    or an error dict if design_id not found or status is invalid.
+    or an error dict if design_id not found.
+    Status changes must go through transition_design_status.
     """
     if err := _validate_design_id(design_id):
         return err
-    from insight_blueprint.models.design import DesignStatus
 
     service = get_design_service()
     updates: dict = {
@@ -110,11 +109,6 @@ async def update_analysis_design(
         }.items()
         if v is not None
     }
-    if status is not None:
-        try:
-            updates["status"] = DesignStatus(status)
-        except ValueError:
-            return {"error": f"Invalid status '{status}'"}
 
     design = service.update_design(design_id, **updates)
     if design is None:

@@ -208,7 +208,26 @@ def test_full_web_workflow(_wire_services: None) -> None:
         assert resp.status_code == 200
         assert resp.json()["status"] == "in_review"
 
-        # 5. Submit review batch → supported
+        # 5. Add a review comment (design is in_review) for knowledge extraction
+        resp = c.post(
+            f"/api/designs/{design_id}/comments",
+            json={
+                "comment": "Good hypothesis. Note: churn is defined as 30-day inactivity.",
+                "status": "revision_requested",
+                "reviewer": "analyst",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status_after"] == "revision_requested"
+
+        # 6. Transition back to in_review for batch submission
+        resp = c.post(
+            f"/api/designs/{design_id}/transition",
+            json={"status": "in_review"},
+        )
+        assert resp.status_code == 200
+
+        # 7. Submit review batch → supported
         resp = c.post(
             f"/api/designs/{design_id}/review-batches",
             json={
@@ -223,33 +242,20 @@ def test_full_web_workflow(_wire_services: None) -> None:
         assert resp.status_code == 201
         assert resp.json()["status_after"] == "supported"
 
-        # 6. Verify design is now supported
+        # 8. Verify design is now supported
         resp = c.get(f"/api/designs/{design_id}")
         assert resp.json()["status"] == "supported"
 
-        # 7. Reset to in_review and add a review comment for knowledge extraction
-        c.put(f"/api/designs/{design_id}", json={"status": "in_review"})
-        resp = c.post(
-            f"/api/designs/{design_id}/comments",
-            json={
-                "comment": "Good hypothesis. Note: churn is defined as 30-day inactivity.",
-                "status": "supported",
-                "reviewer": "analyst",
-            },
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status_after"] == "supported"
-
-        # 8. List comments
+        # 10. List comments
         resp = c.get(f"/api/designs/{design_id}/comments")
         assert resp.status_code == 200
         assert resp.json()["count"] >= 1
 
-        # 9. Extract knowledge (preview)
+        # 11. Extract knowledge (preview)
         resp = c.post(f"/api/designs/{design_id}/knowledge")
         assert resp.status_code == 200
 
-        # 10. Save knowledge (with explicit entries)
+        # 12. Save knowledge (with explicit entries)
         resp = c.post(
             f"/api/designs/{design_id}/knowledge",
             json={
@@ -267,11 +273,11 @@ def test_full_web_workflow(_wire_services: None) -> None:
         assert resp.status_code == 200
         assert resp.json()["count"] == 1
 
-        # 11. Old /review endpoint should be gone
+        # 13. Old /review endpoint should be gone
         resp = c.post(f"/api/designs/{design_id}/review")
         assert resp.status_code in (404, 405)
 
-        # 12. Verify health still works
+        # 14. Verify health still works
         resp = c.get("/api/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"

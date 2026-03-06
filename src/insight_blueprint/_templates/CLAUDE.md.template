@@ -40,7 +40,7 @@ Claude Code skills provide interactive workflows.
 1. **Register** data sources via `/catalog-register`
 2. **Design** hypotheses via `/analysis-design`
 3. **Implement** analysis (code + notebooks)
-4. **Review** via status flow: draft → active → pending_review → disposition
+4. **Review** via status flow: in_review → revision_requested / analyzing → supported / rejected / inconclusive
 5. **Extract** domain knowledge for reuse
 
 ### Language Rules
