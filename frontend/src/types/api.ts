@@ -13,7 +13,8 @@ export type KnowledgeCategory =
   | "methodology"
   | "caution"
   | "definition"
-  | "context";
+  | "context"
+  | "finding";
 
 export type KnowledgeImportance = "high" | "medium" | "low";
 
@@ -31,6 +32,7 @@ export interface Design {
   chart: Record<string, unknown>[];
   source_ids: string[];
   next_action: Record<string, unknown> | null;
+  referenced_knowledge: Record<string, unknown>[] | null;
   created_at: string;
   updated_at: string;
 }

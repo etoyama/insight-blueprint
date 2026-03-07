@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
   makeDesign,
-  makeKnowledgeEntry,
   makeBatchComment,
   makeReviewBatch,
 } from "./fixtures/mock-data";
@@ -12,8 +11,6 @@ import {
   mockComments,
   mockReviewBatches,
   mockReviewBatchesError,
-  mockExtractKnowledge,
-  mockSaveKnowledge,
 } from "./fixtures/api-routes";
 
 // Shared mock data for design detail tests
@@ -118,83 +115,11 @@ test("#7: comment buttons hidden when not in_review", async ({ page }) => {
 // #8: Legacy add-comment test removed — ReviewPanel deleted.
 // Inline comment flow is now tested in "Inline Review Comments" describe block below.
 
-// #9: Knowledge extraction — click "Extract Knowledge", preview list appears
-test("#9: extract knowledge shows preview entries", async ({ page }) => {
-  const entries = [
-    makeKnowledgeEntry({ key: "k-1", title: "Revenue Pattern" }),
-    makeKnowledgeEntry({ key: "k-2", title: "Seasonal Trend" }),
-  ];
-
-  await mockDesignList(page, [activeDesign]);
-  await mockDesignDetail(page, activeDesign);
-  await mockComments(page, activeDesign.id, []);
-  await mockExtractKnowledge(page, activeDesign.id, entries);
-
-  await page.goto("/?tab=designs");
-  await page.getByText("Detail Test Design").click();
-  await expect(page.getByRole("tab", { name: /knowledge/i })).toBeVisible({
-    timeout: 5000,
-  });
-  await page.getByRole("tab", { name: /knowledge/i }).click();
-
-  await page.getByRole("button", { name: "Extract Knowledge" }).click();
-
-  await expect(page.getByText("Revenue Pattern")).toBeVisible({
-    timeout: 5000,
-  });
-  await expect(page.getByText("Seasonal Trend")).toBeVisible();
-  // Save button should appear
-  await expect(
-    page.getByRole("button", { name: "Save Knowledge" }),
-  ).toBeVisible();
-});
-
-// #10: Knowledge save — click "Save Knowledge", confirmation message appears
-test("#10: save knowledge shows confirmation", async ({ page }) => {
-  const entries = [
-    makeKnowledgeEntry({ key: "k-1", title: "Revenue Pattern" }),
-  ];
-
-  await mockDesignList(page, [activeDesign]);
-  await mockDesignDetail(page, activeDesign);
-  await mockComments(page, activeDesign.id, []);
-  // Use the same route for both extract and save (POST to knowledge endpoint)
-  await page.route(`**/api/designs/${activeDesign.id}/knowledge`, (route) =>
-    route.fulfill({
-      json: {
-        entries,
-        saved_entries: entries,
-        count: entries.length,
-        message: "Saved",
-      },
-    }),
-  );
-
-  await page.goto("/?tab=designs");
-  await page.getByText("Detail Test Design").click();
-  await expect(page.getByRole("tab", { name: /knowledge/i })).toBeVisible({
-    timeout: 5000,
-  });
-  await page.getByRole("tab", { name: /knowledge/i }).click();
-
-  // Extract first
-  await page.getByRole("button", { name: "Extract Knowledge" }).click();
-  await expect(page.getByText("Revenue Pattern")).toBeVisible({
-    timeout: 5000,
-  });
-
-  // Now save
-  await page.getByRole("button", { name: "Save Knowledge" }).click();
-  await expect(page.getByText(/knowledge saved to project rules/i)).toBeVisible({
-    timeout: 5000,
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Tab Restructuring (P7)
 // ---------------------------------------------------------------------------
 test.describe("Tab Restructuring", () => {
-  test("tabs show Overview, History, Knowledge", async ({ page }) => {
+  test("tabs show Overview and History", async ({ page }) => {
     await mockDesignList(page, [pendingDesign]);
     await mockDesignDetail(page, pendingDesign);
     await mockReviewBatches(page, pendingDesign.id, []);
@@ -206,7 +131,6 @@ test.describe("Tab Restructuring", () => {
     const detailCard = page.getByTestId("design-detail-card");
     await expect(detailCard.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     await expect(detailCard.getByRole("tab", { name: /history/i })).toBeVisible();
-    await expect(detailCard.getByRole("tab", { name: /knowledge/i })).toBeVisible();
   });
 
   test("Review tab is removed", async ({ page }) => {
@@ -253,8 +177,8 @@ test.describe("Inline Review Comments", () => {
     await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     const buttons = page.getByTestId("comment-button");
     await expect(buttons.first()).toBeVisible({ timeout: 5000 });
-    // Should have 6 comment buttons (one per commentable section)
-    await expect(buttons).toHaveCount(6);
+    // Should have 7 comment buttons (one per commentable section)
+    await expect(buttons).toHaveCount(7);
   });
 
   test("comment buttons hidden on non-in_review design", async ({ page }) => {
@@ -696,5 +620,49 @@ test.describe("Review History", () => {
     const cards = page.getByTestId("batch-card");
     const firstCard = cards.first();
     await expect(firstCard).toContainText("Newer batch");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-finding visibility (REQ-5)
+// ---------------------------------------------------------------------------
+test.describe("Auto-finding visibility", () => {
+  test("T-5.1: supported status mentions auto-recorded finding", async ({ page }) => {
+    const design = makeDesign({ id: "d-supported", title: "Supported Design", status: "supported" });
+    await mockDesignList(page, [design]);
+    await mockDesignDetail(page, design);
+    await mockReviewBatches(page, design.id, []);
+
+    await page.goto("/?tab=designs");
+    await page.getByText("Supported Design").click();
+    await expect(page.getByTestId("workflow-guide")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("workflow-guide")).toContainText(/automatically recorded/i);
+    await expect(page.getByTestId("workflow-guide")).not.toContainText(/Knowledge tab/i);
+  });
+
+  test("T-5.2: rejected status mentions auto-recorded finding", async ({ page }) => {
+    const design = makeDesign({ id: "d-rejected", title: "Rejected Design", status: "rejected" });
+    await mockDesignList(page, [design]);
+    await mockDesignDetail(page, design);
+    await mockReviewBatches(page, design.id, []);
+
+    await page.goto("/?tab=designs");
+    await page.getByText("Rejected Design").click();
+    await expect(page.getByTestId("workflow-guide")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("workflow-guide")).toContainText(/automatically recorded/i);
+    await expect(page.getByTestId("workflow-guide")).not.toContainText(/Knowledge tab/i);
+  });
+
+  test("T-5.3: inconclusive status mentions auto-recorded finding", async ({ page }) => {
+    const design = makeDesign({ id: "d-inconclusive", title: "Inconclusive Design", status: "inconclusive" });
+    await mockDesignList(page, [design]);
+    await mockDesignDetail(page, design);
+    await mockReviewBatches(page, design.id, []);
+
+    await page.goto("/?tab=designs");
+    await page.getByText("Inconclusive Design").click();
+    await expect(page.getByTestId("workflow-guide")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("workflow-guide")).toContainText(/automatically recorded/i);
+    await expect(page.getByTestId("workflow-guide")).not.toContainText(/Knowledge tab/i);
   });
 });

@@ -35,7 +35,7 @@ insight-blueprint/
 ├── frontend/                      # React フロントエンド
 │   ├── src/
 │   │   ├── main.tsx               # エントリポイント
-│   │   ├── App.tsx                # ルートコンポーネント (4タブ構成)
+│   │   ├── App.tsx                # ルートコンポーネント (2タブ構成: Designs / Catalog)
 │   │   ├── api/
 │   │   │   └── client.ts          # REST API クライアント
 │   │   ├── types/
@@ -52,10 +52,8 @@ insight-blueprint/
 │   │   │   └── JsonTree.tsx
 │   │   └── pages/                 # ページコンポーネント
 │   │       ├── DesignsPage.tsx    # Designs タブ
-│   │       ├── HistoryPage.tsx    # History タブ
-│   │       ├── RulesPage.tsx      # Rules タブ
-│   │       ├── catalog/           # Catalog タブ
-│   │       └── design-detail/     # 設計詳細ページ
+│   │       ├── catalog/           # Catalog タブ (検索, ソース一覧, スキーマ, ドメイン知識, 注意事項検索)
+│   │       └── design-detail/     # 設計詳細ページ (Overview, History の2サブタブ)
 │   ├── e2e/                       # Playwright E2E テスト
 │   └── package.json
 ├── tests/                         # Python テストスイート (548+ tests)

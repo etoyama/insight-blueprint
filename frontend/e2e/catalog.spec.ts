@@ -4,12 +4,13 @@ import {
   makeColumnSchema,
   makeSearchResult,
   makeKnowledgeEntry,
+  makeCaution,
 } from "./fixtures/mock-data";
 import {
   mockSourceList,
   mockSchema,
   mockCatalogSearch,
-  mockKnowledgeList,
+  mockUnifiedKnowledge,
 } from "./fixtures/api-routes";
 
 const source = makeSource({ id: "s-cat-1", name: "Sales Data" });
@@ -23,7 +24,7 @@ test("#14: clicking source row shows schema table", async ({ page }) => {
 
   await mockSourceList(page, [source]);
   await mockSchema(page, source.id, columns);
-  await mockKnowledgeList(page, []);
+  await mockUnifiedKnowledge(page, []);
 
   await page.goto("/?tab=catalog");
   // Click the source row
@@ -44,14 +45,15 @@ test("#15: catalog search displays results", async ({ page }) => {
   ];
 
   await mockSourceList(page, [source]);
-  await mockKnowledgeList(page, []);
+  await mockUnifiedKnowledge(page, []);
   await mockCatalogSearch(page, results);
 
   await page.goto("/?tab=catalog");
 
-  // Fill search input and click Search
+  // Fill search input and click Search (scoped to Catalog Search section)
   await page.getByPlaceholder("Search query...").fill("revenue");
-  await page.getByRole("button", { name: "Search" }).click();
+  const catalogSearchSection = page.locator("section").filter({ hasText: "Catalog Search" });
+  await catalogSearchSection.getByRole("button", { name: "Search" }).click();
 
   // Results should be visible
   await expect(page.getByText("Monthly revenue")).toBeVisible({
@@ -75,20 +77,108 @@ test("#16: knowledge list shows entries with badges", async ({ page }) => {
       category: "caution",
       importance: "medium",
     }),
+    makeKnowledgeEntry({
+      key: "k-cat-3",
+      title: "Auto Finding",
+      category: "finding",
+      importance: "high",
+    }),
   ];
 
   await mockSourceList(page, [source]);
-  await mockKnowledgeList(page, entries);
+  await mockUnifiedKnowledge(page, entries);
 
   await page.goto("/?tab=catalog");
 
-  // Knowledge section with entries
   await expect(page.getByText("Domain Knowledge")).toBeVisible({
     timeout: 5000,
   });
   await expect(page.getByText("Revenue Seasonality")).toBeVisible();
   await expect(page.getByText("NULL Handling")).toBeVisible();
-  // Category and importance badges
+  await expect(page.getByText("Auto Finding")).toBeVisible();
   await expect(page.getByText("methodology").first()).toBeVisible();
   await expect(page.getByText("caution").first()).toBeVisible();
+  await expect(page.getByText("finding").first()).toBeVisible();
+});
+
+// T-2.3: Both catalog-registered and extracted entries in unified table
+test("T-2.3: unified knowledge table shows both catalog and finding entries", async ({ page }) => {
+  const entries = [
+    makeKnowledgeEntry({ key: "k-meth", title: "Methodology Entry", category: "methodology" }),
+    makeKnowledgeEntry({ key: "k-find", title: "Finding Entry", category: "finding" }),
+  ];
+
+  await mockSourceList(page, [source]);
+  await mockUnifiedKnowledge(page, entries);
+
+  await page.goto("/?tab=catalog");
+  await expect(page.getByText("Domain Knowledge")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText("Methodology Entry")).toBeVisible();
+  await expect(page.getByText("Finding Entry")).toBeVisible();
+});
+
+// T-3.1: Caution search returns matching results
+test("T-3.1: caution search in catalog returns matching results", async ({ page }) => {
+  const cautions = [
+    makeCaution({ key: "cau-1", title: "NULL Revenue", affects_columns: ["revenue"] }),
+  ];
+
+  await mockSourceList(page, [source]);
+  await mockUnifiedKnowledge(page, []);
+  await page.route("**/api/rules/cautions**", (route) =>
+    route.fulfill({
+      json: { table_names: ["sales"], cautions, count: cautions.length },
+    }),
+  );
+
+  await page.goto("/?tab=catalog");
+  const cautionSection = page.locator("section").filter({ hasText: "Caution Search" });
+  await expect(cautionSection).toBeVisible({ timeout: 5000 });
+
+  await page.getByPlaceholder("Table names (comma separated)").fill("sales");
+  await cautionSection.getByRole("button", { name: "Search" }).click();
+
+  await expect(page.getByText("NULL Revenue")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole("cell", { name: "revenue", exact: true })).toBeVisible();
+});
+
+// T-3.2: Caution search with no results shows empty state
+test("T-3.2: caution search with no results shows empty state", async ({ page }) => {
+  await mockSourceList(page, [source]);
+  await mockUnifiedKnowledge(page, []);
+  await page.route("**/api/rules/cautions**", (route) =>
+    route.fulfill({
+      json: { table_names: ["nonexistent"], cautions: [], count: 0 },
+    }),
+  );
+
+  await page.goto("/?tab=catalog");
+  const cautionSection = page.locator("section").filter({ hasText: "Caution Search" });
+  await expect(cautionSection).toBeVisible({ timeout: 5000 });
+
+  await page.getByPlaceholder("Table names (comma separated)").fill("nonexistent");
+  await cautionSection.getByRole("button", { name: "Search" }).click();
+
+  await expect(page.getByText(/no matching cautions/i)).toBeVisible({ timeout: 5000 });
+});
+
+// T-3.3: Caution search API error shows ErrorBanner
+test("T-3.3: caution search API error shows error banner", async ({ page }) => {
+  await mockSourceList(page, [source]);
+  await mockUnifiedKnowledge(page, []);
+  await page.route("**/api/rules/cautions**", (route) =>
+    route.fulfill({
+      status: 500,
+      json: { error: "Internal server error" },
+    }),
+  );
+
+  await page.goto("/?tab=catalog");
+  const cautionSection = page.locator("section").filter({ hasText: "Caution Search" });
+  await expect(cautionSection).toBeVisible({ timeout: 5000 });
+
+  await page.getByPlaceholder("Table names (comma separated)").fill("sales");
+  await cautionSection.getByRole("button", { name: "Search" }).click();
+
+  await expect(page.getByRole("alert")).toBeVisible({ timeout: 5000 });
 });

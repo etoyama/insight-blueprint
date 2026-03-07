@@ -11,9 +11,8 @@ import type {
   DataSource,
   ColumnSchema,
   SearchResult,
-  RulesContext,
-  Caution,
 } from "./mock-data";
+import { makeRulesContext } from "./mock-data";
 
 // ---------------------------------------------------------------------------
 // Designs
@@ -74,33 +73,6 @@ export async function mockComments(
   });
 }
 
-export async function mockExtractKnowledge(
-  page: Page,
-  designId: string,
-  entries: KnowledgeEntry[],
-) {
-  await page.route(`**/api/designs/${designId}/knowledge`, (route) =>
-    route.fulfill({
-      json: { entries, count: entries.length, message: "Extracted" },
-    }),
-  );
-}
-
-export async function mockSaveKnowledge(
-  page: Page,
-  designId: string,
-  entries: KnowledgeEntry[],
-) {
-  await page.route(`**/api/designs/${designId}/knowledge`, (route) =>
-    route.fulfill({
-      json: {
-        saved_entries: entries,
-        count: entries.length,
-        message: "Saved",
-      },
-    }),
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Review Batches
@@ -183,33 +155,16 @@ export async function mockCatalogSearch(
   );
 }
 
-export async function mockKnowledgeList(
+export async function mockUnifiedKnowledge(
   page: Page,
   entries: KnowledgeEntry[],
 ) {
-  await page.route("**/api/catalog/knowledge", (route) =>
-    route.fulfill({ json: { entries, count: entries.length } }),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Rules
-// ---------------------------------------------------------------------------
-
-export async function mockRulesContext(page: Page, context: RulesContext) {
   await page.route("**/api/rules/context", (route) =>
-    route.fulfill({ json: context }),
-  );
-}
-
-export async function mockCautions(page: Page, cautions: Caution[]) {
-  await page.route("**/api/rules/cautions**", (route) =>
     route.fulfill({
-      json: {
-        table_names: ["test"],
-        cautions,
-        count: cautions.length,
-      },
+      json: makeRulesContext({
+        knowledge_entries: entries,
+        total_knowledge: entries.length,
+      }),
     }),
   );
 }
@@ -224,9 +179,6 @@ export async function mockAllRoutesEmpty(page: Page) {
   );
   await page.route("**/api/catalog/sources**", (route) =>
     route.fulfill({ json: { sources: [], count: 0 } }),
-  );
-  await page.route("**/api/catalog/knowledge", (route) =>
-    route.fulfill({ json: { entries: [], count: 0 } }),
   );
   await page.route("**/api/catalog/search**", (route) =>
     route.fulfill({ json: { query: "", results: [], count: 0 } }),

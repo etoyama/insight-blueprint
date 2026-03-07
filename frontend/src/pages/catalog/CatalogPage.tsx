@@ -6,6 +6,7 @@ import { SourceListSection } from "./SourceListSection";
 import { SchemaSection } from "./SchemaSection";
 import { SearchSection } from "./SearchSection";
 import { KnowledgeSection } from "./KnowledgeSection";
+import { CautionSearchSection } from "./CautionSearchSection";
 
 export function CatalogPage() {
   const [sources, setSources] = useState<DataSource[]>([]);
@@ -44,6 +45,7 @@ export function CatalogPage() {
       />
       <SchemaSection sourceId={selectedSourceId} />
       <KnowledgeSection />
+      <CautionSearchSection />
     </div>
   );
 }

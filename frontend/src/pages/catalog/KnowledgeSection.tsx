@@ -3,7 +3,7 @@ import { DataTable, type ColumnDef } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { KNOWLEDGE_COLUMNS } from "@/lib/constants";
-import { getKnowledgeList } from "@/api/client";
+import { getUnifiedKnowledge } from "@/api/client";
 import type { KnowledgeEntry } from "@/types/api";
 
 const EXTENDED_KNOWLEDGE_COLUMNS: ColumnDef<KnowledgeEntry>[] = [
@@ -19,8 +19,8 @@ export function KnowledgeSection() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    getKnowledgeList(ctrl.signal)
-      .then((res) => setEntries(res.entries))
+    getUnifiedKnowledge(ctrl.signal)
+      .then((res) => setEntries(res.entries ?? []))
       .catch((err) => {
         if (err.name !== "AbortError") setError(err.message);
       })

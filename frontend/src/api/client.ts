@@ -156,29 +156,6 @@ export async function listReviewBatches(
   );
 }
 
-export async function extractKnowledge(
-  designId: string,
-): Promise<{ entries: KnowledgeEntry[]; count: number; message: string }> {
-  return request(`/api/designs/${encodeURIComponent(designId)}/knowledge`, {
-    method: "POST",
-  });
-}
-
-export async function saveKnowledge(
-  designId: string,
-  entries: KnowledgeEntry[],
-): Promise<{
-  saved_entries: KnowledgeEntry[];
-  count: number;
-  message: string;
-}> {
-  return request(`/api/designs/${encodeURIComponent(designId)}/knowledge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ entries }),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Catalog endpoints
 // ---------------------------------------------------------------------------
@@ -226,10 +203,14 @@ export async function searchCatalog(
   return request(`/api/catalog/search?${params.toString()}`, { signal });
 }
 
-export async function getKnowledgeList(
+export async function getUnifiedKnowledge(
   signal?: AbortSignal,
 ): Promise<{ entries: KnowledgeEntry[]; count: number }> {
-  return request("/api/catalog/knowledge", { signal });
+  const context = await getRulesContext(signal);
+  return {
+    entries: context.knowledge_entries,
+    count: context.total_knowledge,
+  };
 }
 
 // ---------------------------------------------------------------------------

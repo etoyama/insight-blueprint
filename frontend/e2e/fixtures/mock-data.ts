@@ -15,6 +15,7 @@ export interface Design {
   chart: Record<string, unknown>[];
   source_ids: string[];
   next_action: Record<string, unknown> | null;
+  referenced_knowledge: Record<string, unknown>[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +34,7 @@ export function makeDesign(overrides?: Partial<Design>): Design {
     chart: [],
     source_ids: [],
     next_action: null,
+    referenced_knowledge: null,
     created_at: "2026-01-01T00:00:00",
     updated_at: "2026-01-01T00:00:00",
     ...overrides,

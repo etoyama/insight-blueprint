@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewPanel } from "./OverviewPanel";
 import { ReviewHistoryPanel } from "./components/ReviewHistoryPanel";
-import { KnowledgePanel } from "./KnowledgePanel";
 
 interface DesignDetailProps {
   designId: string;
@@ -66,7 +65,6 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
             <OverviewPanel
@@ -77,9 +75,6 @@ export function DesignDetail({ designId, onDesignUpdated }: DesignDetailProps) {
           </TabsContent>
           <TabsContent value="history">
             <ReviewHistoryPanel designId={designId} />
-          </TabsContent>
-          <TabsContent value="knowledge">
-            <KnowledgePanel designId={designId} />
           </TabsContent>
         </Tabs>
       </CardContent>

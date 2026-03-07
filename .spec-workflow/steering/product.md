@@ -29,7 +29,7 @@ Claude Code 以外の MCP クライアントからも利用可能。ツールの
 3. **レビューワークフロー (Review Workflow)**: 設計書に対するレビューコメント・バッチレビュー。セクション単位のインラインコメント。レビュー結果に基づくステータス遷移
 4. **ドメイン知識管理 (Domain Knowledge)**: レビューコメントからの知識自動抽出、カタログに紐づく知識の登録・検索、注意事項の自動サジェスト
 5. **データリネージ (Data Lineage)**: pandas パイプラインの行数変化追跡、Mermaid ダイアグラム出力
-6. **WebUI ダッシュボード**: React ベースの4タブ構成 (Designs / Catalog / Rules / History) で分析設計のレビュー・閲覧
+6. **WebUI ダッシュボード**: React ベースの2タブ構成 (Designs / Catalog) で分析設計のレビュー・閲覧。Catalog タブにドメイン知識の統合一覧と注意事項検索を集約
 
 ## Business Objectives
 

@@ -2,17 +2,13 @@ import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DesignsPage } from "@/pages/DesignsPage";
 import { CatalogPage } from "@/pages/catalog";
-import { RulesPage } from "@/pages/RulesPage";
-import { HistoryPage } from "@/pages/HistoryPage";
 
-type Tab = "designs" | "catalog" | "rules" | "history";
+type Tab = "designs" | "catalog";
 
-const VALID_TABS: Tab[] = ["designs", "catalog", "rules", "history"];
+const VALID_TABS: Tab[] = ["designs", "catalog"];
 const TAB_LABELS: Record<Tab, string> = {
   designs: "Designs",
   catalog: "Catalog",
-  rules: "Rules",
-  history: "History",
 };
 
 function getTabFromUrl(): Tab {
@@ -58,12 +54,6 @@ export default function App() {
           </TabsContent>
           <TabsContent value="catalog">
             <CatalogPage />
-          </TabsContent>
-          <TabsContent value="rules">
-            <RulesPage />
-          </TabsContent>
-          <TabsContent value="history">
-            <HistoryPage />
           </TabsContent>
         </Tabs>
       </main>

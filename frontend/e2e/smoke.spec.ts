@@ -4,14 +4,13 @@ import {
   mockDesignList,
   mockDesignDetail,
   mockSourceList,
-  mockKnowledgeList,
+  mockUnifiedKnowledge,
 } from "./fixtures/api-routes";
 
-// S1: Tab routing — navigate all 4 tabs, verify URL ?tab= sync
+// S1: Tab routing — navigate all 2 tabs, verify URL ?tab= sync
 test("S1: tab routing syncs URL with tab selection", async ({ page }) => {
   await page.goto("/");
-  // Skip "designs" (default tab) — Radix Tabs doesn't fire onValueChange for already-active tab
-  const tabs = ["catalog", "rules", "history", "designs"] as const;
+  const tabs = ["catalog", "designs"] as const;
   for (const tab of tabs) {
     await page.getByRole("tab", { name: new RegExp(tab, "i") }).click();
     await expect(page).toHaveURL(new RegExp(`[?&]tab=${tab}`));
@@ -21,6 +20,24 @@ test("S1: tab routing syncs URL with tab selection", async ({ page }) => {
 // S2: Invalid tab fallback — ?tab=invalid → designs tab
 test("S2: invalid tab parameter falls back to designs", async ({ page }) => {
   await page.goto("/?tab=invalid");
+  await expect(page.getByRole("tab", { name: /designs/i })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+});
+
+// T-1.2: ?tab=rules falls back to designs
+test("T-1.2: tab=rules falls back to designs", async ({ page }) => {
+  await page.goto("/?tab=rules");
+  await expect(page.getByRole("tab", { name: /designs/i })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+});
+
+// T-1.3: ?tab=history falls back to designs
+test("T-1.3: tab=history falls back to designs", async ({ page }) => {
+  await page.goto("/?tab=history");
   await expect(page.getByRole("tab", { name: /designs/i })).toHaveAttribute(
     "data-state",
     "active",
@@ -91,13 +108,12 @@ test("S7: clicking design row shows detail sub-tabs", async ({ page }) => {
     timeout: 5000,
   });
   await expect(page.getByRole("tab", { name: /history/i }).first()).toBeVisible();
-  await expect(page.getByRole("tab", { name: /knowledge/i })).toBeVisible();
 });
 
 // S8: Source add with JSON validation — invalid JSON → error, valid JSON → success
 test("S8: source add validates JSON and submits", async ({ page }) => {
   await mockSourceList(page, []);
-  await mockKnowledgeList(page, []);
+  await mockUnifiedKnowledge(page, []);
   // POST handler for source creation (not covered by mockSourceList)
   await page.route("**/api/catalog/sources", (route) => {
     if (route.request().method() !== "POST") return route.fallback();
@@ -110,15 +126,16 @@ test("S8: source add validates JSON and submits", async ({ page }) => {
   });
   await page.goto("/?tab=catalog");
   await page.getByRole("button", { name: "Add Source" }).first().click();
-  await page.getByPlaceholder("Source ID").fill("s-001");
-  await page.getByPlaceholder("Name").fill("Test Source");
-  await page.getByPlaceholder("Description").fill("A test source");
-  await page.getByPlaceholder(/Connection JSON/).fill("not-json");
-  await page.getByRole("button", { name: "Add" }).click();
-  await expect(page.getByText(/valid JSON/i)).toBeVisible();
-  await page.getByPlaceholder(/Connection JSON/).fill('{"host": "localhost"}');
-  await page.getByRole("button", { name: "Add" }).click();
-  await expect(page.getByText(/valid JSON/i)).not.toBeVisible({
+  const dialog = page.getByRole("dialog");
+  await dialog.getByPlaceholder("Source ID").fill("s-001");
+  await dialog.getByPlaceholder("Name").fill("Test Source");
+  await dialog.getByPlaceholder("Description").fill("A test source");
+  await dialog.getByPlaceholder(/Connection JSON/).fill("not-json");
+  await dialog.getByRole("button", { name: "Add" }).click();
+  await expect(dialog.getByText(/valid JSON/i)).toBeVisible();
+  await dialog.getByPlaceholder(/Connection JSON/).fill('{"host": "localhost"}');
+  await dialog.getByRole("button", { name: "Add" }).click();
+  await expect(dialog.getByText(/valid JSON/i)).not.toBeVisible({
     timeout: 5000,
   });
 });

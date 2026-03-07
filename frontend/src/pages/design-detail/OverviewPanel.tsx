@@ -26,17 +26,17 @@ const STATUS_GUIDE: Record<DesignStatus, { title: string; description: string }>
   supported: {
     title: "Approved",
     description:
-      "Design is finalized. Proceed with your analysis, then return to the Knowledge tab to extract and save domain insights.",
+      "Design is finalized. A finding has been automatically recorded as domain knowledge based on your analysis results.",
   },
   rejected: {
     title: "Rejected",
     description:
-      "Hypothesis was rejected. Go to the Knowledge tab to capture lessons learned.",
+      "Hypothesis was rejected. A finding has been automatically recorded to capture lessons learned from this analysis.",
   },
   inconclusive: {
     title: "Inconclusive",
     description:
-      "Results are inconclusive. Go to the Knowledge tab to capture observations, then consider refining the hypothesis.",
+      "Results are inconclusive. A finding has been automatically recorded to capture observations. Consider refining the hypothesis for further investigation.",
   },
 };
 
