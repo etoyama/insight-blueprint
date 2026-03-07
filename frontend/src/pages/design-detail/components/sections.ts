@@ -14,4 +14,5 @@ export const COMMENTABLE_SECTIONS: readonly CommentableSection[] = [
   { id: "explanatory", label: "Explanatory", type: "json" },
   { id: "chart", label: "Chart", type: "json" },
   { id: "next_action", label: "Next Action", type: "json" },
+  { id: "referenced_knowledge", label: "Referenced Knowledge", type: "json" },
 ] as const;

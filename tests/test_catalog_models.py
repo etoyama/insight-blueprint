@@ -102,7 +102,37 @@ class TestKnowledgeEnums:
         assert KnowledgeCategory.caution == "caution"
         assert KnowledgeCategory.definition == "definition"
         assert KnowledgeCategory.context == "context"
-        assert len(KnowledgeCategory) == 4
+        assert KnowledgeCategory.finding == "finding"
+        assert len(KnowledgeCategory) == 5
+
+    def test_knowledge_category_finding_backward_compat(self) -> None:
+        """T-1.2: Existing categories still work after adding finding."""
+        entry = DomainKnowledgeEntry(
+            key="compat-test",
+            title="Compat Test",
+            content="Testing backward compatibility",
+            category="methodology",
+        )
+        assert entry.category == KnowledgeCategory.methodology
+        data = entry.model_dump(mode="json")
+        restored = DomainKnowledgeEntry(**data)
+        assert restored.category == KnowledgeCategory.methodology
+
+    def test_knowledge_category_finding_creation(self) -> None:
+        """T-1.3: Finding category knowledge can be created and serialized."""
+        entry = DomainKnowledgeEntry(
+            key="test-finding",
+            title="[SUPPORTED] Test finding",
+            content="Hypothesis was supported",
+            category=KnowledgeCategory.finding,
+            source="design:TEST-H01",
+            affects_columns=["orders"],
+        )
+        assert entry.category == KnowledgeCategory.finding
+        data = entry.model_dump(mode="json")
+        restored = DomainKnowledgeEntry(**data)
+        assert restored.category == KnowledgeCategory.finding
+        assert restored.source == "design:TEST-H01"
 
     def test_knowledge_importance_enum_values(self) -> None:
         assert KnowledgeImportance.high == "high"

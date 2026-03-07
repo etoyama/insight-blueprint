@@ -43,6 +43,7 @@ async def create_analysis_design(
     explanatory: list[dict] | None = None,
     chart: list[dict] | None = None,
     next_action: dict | None = None,
+    referenced_knowledge: dict | None = None,
 ) -> dict:
     """Create a new analysis design document.
 
@@ -63,6 +64,7 @@ async def create_analysis_design(
             explanatory=explanatory,
             chart=chart,
             next_action=next_action,
+            referenced_knowledge=referenced_knowledge,
         )
     except ValueError as e:
         return {"error": str(e)}
@@ -85,6 +87,7 @@ async def update_analysis_design(
     explanatory: list[dict] | None = None,
     chart: list[dict] | None = None,
     next_action: dict | None = None,
+    referenced_knowledge: dict | None = None,
 ) -> dict:
     """Partially update an existing analysis design.
 
@@ -106,6 +109,7 @@ async def update_analysis_design(
             "explanatory": explanatory,
             "chart": chart,
             "next_action": next_action,
+            "referenced_knowledge": referenced_knowledge,
         }.items()
         if v is not None
     }
@@ -311,7 +315,7 @@ async def get_domain_knowledge(
         except ValueError:
             return {
                 "error": f"Invalid category '{category}'. "
-                "Valid: methodology, caution, definition, context"
+                "Valid: methodology, caution, definition, context, finding"
             }
 
     dk = service.get_knowledge(source_id, category=cat_filter)
@@ -512,3 +516,38 @@ async def suggest_cautions(table_names: str) -> dict:
         "cautions": cautions,
         "count": len(cautions),
     }
+
+
+@mcp.tool()
+async def suggest_knowledge_for_design(
+    section: str | None = None,
+    theme_id: str | None = None,
+    source_ids: str | None = None,
+    hypothesis_text: str | None = None,
+    parent_id: str | None = None,
+) -> dict:
+    """Suggest knowledge entries relevant to a design section.
+
+    Filters by category via SECTION_KNOWLEDGE_MAP, then applies
+    per-category matching strategies (theme_id, source_ids, FTS5, lineage).
+
+    Args:
+        section: Design section name (e.g., hypothesis_statement, metrics)
+        theme_id: Theme ID to match findings/context by
+        source_ids: Comma-separated source IDs for caution/definition matching
+        hypothesis_text: Text to search via FTS5 for methodology matching
+        parent_id: Design ID to walk ancestor chain for finding collection
+
+    Returns: dict with section, suggestions, total
+    """
+    svc = get_rules_service()
+    ids_list = (
+        [s.strip() for s in source_ids.split(",") if s.strip()] if source_ids else None
+    )
+    return svc.suggest_knowledge_for_design(
+        section=section,
+        theme_id=theme_id,
+        source_ids=ids_list,
+        hypothesis_text=hypothesis_text,
+        parent_id=parent_id,
+    )

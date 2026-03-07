@@ -11,6 +11,18 @@ from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
 
 
+def _merge_referenced_knowledge(
+    current: dict[str, list[str]],
+    incoming: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Merge incoming referenced_knowledge into current (union with dedup)."""
+    result = dict(current)
+    for section_key, new_keys in incoming.items():
+        existing = result.get(section_key, [])
+        result[section_key] = list(dict.fromkeys([*existing, *new_keys]))
+    return result
+
+
 class DesignService:
     """Service for managing analysis design documents."""
 
@@ -28,6 +40,7 @@ class DesignService:
         explanatory: list[dict] | None = None,
         chart: list[dict] | None = None,
         next_action: dict | None = None,
+        referenced_knowledge: dict[str, list[str]] | None = None,
     ) -> AnalysisDesign:
         """Create a new analysis design.
 
@@ -53,6 +66,7 @@ class DesignService:
             explanatory=explanatory or [],
             chart=chart or [],
             next_action=next_action,
+            referenced_knowledge=referenced_knowledge or {},
         )
 
         file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
@@ -70,6 +84,15 @@ class DesignService:
         design = self.get_design(design_id)
         if design is None:
             return None
+
+        # Merge referenced_knowledge: union lists with dedup, preserve existing keys
+        if "referenced_knowledge" in fields:
+            merged_ref = _merge_referenced_knowledge(
+                dict(design.referenced_knowledge),
+                fields.pop("referenced_knowledge"),  # type: ignore[arg-type]
+            )
+            fields["referenced_knowledge"] = merged_ref
+
         updated = design.model_copy(update={**fields, "updated_at": now_jst()})
         file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
         write_yaml(file_path, updated.model_dump(mode="json"))

@@ -60,7 +60,10 @@ def main(ctx: click.Context, project: str | None, headless: bool) -> None:
     registry.catalog_service.rebuild_index()
 
     registry.review_service = ReviewService(project_path, registry.design_service)
-    registry.rules_service = RulesService(project_path, registry.catalog_service)
+    db_path = project_path / ".insight" / "catalog.db"
+    registry.rules_service = RulesService(
+        project_path, registry.catalog_service, registry.design_service, db_path
+    )
 
     # Start HTTP server (daemon thread)
     from insight_blueprint.web import start_server

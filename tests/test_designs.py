@@ -275,6 +275,124 @@ def test_update_design_persists_to_yaml(service: DesignService) -> None:
     assert reloaded.chart == [{"type": "table"}]
 
 
+# -- referenced_knowledge tests --
+
+
+def test_referenced_knowledge_default_empty_dict(service: DesignService) -> None:
+    """T-4.1: referenced_knowledge defaults to empty dict."""
+    design = service.create_design(
+        title="No refs",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+    )
+    assert design.referenced_knowledge == {}
+
+
+def test_referenced_knowledge_backward_compat_with_existing_yaml(
+    tmp_path: Path,
+) -> None:
+    """T-4.6: Existing YAML without referenced_knowledge loads fine."""
+    from insight_blueprint.models.design import AnalysisDesign
+
+    yaml_data = {
+        "id": "TEST-H01",
+        "theme_id": "TEST",
+        "title": "Old design",
+        "hypothesis_statement": "stmt",
+        "hypothesis_background": "bg",
+        "status": "in_review",
+        "metrics": {},
+        "explanatory": [],
+        "chart": [],
+        "source_ids": [],
+        "created_at": "2025-01-01T00:00:00+09:00",
+        "updated_at": "2025-01-01T00:00:00+09:00",
+    }
+    design = AnalysisDesign(**yaml_data)
+    assert design.referenced_knowledge == {}
+
+
+# -- referenced_knowledge: create/update/get tests --
+
+
+def test_create_design_with_referenced_knowledge(service: DesignService) -> None:
+    """T-4.2: create_design with referenced_knowledge passes through."""
+    refs = {"hypothesis_statement": ["K-001"]}
+    design = service.create_design(
+        title="With refs",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge=refs,
+    )
+    assert design.referenced_knowledge == {"hypothesis_statement": ["K-001"]}
+
+
+def test_update_design_merge_new_section_key(service: DesignService) -> None:
+    """T-4.3: update_design merges new section key."""
+    design = service.create_design(
+        title="Merge test",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge={"hypothesis_statement": ["K-001"]},
+    )
+    updated = service.update_design(
+        design.id, referenced_knowledge={"source_ids": ["K-002"]}
+    )
+    assert updated is not None
+    assert updated.referenced_knowledge == {
+        "hypothesis_statement": ["K-001"],
+        "source_ids": ["K-002"],
+    }
+
+
+def test_update_design_merge_same_section_key_union(service: DesignService) -> None:
+    """T-4.4: update_design merges same section key with union."""
+    design = service.create_design(
+        title="Union test",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge={"hypothesis_statement": ["K-001"]},
+    )
+    updated = service.update_design(
+        design.id, referenced_knowledge={"hypothesis_statement": ["K-002"]}
+    )
+    assert updated is not None
+    assert updated.referenced_knowledge == {
+        "hypothesis_statement": ["K-001", "K-002"],
+    }
+
+
+def test_update_design_merge_dedup(service: DesignService) -> None:
+    """T-4.5: update_design deduplicates keys in same section."""
+    design = service.create_design(
+        title="Dedup test",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge={"hypothesis_statement": ["K-001"]},
+    )
+    updated = service.update_design(
+        design.id, referenced_knowledge={"hypothesis_statement": ["K-001", "K-002"]}
+    )
+    assert updated is not None
+    assert updated.referenced_knowledge == {
+        "hypothesis_statement": ["K-001", "K-002"],
+    }
+
+
+def test_get_design_returns_referenced_knowledge(service: DesignService) -> None:
+    """T-4.7: get_design returns referenced_knowledge."""
+    refs = {"hypothesis_statement": ["K-001"], "source_ids": ["K-002"]}
+    design = service.create_design(
+        title="Get refs",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge=refs,
+    )
+    retrieved = service.get_design(design.id)
+    assert retrieved is not None
+    assert retrieved.referenced_knowledge == refs
+
+
 # -- ID validation tests --
 
 

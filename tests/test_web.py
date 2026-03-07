@@ -169,7 +169,10 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     registry.catalog_service = CatalogService(tmp_path)
     registry.catalog_service.rebuild_index()
     registry.review_service = ReviewService(tmp_path, registry.design_service)
-    registry.rules_service = RulesService(tmp_path, registry.catalog_service)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    registry.rules_service = RulesService(
+        tmp_path, registry.catalog_service, registry.design_service, db_path
+    )
     from insight_blueprint.web import app
 
     with TestClient(app, raise_server_exceptions=False) as c:
@@ -315,6 +318,56 @@ def test_update_design_not_found(client: TestClient) -> None:
     )
     assert resp.status_code == 404
     assert "error" in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Design referenced_knowledge via REST API (2 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_create_design_with_referenced_knowledge(client: TestClient) -> None:
+    """POST /api/designs with referenced_knowledge saves it."""
+    refs = {"hypothesis_statement": ["K-001"]}
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "Refs test",
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+            "referenced_knowledge": refs,
+        },
+    )
+    assert resp.status_code == 201
+    design = resp.json()["design"]
+    assert design["referenced_knowledge"] == refs
+
+    # Verify via GET
+    got = client.get(f"/api/designs/{design['id']}").json()
+    assert got["referenced_knowledge"] == refs
+
+
+def test_update_design_with_referenced_knowledge_merges(client: TestClient) -> None:
+    """PUT /api/designs/{id} with referenced_knowledge merges correctly."""
+    created = _create_design(
+        client, referenced_knowledge={"hypothesis_statement": ["K-001"]}
+    )
+    design_id = created["design"]["id"]
+
+    resp = client.put(
+        f"/api/designs/{design_id}",
+        json={
+            "referenced_knowledge": {
+                "hypothesis_statement": ["K-002"],
+                "source_ids": ["K-003"],
+            }
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["referenced_knowledge"] == {
+        "hypothesis_statement": ["K-001", "K-002"],
+        "source_ids": ["K-003"],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -140,7 +140,8 @@ def test_design_lifecycle(tmp_path: Path) -> None:
     design_service = DesignService(tmp_path)
     review_service = ReviewService(tmp_path, design_service)
     catalog_service = CatalogService(tmp_path)
-    rules_service = RulesService(tmp_path, catalog_service)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    rules_service = RulesService(tmp_path, catalog_service, design_service, db_path)
 
     # 2. Create design (defaults to in_review)
     design = design_service.create_design(
@@ -194,11 +195,14 @@ def test_design_lifecycle(tmp_path: Path) -> None:
     entries = review_service.extract_domain_knowledge(design.id)
     assert len(entries) >= 2  # at least caution + definition
 
-    # Verify entries are NOT persisted yet
+    # Verify the preview entries are NOT persisted yet.
+    # (Note: a finding entry IS auto-persisted via terminal transition.)
     from insight_blueprint.storage.yaml_store import read_yaml
 
     ek_data = read_yaml(tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml")
-    assert ek_data["entries"] == []
+    preview_keys = {e.key for e in entries}
+    persisted_keys = {e["key"] for e in ek_data.get("entries", [])}
+    assert not preview_keys & persisted_keys
 
     # 8. Save extracted knowledge (persist)
     saved = review_service.save_extracted_knowledge(design.id, entries)
@@ -219,3 +223,149 @@ def test_design_lifecycle(tmp_path: Path) -> None:
     # 11. Suggest cautions — no matches for nonexistent table
     no_cautions = rules_service.suggest_cautions(["nonexistent_table"])
     assert len(no_cautions) == 0
+
+
+def test_finding_lifecycle_via_transition_status(tmp_path: Path) -> None:
+    """T-INT.1: design create → transition_status(supported) → finding extracted → suggest returns it."""
+    init_project(tmp_path)
+    design_service = DesignService(tmp_path)
+    review_service = ReviewService(tmp_path, design_service)
+    catalog_service = CatalogService(tmp_path)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    rules_service = RulesService(tmp_path, catalog_service, design_service, db_path)
+
+    # Create design and set source_ids
+    design = design_service.create_design(
+        title="Churn rate hypothesis",
+        hypothesis_statement="Churn rate varies by season",
+        hypothesis_background="Seasonal analysis",
+        theme_id="CHURN",
+    )
+    design_service.update_design(design.id, source_ids=["orders"])
+
+    # Terminal transition → finding auto-extracted
+    review_service.transition_status(design.id, "supported")
+
+    # Suggest should return the auto-extracted finding
+    result = rules_service.suggest_knowledge_for_design(
+        section="hypothesis_statement", theme_id="CHURN"
+    )
+    findings = result["suggestions"].get("finding", [])
+    keys = [f["key"] for f in findings]
+    assert "CHURN-H01-finding" in keys
+    matched = [f for f in findings if f["key"] == "CHURN-H01-finding"][0]
+    assert matched["category"] == "finding"
+    assert "SUPPORTED" in matched["title"]
+
+
+def test_finding_lifecycle_via_save_review_batch(tmp_path: Path) -> None:
+    """T-INT.2: design create → save_review_batch(rejected) → finding extracted → suggest returns it."""
+    init_project(tmp_path)
+    design_service = DesignService(tmp_path)
+    review_service = ReviewService(tmp_path, design_service)
+    catalog_service = CatalogService(tmp_path)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    rules_service = RulesService(tmp_path, catalog_service, design_service, db_path)
+
+    design = design_service.create_design(
+        title="Revenue hypothesis",
+        hypothesis_statement="Revenue correlates with ad spend",
+        hypothesis_background="Marketing analysis",
+        theme_id="REV",
+    )
+    design_service.update_design(design.id, source_ids=["ads"])
+
+    # Batch review with terminal status
+    review_service.save_review_batch(
+        design.id,
+        "rejected",
+        [
+            {
+                "comment": "Data insufficient",
+                "target_section": "hypothesis_statement",
+                "target_content": "Revenue correlates with ad spend",
+            }
+        ],
+    )
+
+    # Suggest should return finding
+    result = rules_service.suggest_knowledge_for_design(
+        section="hypothesis_statement", theme_id="REV"
+    )
+    findings = result["suggestions"].get("finding", [])
+    keys = [f["key"] for f in findings]
+    assert "REV-H01-finding" in keys
+    matched = [f for f in findings if f["key"] == "REV-H01-finding"][0]
+    assert "REJECTED" in matched["title"]
+
+
+def test_traceability_e2e(tmp_path: Path) -> None:
+    """T-INT.3: suggest → get finding key → create design with referenced_knowledge → get → verify."""
+    init_project(tmp_path)
+    design_service = DesignService(tmp_path)
+    review_service = ReviewService(tmp_path, design_service)
+    catalog_service = CatalogService(tmp_path)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    rules_service = RulesService(tmp_path, catalog_service, design_service, db_path)
+
+    # Step 1: Create first design and transition to terminal
+    d1 = design_service.create_design(
+        title="Initial hypothesis",
+        hypothesis_statement="Initial statement",
+        hypothesis_background="Background",
+        theme_id="CHURN",
+    )
+    review_service.transition_status(d1.id, "supported")
+
+    # Step 2: Suggest and get finding key
+    result = rules_service.suggest_knowledge_for_design(
+        section="hypothesis_statement", theme_id="CHURN"
+    )
+    findings = result["suggestions"]["finding"]
+    finding_key = findings[0]["key"]  # "CHURN-H01-finding"
+
+    # Step 3: Create new design with referenced_knowledge
+    d2 = design_service.create_design(
+        title="Follow-up hypothesis",
+        hypothesis_statement="Follow-up statement",
+        hypothesis_background="Based on prior finding",
+        theme_id="CHURN",
+        referenced_knowledge={"hypothesis_statement": [finding_key]},
+    )
+
+    # Step 4: Verify via get
+    retrieved = design_service.get_design(d2.id)
+    assert retrieved is not None
+    assert finding_key in retrieved.referenced_knowledge["hypothesis_statement"]
+
+
+def test_referenced_knowledge_merge_integration(tmp_path: Path) -> None:
+    """T-INT.4: create with referenced_knowledge → update merge → get → verify union."""
+    init_project(tmp_path)
+    design_service = DesignService(tmp_path)
+
+    # Create with initial refs
+    design = design_service.create_design(
+        title="Merge test",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        referenced_knowledge={"hypothesis_statement": ["K-001"]},
+    )
+
+    # Update: add to same section + new section
+    updated = design_service.update_design(
+        design.id,
+        referenced_knowledge={
+            "hypothesis_statement": ["K-002"],
+            "source_ids": ["K-003"],
+        },
+    )
+    assert updated is not None
+
+    # Get and verify union
+    retrieved = design_service.get_design(design.id)
+    assert retrieved is not None
+    assert retrieved.referenced_knowledge == {
+        "hypothesis_statement": ["K-001", "K-002"],
+        "source_ids": ["K-003"],
+    }

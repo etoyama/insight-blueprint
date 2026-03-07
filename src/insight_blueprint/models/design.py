@@ -34,5 +34,6 @@ class AnalysisDesign(BaseModel):
     chart: list[dict] = Field(default_factory=list)
     source_ids: list[str] = Field(default_factory=list)
     next_action: dict | None = None
+    referenced_knowledge: dict[str, list[str]] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=now_jst)
     updated_at: datetime = Field(default_factory=now_jst)

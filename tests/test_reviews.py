@@ -3,12 +3,16 @@
 import logging
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from insight_blueprint.core.designs import DesignService
-from insight_blueprint.core.reviews import ReviewService
-from insight_blueprint.models.catalog import DomainKnowledgeEntry
+from insight_blueprint.core.reviews import ALLOWED_TARGET_SECTIONS, ReviewService
+from insight_blueprint.models.catalog import (
+    DomainKnowledgeEntry,
+    KnowledgeCategory,
+)
 from insight_blueprint.models.design import AnalysisDesign, DesignStatus
 from insight_blueprint.models.review import ReviewBatch
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
@@ -280,11 +284,14 @@ class TestExtractDomainKnowledge:
         )
         entries = review_service.extract_domain_knowledge(active_design.id)
         assert len(entries) == 1
-        # Verify NOT persisted
+        # Verify the extracted preview entry is NOT among persisted entries.
+        # (Note: a finding entry IS auto-persisted via terminal transition,
+        #  but the caution preview from extract_domain_knowledge is not.)
         ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
         data = read_yaml(ek_path)
         persisted_entries = data.get("entries", []) if data else []
-        assert len(persisted_entries) == 0
+        persisted_keys = {e["key"] for e in persisted_entries}
+        assert entries[0].key not in persisted_keys
 
     def test_extract_no_comments_returns_empty(
         self,
@@ -381,7 +388,8 @@ class TestSaveExtractedKnowledge:
 
         ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
         data = read_yaml(ek_path)
-        assert len(data["entries"]) == 1
+        # 2 entries: 1 auto-extracted finding + 1 manually saved caution
+        assert len(data["entries"]) == 2
         assert data["source_id"] == "review"
 
     def test_save_extracted_duplicate_keys_skipped(
@@ -405,7 +413,8 @@ class TestSaveExtractedKnowledge:
 
         ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
         data = read_yaml(ek_path)
-        assert len(data["entries"]) == 1  # Still only 1 entry
+        # 2 entries: 1 auto-extracted finding + 1 manually saved caution
+        assert len(data["entries"]) == 2
 
     def test_save_extracted_updates_comment_extracted_knowledge(
         self,
@@ -1107,3 +1116,396 @@ class TestSectionDefinitionSync:
             f"  Backend only:  {sorted(ALLOWED_TARGET_SECTIONS - frontend_ids)}\n"
             f"  Frontend only: {sorted(frontend_ids - ALLOWED_TARGET_SECTIONS)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 2.1: Finding Auto-Extraction (_build_finding + _extract_finding_if_terminal)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildFinding:
+    """T-2.7, T-2.8, T-2.12: _build_finding field values and truncation."""
+
+    def test_finding_field_values(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+    ) -> None:
+        """T-2.7: finding field values match spec (key, title, content, source, etc)."""
+        design = design_service.create_design(
+            title="Churn Hypothesis",
+            hypothesis_statement="Churn increases in Q4",
+            hypothesis_background="bg",
+        )
+        design = design_service.update_design(design.id, source_ids=["orders"])
+
+        finding = review_service._build_finding(design, DesignStatus.supported)
+
+        assert finding.key == f"{design.id}-finding"
+        assert finding.title == "[SUPPORTED] Churn Hypothesis"
+        assert finding.content == "Churn increases in Q4"
+        assert finding.category == KnowledgeCategory.finding
+        assert finding.source == f"design:{design.id}"
+        assert finding.affects_columns == ["orders"]
+
+    @pytest.mark.parametrize(
+        "title_len,expected_len",
+        [
+            (67, 79),  # "[SUPPORTED] " (12) + 67 = 79 -> no truncation
+            (68, 80),  # "[SUPPORTED] " (12) + 68 = 80 -> no truncation
+            (69, 80),  # "[SUPPORTED] " (12) + 69 = 81 -> truncated to 80
+        ],
+    )
+    def test_finding_title_80char_truncation_boundary(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        title_len: int,
+        expected_len: int,
+    ) -> None:
+        """T-2.8: title truncation boundary at 79/80/81 chars."""
+        title = "A" * title_len
+        design = design_service.create_design(
+            title=title,
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        finding = review_service._build_finding(design, DesignStatus.supported)
+        assert len(finding.title) == expected_len
+
+    def test_finding_title_uses_target_status_not_current(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+    ) -> None:
+        """T-2.12: finding title STATUS uses target_status argument."""
+        design = design_service.create_design(
+            title="Test",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        # Current status is in_review, but target is rejected
+        finding = review_service._build_finding(design, DesignStatus.rejected)
+        assert finding.title.startswith("[REJECTED]")
+        assert "[IN_REVIEW]" not in finding.title
+
+
+class TestExtractFindingIfTerminal:
+    """T-2.9, T-2.10, T-2.11: persistence, dedup, fire-and-forget."""
+
+    def test_finding_persisted_to_extracted_knowledge(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.9: finding is saved to extracted_knowledge.yaml."""
+        design = design_service.create_design(
+            title="Persist Test",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        review_service._extract_finding_if_terminal(design.id, DesignStatus.supported)
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        assert data is not None
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+        assert finding_entries[0]["key"] == f"{design.id}-finding"
+
+    def test_duplicate_finding_not_generated(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.10: duplicate finding key is not re-created."""
+        design = design_service.create_design(
+            title="Dup Test",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        # First extraction
+        review_service._extract_finding_if_terminal(design.id, DesignStatus.supported)
+        # Second extraction (same design)
+        review_service._extract_finding_if_terminal(design.id, DesignStatus.supported)
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_extraction_failure_does_not_block_transition(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """T-2.11: I/O failure in extraction logs warning but does not raise."""
+        design = design_service.create_design(
+            title="Fail Test",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        # Mock write_yaml to fail
+        with patch(
+            "insight_blueprint.core.reviews.write_yaml",
+            side_effect=OSError("Disk full"),
+        ):
+            with caplog.at_level(logging.WARNING):
+                # Should NOT raise
+                review_service._extract_finding_if_terminal(
+                    design.id, DesignStatus.supported
+                )
+
+        # Should have logged a warning
+        assert any("finding" in r.message.lower() for r in caplog.records)
+
+    def test_non_terminal_status_does_nothing(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """Non-terminal status skips extraction entirely."""
+        design = design_service.create_design(
+            title="Non-terminal",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        review_service._extract_finding_if_terminal(
+            design.id, DesignStatus.revision_requested
+        )
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", []) if data else []
+        assert len(entries) == 0
+
+
+# ---------------------------------------------------------------------------
+# Task 2.2: Hook All Transition Routes
+# ---------------------------------------------------------------------------
+
+
+class TestFindingExtractionHooks:
+    """T-2.1 to T-2.6c: finding extraction via all 3 transition methods."""
+
+    def test_supported_transition_generates_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.1: transition_status to supported generates finding."""
+        design = design_service.create_design(
+            title="Supported",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        review_service.transition_status(design.id, "supported")
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_rejected_transition_generates_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.2: transition_status to rejected generates finding."""
+        design = design_service.create_design(
+            title="Rejected",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        review_service.transition_status(design.id, "rejected")
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_inconclusive_transition_generates_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.3: transition_status to inconclusive generates finding."""
+        design = design_service.create_design(
+            title="Inconclusive",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        review_service.transition_status(design.id, "inconclusive")
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_save_review_comment_terminal_generates_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.4: save_review_comment with terminal status generates finding."""
+        review_service.save_review_comment(active_design.id, "Good work", "supported")
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_save_review_batch_terminal_generates_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.5: save_review_batch with terminal status generates finding."""
+        review_service.save_review_batch(
+            active_design.id,
+            "rejected",
+            [{"comment": "Disproved"}],
+        )
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", [])
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 1
+
+    def test_non_terminal_transition_status_no_finding(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.6: non-terminal transition_status does NOT generate finding."""
+        design = design_service.create_design(
+            title="NonTerminal",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.in_review)
+
+        review_service.transition_status(design.id, "revision_requested")
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", []) if data else []
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 0
+
+    def test_non_terminal_save_review_comment_no_finding(
+        self,
+        review_service: ReviewService,
+        active_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.6b: non-terminal save_review_comment does NOT generate finding."""
+        review_service.save_review_comment(
+            active_design.id, "Needs revision", "revision_requested"
+        )
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", []) if data else []
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 0
+
+    def test_non_terminal_save_review_batch_no_finding(
+        self,
+        review_service: ReviewService,
+        active_design: AnalysisDesign,
+        tmp_path: Path,
+    ) -> None:
+        """T-2.6c: non-terminal save_review_batch does NOT generate finding."""
+        review_service.save_review_batch(
+            active_design.id,
+            "analyzing",
+            [{"comment": "Continue"}],
+        )
+
+        ek_path = tmp_path / ".insight" / "rules" / "extracted_knowledge.yaml"
+        data = read_yaml(ek_path)
+        entries = data.get("entries", []) if data else []
+        finding_entries = [e for e in entries if e.get("category") == "finding"]
+        assert len(finding_entries) == 0
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1: ALLOWED_TARGET_SECTIONS + COMMENTABLE_SECTIONS
+# ---------------------------------------------------------------------------
+
+
+class TestReferencedKnowledgeSection:
+    """T-5.1 to T-5.4: referenced_knowledge as a reviewable section."""
+
+    def test_referenced_knowledge_in_allowed_sections(self) -> None:
+        """T-5.1: referenced_knowledge is in ALLOWED_TARGET_SECTIONS."""
+        assert "referenced_knowledge" in ALLOWED_TARGET_SECTIONS
+
+    def test_save_review_batch_with_referenced_knowledge_section(
+        self,
+        review_service: ReviewService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """T-5.2: save_review_batch accepts referenced_knowledge section."""
+        result = review_service.save_review_batch(
+            pending_design.id,
+            "revision_requested",
+            [
+                {
+                    "comment": "Missing relevant findings",
+                    "target_section": "referenced_knowledge",
+                    "target_content": {"hypothesis_statement": ["K-001"]},
+                }
+            ],
+        )
+        assert result is not None
+        assert result.comments[0].target_section == "referenced_knowledge"
+
+    def test_referenced_knowledge_comment_extractable(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """T-5.3: referenced_knowledge comment is extractable as knowledge."""
+        review_service.save_review_comment(
+            active_design.id,
+            "caution: referenced knowledge is incomplete",
+            "supported",
+        )
+        entries = review_service.extract_domain_knowledge(active_design.id)
+        assert len(entries) >= 1
+        assert any(e.category == KnowledgeCategory.caution for e in entries)

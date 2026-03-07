@@ -45,6 +45,7 @@ ALLOWED_TARGET_SECTIONS: set[str] = {
     "explanatory",
     "chart",
     "next_action",
+    "referenced_knowledge",
 }
 
 VALID_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
@@ -146,7 +147,9 @@ class ReviewService:
 
         _validate_transition(design.status, target)
 
-        return self._design_service.update_design(design_id, status=target)
+        result = self._design_service.update_design(design_id, status=target)
+        self._extract_finding_if_terminal(design_id, target)
+        return result
 
     def save_review_comment(
         self,
@@ -188,6 +191,7 @@ class ReviewService:
 
         # Transition design status
         self._design_service.update_design(design_id, status=target_status)
+        self._extract_finding_if_terminal(design_id, target_status)
 
         return review_comment
 
@@ -245,6 +249,7 @@ class ReviewService:
 
         # Transition design status (after YAML write succeeds)
         self._design_service.update_design(design_id, status=target_status)
+        self._extract_finding_if_terminal(design_id, target_status)
 
         return batch
 
@@ -367,6 +372,45 @@ class ReviewService:
                 index += 1
 
         return entries
+
+    _TERMINAL_STATUSES = {
+        DesignStatus.supported,
+        DesignStatus.rejected,
+        DesignStatus.inconclusive,
+    }
+
+    def _build_finding(
+        self, design: AnalysisDesign, target_status: DesignStatus
+    ) -> DomainKnowledgeEntry:
+        """Build a finding entry from a design and its target terminal status."""
+        raw_title = f"[{target_status.value.upper()}] {design.title}"
+        return DomainKnowledgeEntry(
+            key=f"{design.id}-finding",
+            title=raw_title[:_TITLE_MAX_LENGTH],
+            content=design.hypothesis_statement,
+            category=KnowledgeCategory.finding,
+            source=f"design:{design.id}",
+            affects_columns=list(design.source_ids),
+        )
+
+    def _extract_finding_if_terminal(
+        self, design_id: str, target_status: DesignStatus
+    ) -> None:
+        """Extract a finding entry if target_status is terminal (fire-and-forget)."""
+        if target_status not in self._TERMINAL_STATUSES:
+            return
+        try:
+            design = self._design_service.get_design(design_id)
+            if design is None:
+                return
+            finding = self._build_finding(design, target_status)
+            self.save_extracted_knowledge(design_id, [finding])
+        except Exception:
+            logger.warning(
+                "Failed to extract finding for design %s",
+                design_id,
+                exc_info=True,
+            )
 
     def save_extracted_knowledge(
         self,

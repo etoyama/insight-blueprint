@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from insight_blueprint.core.catalog import CatalogService
+from insight_blueprint.core.designs import DesignService
 from insight_blueprint.core.rules import RulesService
 from insight_blueprint.models.catalog import (
     DataSource,
@@ -13,6 +14,7 @@ from insight_blueprint.models.catalog import (
     KnowledgeCategory,
     SourceType,
 )
+from insight_blueprint.storage.sqlite_store import build_index
 from insight_blueprint.storage.yaml_store import write_yaml
 
 
@@ -22,8 +24,16 @@ def catalog_service(tmp_project: Path) -> CatalogService:
 
 
 @pytest.fixture
-def rules_service(tmp_project: Path, catalog_service: CatalogService) -> RulesService:
-    return RulesService(tmp_project, catalog_service)
+def design_service(tmp_project: Path) -> DesignService:
+    return DesignService(tmp_project)
+
+
+@pytest.fixture
+def rules_service(
+    tmp_project: Path, catalog_service: CatalogService, design_service: DesignService
+) -> RulesService:
+    db_path = tmp_project / ".insight" / "catalog.db"
+    return RulesService(tmp_project, catalog_service, design_service, db_path)
 
 
 @pytest.fixture
@@ -298,3 +308,508 @@ class TestSuggestCautions:
         keys = [c["key"] for c in cautions]
         assert "scoped-entry" in keys
         assert "unscoped-entry" not in keys
+
+
+class TestRulesServiceConstructor:
+    def test_constructor_with_design_service_and_db_path(
+        self,
+        tmp_project: Path,
+        catalog_service: CatalogService,
+        design_service: DesignService,
+    ) -> None:
+        """T-3.15: New constructor params don't break existing methods."""
+        db_path = tmp_project / ".insight" / "catalog.db"
+        svc = RulesService(tmp_project, catalog_service, design_service, db_path)
+        ctx = svc.get_project_context()
+        assert "sources" in ctx
+        assert "knowledge_entries" in ctx
+        cautions = svc.suggest_cautions(["nonexistent"])
+        assert cautions == []
+
+
+class TestSuggestKnowledgeForDesign:
+    """Tests for suggest_knowledge_for_design (Tasks 4.2, 4.3, 4.4)."""
+
+    def _setup_mixed_knowledge(
+        self,
+        tmp_project: Path,
+        design_service: DesignService,
+    ) -> None:
+        """Create designs and knowledge entries for testing."""
+        # Create a design with theme_id=CHURN so finding/context can match
+        design = design_service.create_design(
+            title="Churn hypothesis",
+            hypothesis_statement="Churn rate varies by season",
+            hypothesis_background="Background",
+            theme_id="CHURN",
+        )
+        design_service.update_design(design.id, source_ids=["orders"])
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key="CHURN-H01-finding",
+                    title="[SUPPORTED] Churn hypothesis",
+                    content="Churn rate varies by season",
+                    category=KnowledgeCategory.finding,
+                    source="design:CHURN-H01",
+                    affects_columns=["orders"],
+                ),
+                DomainKnowledgeEntry(
+                    key="orders-caution-1",
+                    title="Orders data caution",
+                    content="Orders table has nulls after 2020",
+                    category=KnowledgeCategory.caution,
+                    source="review",
+                    affects_columns=["orders"],
+                ),
+                DomainKnowledgeEntry(
+                    key="users-definition-1",
+                    title="Users definition",
+                    content="MAU = Monthly Active Users",
+                    category=KnowledgeCategory.definition,
+                    source="review",
+                    affects_columns=["users"],
+                ),
+                DomainKnowledgeEntry(
+                    key="method-1",
+                    title="Methodology entry",
+                    content="Use time series decomposition for seasonal analysis",
+                    category=KnowledgeCategory.methodology,
+                    source="review",
+                    affects_columns=[],
+                ),
+                DomainKnowledgeEntry(
+                    key="context-1",
+                    title="Context entry",
+                    content="Market context for churn analysis",
+                    category=KnowledgeCategory.context,
+                    source="design:CHURN-H01",
+                    affects_columns=[],
+                ),
+            ],
+        )
+
+    def test_section_category_filter_hypothesis_statement(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.1: section=hypothesis_statement returns only finding category."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", theme_id="CHURN"
+        )
+        assert "suggestions" in result
+        assert "finding" in result["suggestions"]
+        assert "methodology" not in result["suggestions"]
+        assert "caution" not in result["suggestions"]
+
+    def test_section_knowledge_map_all_sections(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.2: All 7 sections in SECTION_KNOWLEDGE_MAP filter correctly."""
+        from insight_blueprint.core.rules import SECTION_KNOWLEDGE_MAP
+
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        for section, expected_cats in SECTION_KNOWLEDGE_MAP.items():
+            result = rules_service.suggest_knowledge_for_design(
+                section=section,
+                theme_id="CHURN",
+                source_ids=["orders", "users"],
+                hypothesis_text="churn",
+            )
+            for cat_key in result["suggestions"]:
+                assert KnowledgeCategory(cat_key) in expected_cats, (
+                    f"Section '{section}' returned unexpected category '{cat_key}'"
+                )
+
+    def test_section_none_returns_all_categories(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.3: section=None returns suggestions from all categories."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section=None,
+            theme_id="CHURN",
+            source_ids=["orders", "users"],
+        )
+        assert result["section"] is None
+        # Should have at least finding and caution
+        assert result["total"] > 0
+
+    def test_unknown_section_returns_error(
+        self,
+        rules_service: RulesService,
+    ) -> None:
+        """T-3.4: Unknown section returns error dict."""
+        result = rules_service.suggest_knowledge_for_design(section="unknown_section")
+        assert "error" in result
+        assert "unknown_section" in result["error"]
+        assert "Valid:" in result["error"]
+
+    def test_theme_id_match_finding(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.5: theme_id match returns finding with relevance."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", theme_id="CHURN"
+        )
+        findings = result["suggestions"].get("finding", [])
+        assert len(findings) >= 1
+        keys = [f["key"] for f in findings]
+        assert "CHURN-H01-finding" in keys
+        # Check relevance field
+        matched = [f for f in findings if f["key"] == "CHURN-H01-finding"][0]
+        assert "theme_id match" in matched["relevance"]
+        assert "CHURN" in matched["relevance"]
+
+    def test_theme_id_match_context(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.6: theme_id match returns context entries."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_background", theme_id="CHURN"
+        )
+        contexts = result["suggestions"].get("context", [])
+        assert len(contexts) >= 1
+
+    def test_source_ids_match_caution(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.10: source_ids match returns caution entries."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="source_ids", source_ids=["orders", "users"]
+        )
+        cautions = result["suggestions"].get("caution", [])
+        assert len(cautions) >= 1
+        keys = [c["key"] for c in cautions]
+        assert "orders-caution-1" in keys
+        # Check relevance field
+        matched = [c for c in cautions if c["key"] == "orders-caution-1"][0]
+        assert "source_id match" in matched["relevance"]
+
+    def test_source_ids_match_definition(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.11: source_ids match returns definition entries."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="source_ids", source_ids=["users"]
+        )
+        definitions = result["suggestions"].get("definition", [])
+        assert len(definitions) >= 1
+        keys = [d["key"] for d in definitions]
+        assert "users-definition-1" in keys
+
+    def test_relevance_field_present(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.13: Each entry in suggestions has a relevance field."""
+        self._setup_mixed_knowledge(tmp_project, design_service)
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", theme_id="CHURN"
+        )
+        for cat_entries in result["suggestions"].values():
+            for entry in cat_entries:
+                assert "relevance" in entry
+                assert len(entry["relevance"]) > 0
+
+    def test_no_match_returns_empty(
+        self,
+        rules_service: RulesService,
+    ) -> None:
+        """T-3.14: No matching knowledge returns empty suggestions."""
+        result = rules_service.suggest_knowledge_for_design(section="metrics")
+        assert result["section"] == "metrics"
+        assert result["suggestions"] == {}
+        assert result["total"] == 0
+
+    # -- Task 4.3: parent_id lineage walking tests --
+
+    def test_parent_id_lineage_walking(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.7: parent_id lineage returns findings from ancestors."""
+        # Create chain: CHURN-H01 <- CHURN-H02 <- CHURN-H03
+        d1 = design_service.create_design(
+            title="Root hypothesis",
+            hypothesis_statement="Root stmt",
+            hypothesis_background="bg",
+            theme_id="CHURN",
+        )
+        d2 = design_service.create_design(
+            title="Child hypothesis",
+            hypothesis_statement="Child stmt",
+            hypothesis_background="bg",
+            theme_id="CHURN",
+            parent_id=d1.id,
+        )
+        # Write findings for d1 and d2
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key=f"{d1.id}-finding",
+                    title=f"[SUPPORTED] {d1.title}",
+                    content=d1.hypothesis_statement,
+                    category=KnowledgeCategory.finding,
+                    source=f"design:{d1.id}",
+                ),
+                DomainKnowledgeEntry(
+                    key=f"{d2.id}-finding",
+                    title=f"[REJECTED] {d2.title}",
+                    content=d2.hypothesis_statement,
+                    category=KnowledgeCategory.finding,
+                    source=f"design:{d2.id}",
+                ),
+            ],
+        )
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", parent_id=d2.id
+        )
+        findings = result["suggestions"].get("finding", [])
+        keys = [f["key"] for f in findings]
+        assert f"{d1.id}-finding" in keys
+        assert f"{d2.id}-finding" in keys
+        # Check relevance mentions ancestor
+        for f in findings:
+            assert "ancestor design:" in f["relevance"]
+
+    def test_lineage_circular_reference_stops(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.8: Circular reference in lineage doesn't cause infinite loop."""
+        # Create A -> B -> A (circular)
+        d_a = design_service.create_design(
+            title="Design A",
+            hypothesis_statement="A stmt",
+            hypothesis_background="bg",
+            theme_id="CIRC",
+        )
+        d_b = design_service.create_design(
+            title="Design B",
+            hypothesis_statement="B stmt",
+            hypothesis_background="bg",
+            theme_id="CIRC",
+            parent_id=d_a.id,
+        )
+        # Make circular: update A's parent to B
+        design_service.update_design(d_a.id, parent_id=d_b.id)
+
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key=f"{d_a.id}-finding",
+                    title="[SUPPORTED] A",
+                    content="A stmt",
+                    category=KnowledgeCategory.finding,
+                    source=f"design:{d_a.id}",
+                ),
+                DomainKnowledgeEntry(
+                    key=f"{d_b.id}-finding",
+                    title="[SUPPORTED] B",
+                    content="B stmt",
+                    category=KnowledgeCategory.finding,
+                    source=f"design:{d_b.id}",
+                ),
+            ],
+        )
+        # Should not hang — returns results collected before cycle detected
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", parent_id=d_a.id
+        )
+        assert "suggestions" in result
+
+    def test_lineage_depth_limit(
+        self,
+        rules_service: RulesService,
+        design_service: DesignService,
+        tmp_project: Path,
+    ) -> None:
+        """T-3.9: Lineage walking stops at depth 10."""
+        # Create a chain of depth 15
+        designs = []
+        for i in range(15):
+            parent = designs[-1].id if designs else None
+            d = design_service.create_design(
+                title=f"Design {i}",
+                hypothesis_statement=f"Stmt {i}",
+                hypothesis_background="bg",
+                theme_id="DEEP",
+                parent_id=parent,
+            )
+            designs.append(d)
+
+        # Write findings for all
+        entries = [
+            DomainKnowledgeEntry(
+                key=f"{d.id}-finding",
+                title=f"[SUPPORTED] {d.title}",
+                content=d.hypothesis_statement,
+                category=KnowledgeCategory.finding,
+                source=f"design:{d.id}",
+            )
+            for d in designs
+        ]
+        _write_extracted_knowledge(tmp_project, entries)
+
+        # Walk from the deepest (index 14, parent is index 13)
+        result = rules_service.suggest_knowledge_for_design(
+            section="hypothesis_statement", parent_id=designs[-1].id
+        )
+        findings = result["suggestions"].get("finding", [])
+        # Should have at most 10 results (depth limit)
+        assert len(findings) <= 10
+
+    # -- Task 4.4: FTS5 methodology matching tests --
+
+    def test_fts5_methodology_match(
+        self,
+        tmp_project: Path,
+        catalog_service: CatalogService,
+        design_service: DesignService,
+    ) -> None:
+        """T-3.12: FTS5 search returns matching methodology entries."""
+        db_path = tmp_project / ".insight" / "catalog.db"
+        # Write a methodology knowledge entry
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key="method-ts",
+                    title="Time series decomposition",
+                    content="Use STL decomposition for seasonal trend analysis",
+                    category=KnowledgeCategory.methodology,
+                    source="review",
+                ),
+            ],
+        )
+        # Build FTS5 index with the methodology entry
+        build_index(
+            db_path,
+            sources=[],
+            knowledge=[
+                {
+                    "source_id": "review",
+                    "title": "Time series decomposition",
+                    "content": "Use STL decomposition for seasonal trend analysis",
+                }
+            ],
+        )
+        svc = RulesService(tmp_project, catalog_service, design_service, db_path)
+        result = svc.suggest_knowledge_for_design(
+            section="metrics", hypothesis_text="seasonal trend analysis"
+        )
+        methodology = result["suggestions"].get("methodology", [])
+        assert len(methodology) >= 1
+        keys = [m["key"] for m in methodology]
+        assert "method-ts" in keys
+        assert "FTS5 match" in methodology[0]["relevance"]
+
+    def test_fts5_failure_returns_empty_methodology(
+        self,
+        tmp_project: Path,
+        catalog_service: CatalogService,
+        design_service: DesignService,
+    ) -> None:
+        """T-3.16: FTS5 failure returns empty methodology, other cats ok."""
+        # Use a nonexistent db_path to trigger SQLite failure
+        bad_db_path = tmp_project / "nonexistent" / "catalog.db"
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key="orders-caution",
+                    title="Orders caution",
+                    content="Watch for nulls",
+                    category=KnowledgeCategory.caution,
+                    source="review",
+                    affects_columns=["orders"],
+                ),
+            ],
+        )
+        svc = RulesService(tmp_project, catalog_service, design_service, bad_db_path)
+        result = svc.suggest_knowledge_for_design(
+            section="explanatory",
+            hypothesis_text="something",
+            source_ids=["orders"],
+        )
+        # methodology should be empty (FTS5 failed)
+        assert "methodology" not in result["suggestions"]
+        # caution should still work
+        cautions = result["suggestions"].get("caution", [])
+        assert len(cautions) >= 1
+
+    def test_fts5_title_mismatch_skipped(
+        self,
+        tmp_project: Path,
+        catalog_service: CatalogService,
+        design_service: DesignService,
+    ) -> None:
+        """T-3.17: FTS5 results with no matching title in knowledge are skipped."""
+        db_path = tmp_project / ".insight" / "catalog.db"
+        # FTS5 index has an entry but knowledge entries don't have matching title
+        build_index(
+            db_path,
+            sources=[],
+            knowledge=[
+                {
+                    "source_id": "review",
+                    "title": "Unknown methodology title",
+                    "content": "Some content about regression analysis",
+                }
+            ],
+        )
+        # No methodology entries in extracted knowledge
+        _write_extracted_knowledge(
+            tmp_project,
+            [
+                DomainKnowledgeEntry(
+                    key="other-entry",
+                    title="Different title",
+                    content="Not a methodology",
+                    category=KnowledgeCategory.caution,
+                    source="review",
+                    affects_columns=["data"],
+                ),
+            ],
+        )
+        svc = RulesService(tmp_project, catalog_service, design_service, db_path)
+        result = svc.suggest_knowledge_for_design(
+            section="metrics", hypothesis_text="regression analysis"
+        )
+        # No methodology matches because title didn't match
+        assert "methodology" not in result["suggestions"]

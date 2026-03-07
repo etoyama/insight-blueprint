@@ -480,7 +480,10 @@ def initialized_review_server(tmp_project: Path) -> Path:
     registry.design_service = design_service
     registry.catalog_service = catalog_service
     registry.review_service = ReviewService(tmp_project, design_service)
-    registry.rules_service = RulesService(tmp_project, catalog_service)
+    db_path = tmp_project / ".insight" / "catalog.db"
+    registry.rules_service = RulesService(
+        tmp_project, catalog_service, design_service, db_path
+    )
     return tmp_project
 
 
@@ -847,3 +850,82 @@ class TestSaveReviewBatchTool:
             )
         )
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Suggestion MCP tools tests (Task 5.1)
+# ---------------------------------------------------------------------------
+
+
+class TestKnowledgeSuggestionMCPTools:
+    """Tests for suggest_knowledge_for_design and referenced_knowledge params."""
+
+    def test_get_domain_knowledge_error_includes_finding(
+        self, initialized_catalog_server: Path
+    ) -> None:
+        """T-MCP.0: get_domain_knowledge error message includes 'finding'."""
+        asyncio.run(
+            server_module.add_catalog_entry(
+                source_id="test-src",
+                name="Test",
+                type="csv",
+                description="Test",
+                connection={},
+            )
+        )
+        result = asyncio.run(
+            server_module.get_domain_knowledge("test-src", category="invalid_cat")
+        )
+        assert "error" in result
+        assert "finding" in result["error"]
+
+    def test_suggest_knowledge_for_design_tool(
+        self, initialized_review_server: Path
+    ) -> None:
+        """T-MCP.1: suggest_knowledge_for_design MCP tool returns suggestions."""
+        result = asyncio.run(
+            server_module.suggest_knowledge_for_design(section="metrics")
+        )
+        assert "suggestions" in result
+        assert "total" in result
+
+    def test_create_analysis_design_with_referenced_knowledge(
+        self, initialized_review_server: Path
+    ) -> None:
+        """T-MCP.2: create_analysis_design accepts referenced_knowledge."""
+        ref = {"hypothesis_statement": ["K-001"]}
+        result = asyncio.run(
+            server_module.create_analysis_design(
+                title="Test",
+                hypothesis_statement="stmt",
+                hypothesis_background="bg",
+                referenced_knowledge=ref,
+            )
+        )
+        assert "id" in result
+        # Verify it was stored
+        design = asyncio.run(server_module.get_analysis_design(result["id"]))
+        assert design["referenced_knowledge"] == ref
+
+    def test_update_analysis_design_with_referenced_knowledge(
+        self, initialized_review_server: Path
+    ) -> None:
+        """T-MCP.3: update_analysis_design merges referenced_knowledge."""
+        create_result = asyncio.run(
+            server_module.create_analysis_design(
+                title="Test",
+                hypothesis_statement="stmt",
+                hypothesis_background="bg",
+                referenced_knowledge={"hypothesis_statement": ["K-001"]},
+            )
+        )
+        design_id = create_result["id"]
+        result = asyncio.run(
+            server_module.update_analysis_design(
+                design_id=design_id,
+                referenced_knowledge={"hypothesis_statement": ["K-002"]},
+            )
+        )
+        assert result["referenced_knowledge"] == {
+            "hypothesis_statement": ["K-001", "K-002"]
+        }

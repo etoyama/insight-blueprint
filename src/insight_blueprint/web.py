@@ -93,6 +93,7 @@ class CreateDesignRequest(BaseModel):
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
     next_action: dict | None = None
+    referenced_knowledge: dict[str, list[str]] | None = None
 
 
 class AddCommentRequest(BaseModel):
@@ -119,6 +120,7 @@ class UpdateDesignRequest(BaseModel):
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
     next_action: dict | None = None
+    referenced_knowledge: dict[str, list[str]] | None = None
 
 
 class UpdateSourceRequest(BaseModel):
@@ -182,6 +184,7 @@ async def create_design(body: CreateDesignRequest) -> dict:
             explanatory=body.explanatory,
             chart=body.chart,
             next_action=body.next_action,
+            referenced_knowledge=body.referenced_knowledge,
         )
     except ValueError as e:
         raise HTTPException(400, detail=str(e)) from None
@@ -226,6 +229,7 @@ async def update_design(
             "explanatory": body.explanatory,
             "chart": body.chart,
             "next_action": body.next_action,
+            "referenced_knowledge": body.referenced_knowledge,
         }.items()
         if v is not None
     }

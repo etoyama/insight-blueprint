@@ -23,6 +23,7 @@ class KnowledgeCategory(StrEnum):
     caution = "caution"
     definition = "definition"
     context = "context"
+    finding = "finding"
 
 
 class KnowledgeImportance(StrEnum):

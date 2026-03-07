@@ -38,7 +38,10 @@ def _wire_services(tmp_path: Path) -> None:
     registry.catalog_service = CatalogService(tmp_path)
     registry.catalog_service.rebuild_index()
     registry.review_service = ReviewService(tmp_path, registry.design_service)
-    registry.rules_service = RulesService(tmp_path, registry.catalog_service)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    registry.rules_service = RulesService(
+        tmp_path, registry.catalog_service, registry.design_service, db_path
+    )
 
 
 @pytest.fixture
