@@ -8,6 +8,7 @@ import pytest
 
 from insight_blueprint.storage.sqlite_store import (
     _open_connection,
+    _sanitize_text,
     build_index,
     build_source_content,
     delete_source_documents,
@@ -298,6 +299,123 @@ class TestIncrementalOps:
         insert_document(db_path, "source", "s1", "T", "C")
         delete_source_documents(db_path, "s1")
         replace_source_documents(db_path, "s1", [])
+
+
+class TestSanitizeText:
+    """Tests for S-01: null byte sanitization."""
+
+    def test_removes_null_bytes(self) -> None:
+        assert _sanitize_text("hello\x00world") == "helloworld"
+
+    def test_removes_multiple_null_bytes(self) -> None:
+        assert _sanitize_text("\x00a\x00b\x00") == "ab"
+
+    def test_passes_normal_text_through(self) -> None:
+        assert _sanitize_text("normal text") == "normal text"
+
+    def test_handles_empty_string(self) -> None:
+        assert _sanitize_text("") == ""
+
+
+class TestNullByteSanitizationIntegration:
+    """S-01: null bytes are stripped in all FTS5 input paths."""
+
+    def test_search_index_strips_null_bytes_from_query(self, db_path: Path) -> None:
+        sources = [
+            {
+                "id": "s1",
+                "name": "Population",
+                "description": "population statistics",
+                "columns": [],
+            },
+        ]
+        build_index(db_path, sources, [])
+        results = search_index(db_path, "popu\x00lation")
+        assert len(results) >= 1
+        assert results[0]["source_id"] == "s1"
+
+    def test_insert_document_strips_null_bytes_from_content(
+        self, db_path: Path
+    ) -> None:
+        build_index(db_path, [], [])
+        insert_document(db_path, "source", "s1", "Te\x00st", "con\x00tent data")
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute(
+            "SELECT title, content FROM catalog_fts WHERE source_id = 's1'"
+        )
+        row = cursor.fetchone()
+        conn.close()
+        assert "\x00" not in row[0]
+        assert "\x00" not in row[1]
+
+    def test_build_index_strips_null_bytes_from_sources(self, db_path: Path) -> None:
+        sources = [
+            {
+                "id": "s1",
+                "name": "Te\x00st",
+                "description": "desc\x00ription",
+                "columns": [{"name": "col\x00", "description": "d\x00"}],
+            },
+        ]
+        build_index(db_path, sources, [])
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT title, content FROM catalog_fts")
+        row = cursor.fetchone()
+        conn.close()
+        assert "\x00" not in row[0]
+        assert "\x00" not in row[1]
+
+    def test_delete_source_documents_strips_null_bytes_from_source_id(
+        self, db_path: Path
+    ) -> None:
+        build_index(
+            db_path,
+            [{"id": "s1", "name": "Test", "description": "data", "columns": []}],
+            [],
+        )
+        delete_source_documents(db_path, "s\x001")
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT count(*) FROM catalog_fts WHERE source_id = 's1'")
+        assert cursor.fetchone()[0] == 0
+        conn.close()
+
+    def test_replace_source_documents_strips_null_bytes_from_rows(
+        self, db_path: Path
+    ) -> None:
+        build_index(db_path, [], [])
+        rows = [
+            {
+                "doc_type": "source",
+                "source_id": "s1",
+                "title": "Ti\x00tle",
+                "content": "con\x00tent",
+            }
+        ]
+        replace_source_documents(db_path, "s1", rows)
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute(
+            "SELECT title, content FROM catalog_fts WHERE source_id = 's1'"
+        )
+        row = cursor.fetchone()
+        conn.close()
+        assert "\x00" not in row[0]
+        assert "\x00" not in row[1]
+
+    def test_build_index_strips_null_bytes_from_knowledge(self, db_path: Path) -> None:
+        knowledge = [
+            {
+                "source_id": "s1",
+                "title": "Ti\x00tle",
+                "content": "con\x00tent",
+            }
+        ]
+        build_index(db_path, [], knowledge)
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT title, content FROM catalog_fts")
+        row = cursor.fetchone()
+        conn.close()
+        assert "\x00" not in row[0]
+        assert "\x00" not in row[1]
 
 
 class TestConnectionCleanup:

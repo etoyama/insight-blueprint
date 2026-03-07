@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -888,6 +889,59 @@ class TestKnowledgeSuggestionMCPTools:
         )
         assert "suggestions" in result
         assert "total" in result
+
+    def test_suggest_knowledge_hypothesis_text_truncated_at_1001(
+        self, initialized_review_server: Path
+    ) -> None:
+        """S-03: hypothesis_text of 1001 chars is truncated to 1000."""
+        text_1001 = "a" * 1001
+        with patch.object(
+            type(registry.rules_service), "suggest_knowledge_for_design"
+        ) as mock_suggest:
+            mock_suggest.return_value = {
+                "section": "metrics",
+                "suggestions": {},
+                "total": 0,
+            }
+            asyncio.run(
+                server_module.suggest_knowledge_for_design(
+                    section="metrics", hypothesis_text=text_1001
+                )
+            )
+            _, kwargs = mock_suggest.call_args
+            assert len(kwargs["hypothesis_text"]) == 1000
+
+    def test_suggest_knowledge_hypothesis_text_at_1000_unchanged(
+        self, initialized_review_server: Path
+    ) -> None:
+        """S-03: hypothesis_text of exactly 1000 chars passes through unchanged."""
+        text_1000 = "b" * 1000
+        with patch.object(
+            type(registry.rules_service), "suggest_knowledge_for_design"
+        ) as mock_suggest:
+            mock_suggest.return_value = {
+                "section": "metrics",
+                "suggestions": {},
+                "total": 0,
+            }
+            asyncio.run(
+                server_module.suggest_knowledge_for_design(
+                    section="metrics", hypothesis_text=text_1000
+                )
+            )
+            _, kwargs = mock_suggest.call_args
+            assert kwargs["hypothesis_text"] == text_1000
+
+    def test_suggest_knowledge_hypothesis_text_none_unchanged(
+        self, initialized_review_server: Path
+    ) -> None:
+        """S-03: hypothesis_text=None remains None."""
+        result = asyncio.run(
+            server_module.suggest_knowledge_for_design(
+                section="metrics", hypothesis_text=None
+            )
+        )
+        assert "suggestions" in result
 
     def test_create_analysis_design_with_referenced_knowledge(
         self, initialized_review_server: Path

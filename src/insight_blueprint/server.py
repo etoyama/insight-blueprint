@@ -14,6 +14,7 @@ from insight_blueprint._registry import (
 )
 
 _DESIGN_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
+_MAX_HYPOTHESIS_TEXT_LENGTH = 1000
 
 mcp = FastMCP("insight-blueprint")
 
@@ -544,10 +545,15 @@ async def suggest_knowledge_for_design(
     ids_list = (
         [s.strip() for s in source_ids.split(",") if s.strip()] if source_ids else None
     )
+    truncated_hypothesis = (
+        hypothesis_text[:_MAX_HYPOTHESIS_TEXT_LENGTH]
+        if hypothesis_text is not None
+        else None
+    )
     return svc.suggest_knowledge_for_design(
         section=section,
         theme_id=theme_id,
         source_ids=ids_list,
-        hypothesis_text=hypothesis_text,
+        hypothesis_text=truncated_hypothesis,
         parent_id=parent_id,
     )

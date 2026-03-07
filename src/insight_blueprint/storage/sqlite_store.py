@@ -11,6 +11,12 @@ from sqlite3 import OperationalError
 
 logger = logging.getLogger(__name__)
 
+
+def _sanitize_text(value: str) -> str:
+    """Remove null bytes from text to prevent FTS5 issues."""
+    return value.replace("\x00", "")
+
+
 _CREATE_FTS_TABLE = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS catalog_fts "
     "USING fts5(doc_type, source_id, title, content, tokenize='trigram')"
@@ -80,15 +86,22 @@ def build_index(
             rows: list[tuple[str, str, str, str]] = []
             for src in sources:
                 content = build_source_content(src)
-                rows.append(("source", src["id"], src.get("name", ""), content))
+                rows.append(
+                    (
+                        "source",
+                        _sanitize_text(src["id"]),
+                        _sanitize_text(src.get("name", "")),
+                        _sanitize_text(content),
+                    )
+                )
 
             for entry in knowledge:
                 rows.append(
                     (
                         "knowledge",
-                        entry.get("source_id", ""),
-                        entry.get("title", ""),
-                        entry.get("content", ""),
+                        _sanitize_text(entry.get("source_id", "")),
+                        _sanitize_text(entry.get("title", "")),
+                        _sanitize_text(entry.get("content", "")),
                     )
                 )
 
@@ -128,6 +141,7 @@ def search_index(
     try:
         conn = _open_connection(db_path)
         try:
+            query = _sanitize_text(query)
             sanitized = '"' + query.replace('"', '""') + '"'
             cursor = conn.execute(_SEARCH_QUERY, (sanitized, limit))
             return [
@@ -166,7 +180,15 @@ def insert_document(
     try:
         conn = _open_connection(db_path)
         try:
-            conn.execute(_INSERT_ROW, (doc_type, source_id, title, content))
+            conn.execute(
+                _INSERT_ROW,
+                (
+                    _sanitize_text(doc_type),
+                    _sanitize_text(source_id),
+                    _sanitize_text(title),
+                    _sanitize_text(content),
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -184,7 +206,7 @@ def delete_source_documents(db_path: Path, source_id: str) -> None:
     try:
         conn = _open_connection(db_path)
         try:
-            conn.execute(_DELETE_BY_SOURCE, (source_id,))
+            conn.execute(_DELETE_BY_SOURCE, (_sanitize_text(source_id),))
             conn.commit()
         finally:
             conn.close()
@@ -210,15 +232,15 @@ def replace_source_documents(
         conn = _open_connection(db_path)
         try:
             conn.execute("BEGIN IMMEDIATE")
-            conn.execute(_DELETE_BY_SOURCE, (source_id,))
+            conn.execute(_DELETE_BY_SOURCE, (_sanitize_text(source_id),))
             for row in rows:
                 conn.execute(
                     _INSERT_ROW,
                     (
-                        row["doc_type"],
-                        row["source_id"],
-                        row["title"],
-                        row["content"],
+                        _sanitize_text(row["doc_type"]),
+                        _sanitize_text(row["source_id"]),
+                        _sanitize_text(row["title"]),
+                        _sanitize_text(row["content"]),
                     ),
                 )
             conn.execute("COMMIT")
