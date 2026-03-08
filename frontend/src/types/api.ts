@@ -84,7 +84,7 @@ export interface Design {
   methodology: Methodology | null;
   source_ids: string[];
   next_action: Record<string, unknown> | null;
-  referenced_knowledge: Record<string, unknown>[] | null;
+  referenced_knowledge: Record<string, string[]>;
   created_at: string;
   updated_at: string;
 }
