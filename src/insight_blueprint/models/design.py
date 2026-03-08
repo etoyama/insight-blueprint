@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from insight_blueprint.models.common import now_jst
 
@@ -58,6 +58,8 @@ class ChartIntent(StrEnum):
 class ExplanatoryVariable(BaseModel):
     """Schema for an explanatory variable with causal role."""
 
+    model_config = ConfigDict(extra="allow")
+
     name: str
     description: str = ""
     role: VariableRole = VariableRole.covariate
@@ -67,6 +69,8 @@ class ExplanatoryVariable(BaseModel):
 
 class Metric(BaseModel):
     """Schema for a verification metric with priority tier."""
+
+    model_config = ConfigDict(extra="allow")
 
     target: str
     tier: MetricTier = MetricTier.primary
@@ -79,6 +83,8 @@ class Metric(BaseModel):
 
 class ChartSpec(BaseModel):
     """Schema for a chart specification with analysis intent."""
+
+    model_config = ConfigDict(extra="allow")
 
     intent: ChartIntent
     type: str = ""
@@ -109,6 +115,8 @@ class ChartSpec(BaseModel):
 class Methodology(BaseModel):
     """Schema for analysis methodology and package."""
 
+    model_config = ConfigDict(extra="allow")
+
     method: str = Field(min_length=1)
     package: str = ""
     reason: str = ""
@@ -116,6 +124,8 @@ class Methodology(BaseModel):
 
 class AnalysisDesign(BaseModel):
     """Analysis design document for hypothesis-driven EDA."""
+
+    model_config = ConfigDict(extra="allow")
 
     id: str
     theme_id: str = "DEFAULT"

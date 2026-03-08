@@ -1,8 +1,10 @@
 """Tests for core/designs.py."""
 
+import logging
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from insight_blueprint.core.designs import DesignService
 from insight_blueprint.models.design import (
@@ -11,6 +13,7 @@ from insight_blueprint.models.design import (
     DesignStatus,
     VariableRole,
 )
+from insight_blueprint.storage.yaml_store import write_yaml
 
 
 @pytest.fixture
@@ -601,3 +604,266 @@ def test_update_design_with_methodology(
     assert reloaded.methodology is not None
     assert reloaded.methodology.method == "DID"
     assert reloaded.methodology.package == "statsmodels"
+
+
+# ---------------------------------------------------------------------------
+# F2: Corrupt File Isolation (Unit-07 ~ Unit-11, Unit-15)
+# ---------------------------------------------------------------------------
+
+
+def _valid_design_data(design_id: str, **overrides: object) -> dict:
+    """Return minimal valid AnalysisDesign dict for corrupt file tests."""
+    data: dict = {
+        "id": design_id,
+        "theme_id": "DEFAULT",
+        "title": "Valid Design",
+        "hypothesis_statement": "stmt",
+        "hypothesis_background": "bg",
+        "status": "in_review",
+        "metrics": [],
+        "explanatory": [],
+        "chart": [],
+        "source_ids": [],
+        "created_at": "2025-01-01T00:00:00+09:00",
+        "updated_at": "2025-01-01T00:00:00+09:00",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_list_designs_skips_corrupt_file(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-07: 3 valid + 1 corrupt (invalid enum status), list_designs returns 3."""
+    # Create 3 valid designs
+    service.create_design(
+        title="T1", hypothesis_statement="s1", hypothesis_background="b1"
+    )
+    service.create_design(
+        title="T2", hypothesis_statement="s2", hypothesis_background="b2"
+    )
+    service.create_design(
+        title="T3", hypothesis_statement="s3", hypothesis_background="b3"
+    )
+
+    # Write 1 corrupt YAML directly (invalid status enum)
+    corrupt_path = tmp_path / ".insight" / "designs" / "CORRUPT-H01_hypothesis.yaml"
+    write_yaml(corrupt_path, _valid_design_data("CORRUPT-H01", status="BOGUS"))
+
+    designs = service.list_designs()
+    assert len(designs) == 3
+
+
+def test_list_designs_logs_warning_for_corrupt_file(
+    service: DesignService, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unit-08: caplog captures warning with filename for skipped corrupt file."""
+    # Create 1 valid design
+    service.create_design(
+        title="T1", hypothesis_statement="s1", hypothesis_background="b1"
+    )
+
+    # Write 1 corrupt YAML
+    corrupt_filename = "CORRUPT-H01_hypothesis.yaml"
+    corrupt_path = tmp_path / ".insight" / "designs" / corrupt_filename
+    write_yaml(corrupt_path, _valid_design_data("CORRUPT-H01", status="BOGUS"))
+
+    with caplog.at_level(logging.WARNING, logger="insight_blueprint.core.designs"):
+        service.list_designs()
+
+    assert "Skipping corrupt design file" in caplog.text
+    assert corrupt_filename in caplog.text
+
+
+def test_list_designs_skips_file_missing_required_field(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-09: YAML with missing required field (no 'id') is skipped."""
+    # Create 1 valid design
+    service.create_design(
+        title="T1", hypothesis_statement="s1", hypothesis_background="b1"
+    )
+
+    # Write YAML with no "id" field
+    corrupt_path = tmp_path / ".insight" / "designs" / "NOID-H01_hypothesis.yaml"
+    write_yaml(corrupt_path, {"theme_id": "X"})
+
+    designs = service.list_designs()
+    assert len(designs) == 1
+
+
+def test_get_design_raises_validation_error_for_corrupt_file(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-10: get_design() raises ValidationError for corrupt file (NOT returns None)."""
+    corrupt_path = tmp_path / ".insight" / "designs" / "CORRUPT-H01_hypothesis.yaml"
+    write_yaml(corrupt_path, _valid_design_data("CORRUPT-H01", status="BOGUS"))
+
+    with pytest.raises(ValidationError):
+        service.get_design("CORRUPT-H01")
+
+
+def test_list_designs_with_status_filter_skips_corrupt(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-11: list_designs with status filter + corrupt -> only valid matching designs."""
+    # Create 2 in_review designs
+    service.create_design(
+        title="T1", hypothesis_statement="s1", hypothesis_background="b1"
+    )
+    service.create_design(
+        title="T2", hypothesis_statement="s2", hypothesis_background="b2"
+    )
+
+    # Write 1 analyzing design directly via YAML
+    analyzing_path = tmp_path / ".insight" / "designs" / "ANALYZ-H01_hypothesis.yaml"
+    write_yaml(analyzing_path, _valid_design_data("ANALYZ-H01", status="analyzing"))
+
+    # Write 1 corrupt YAML
+    corrupt_path = tmp_path / ".insight" / "designs" / "CORRUPT-H01_hypothesis.yaml"
+    write_yaml(corrupt_path, _valid_design_data("CORRUPT-H01", status="BOGUS"))
+
+    designs = service.list_designs(status=DesignStatus.in_review)
+    assert len(designs) == 2
+
+
+@pytest.mark.parametrize(
+    ("corruption_id", "corruption_type"),
+    [
+        ("yaml_syntax_error", "yaml_syntax_error"),
+        ("non_dict_root", "non_dict_root"),
+        ("missing_required", "missing_required"),
+        ("invalid_enum", "invalid_enum"),
+        ("invalid_nested_enum", "invalid_nested_enum"),
+    ],
+)
+def test_list_designs_skips_corrupt_patterns(
+    service: DesignService,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    corruption_id: str,
+    corruption_type: str,
+) -> None:
+    """Unit-15: parametrize with 5 corruption patterns, each skipped by list_designs."""
+    # Create 1 valid design
+    service.create_design(
+        title="T1", hypothesis_statement="s1", hypothesis_background="b1"
+    )
+
+    designs_dir = tmp_path / ".insight" / "designs"
+    corrupt_filename = "XCRPT-H01_hypothesis.yaml"
+    corrupt_path = designs_dir / corrupt_filename
+
+    if corruption_type == "yaml_syntax_error":
+        corrupt_path.write_text("id: test\n  bad indent: [unclosed")
+    elif corruption_type == "non_dict_root":
+        corrupt_path.write_text("- item1\n- item2")
+    elif corruption_type == "missing_required":
+        write_yaml(corrupt_path, {"theme_id": "X"})
+    elif corruption_type == "invalid_enum":
+        write_yaml(corrupt_path, _valid_design_data("XCRPT-H01", status="BOGUS"))
+    elif corruption_type == "invalid_nested_enum":
+        write_yaml(
+            corrupt_path,
+            _valid_design_data("XCRPT-H01", metrics=[{"target": "x", "tier": "BOGUS"}]),
+        )
+
+    with caplog.at_level(logging.WARNING, logger="insight_blueprint.core.designs"):
+        designs = service.list_designs()
+
+    assert len(designs) == 1, (
+        f"Expected 1 valid design for {corruption_type}, got {len(designs)}"
+    )
+    assert corrupt_filename in caplog.text, (
+        f"Expected warning log for {corruption_type} to contain {corrupt_filename}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# F1: Extra field preservation - service layer tests
+# ---------------------------------------------------------------------------
+
+
+def test_update_design_preserves_extra_fields(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-03: Extra fields survive update_design round-trip."""
+    from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+    design = service.create_design(
+        title="Original",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+    )
+    # Manually add extra field to YAML
+    file_path = tmp_path / ".insight" / "designs" / f"{design.id}_hypothesis.yaml"
+    data = read_yaml(file_path)
+    data["analyst_note"] = "important observation"
+    write_yaml(file_path, data)
+
+    # Update a different field
+    service.update_design(design.id, title="New Title")
+
+    # Verify extra field preserved and title updated
+    result = read_yaml(file_path)
+    assert result["analyst_note"] == "important observation"
+    assert result["title"] == "New Title"
+
+
+def test_update_design_referenced_knowledge_merge_preserves_extras(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Unit-14: referenced_knowledge merge preserves extra fields."""
+    from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+    design = service.create_design(
+        title="Extras + refs",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+    )
+    # Manually add extra field to YAML
+    file_path = tmp_path / ".insight" / "designs" / f"{design.id}_hypothesis.yaml"
+    data = read_yaml(file_path)
+    data["analyst_note"] = "keep this"
+    write_yaml(file_path, data)
+
+    # Update with referenced_knowledge
+    service.update_design(design.id, referenced_knowledge={"section": ["new_key"]})
+
+    # Verify extra field preserved and referenced_knowledge merged
+    result = read_yaml(file_path)
+    assert result["analyst_note"] == "keep this"
+    assert "section" in result["referenced_knowledge"]
+    assert "new_key" in result["referenced_knowledge"]["section"]
+
+
+def test_update_design_extra_fields_survive_yaml_round_trip(
+    service: DesignService, tmp_path: Path
+) -> None:
+    """Integ-01: Full round-trip with extras at top-level and metrics level."""
+    from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+    # Create design with metrics
+    design = service.create_design(
+        title="Round-trip test",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        metrics=[{"target": "revenue", "tier": "primary"}],
+    )
+
+    # Manually add extra fields at top-level AND in metrics
+    file_path = tmp_path / ".insight" / "designs" / f"{design.id}_hypothesis.yaml"
+    data = read_yaml(file_path)
+    data["analyst_note"] = "top-level extra"
+    data["metrics"][0]["note"] = "seasonal adjustment needed"
+    write_yaml(file_path, data)
+
+    # Update a different field via service
+    service.update_design(design.id, title="Updated Title")
+
+    # Read YAML after update and verify extras preserved
+    result = read_yaml(file_path)
+    assert result["title"] == "Updated Title"
+    assert result["analyst_note"] == "top-level extra"
+    assert result["metrics"][0]["note"] == "seasonal adjustment needed"
+    assert result["metrics"][0]["target"] == "revenue"

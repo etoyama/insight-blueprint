@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 
@@ -55,6 +55,19 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
     return JSONResponse(
         status_code=400,
         content={"error": str(exc)},
+    )
+
+
+@app.exception_handler(ValidationError)
+async def validation_error_handler(
+    request: Request, exc: ValidationError
+) -> JSONResponse:
+    """Convert Pydantic ValidationError to 422 for corrupt design files."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": f"Invalid design data: {exc.error_count()} validation error(s)"
+        },
     )
 
 

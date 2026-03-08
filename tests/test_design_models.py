@@ -361,3 +361,85 @@ def test_analysis_design_roundtrip_legacy_format() -> None:
     assert restored.explanatory[0].role == VariableRole.covariate
     assert restored.metrics[0].tier == MetricTier.primary
     assert restored.chart[0].intent == ChartIntent.correlation
+
+
+# ---------------------------------------------------------------------------
+# Extra field preservation tests (yaml-edit-resilience F1)
+# ---------------------------------------------------------------------------
+
+
+def test_analysis_design_extra_field_preserved_in_model_dump() -> None:
+    """Unit-01: AnalysisDesign top-level extra field preserved in model_dump."""
+    data = _minimal_design_data(analyst_note="important observation")
+    design = AnalysisDesign(**data)
+    result = design.model_dump(mode="json")
+    assert result["analyst_note"] == "important observation"
+
+
+def test_metric_extra_field_preserved_in_model_dump() -> None:
+    """Unit-02: Metric nested extra field preserved in model_dump."""
+    data = _minimal_design_data(
+        metrics=[{"target": "revenue", "note": "seasonal adjustment needed"}]
+    )
+    design = AnalysisDesign(**data)
+    result = design.model_dump(mode="json")
+    assert result["metrics"][0]["note"] == "seasonal adjustment needed"
+
+
+def test_chart_spec_extra_field_preserved() -> None:
+    """Unit-04: ChartSpec extra field preserved in model_dump."""
+    spec = ChartSpec(intent="distribution", type="histogram", color="red")
+    result = spec.model_dump(mode="json")
+    assert result["color"] == "red"
+
+
+def test_explanatory_variable_extra_field_preserved() -> None:
+    """Unit-05: ExplanatoryVariable extra field preserved in model_dump."""
+    var = ExplanatoryVariable(name="age", memo="check outliers")
+    result = var.model_dump(mode="json")
+    assert result["memo"] == "check outliers"
+
+
+def test_methodology_extra_field_preserved() -> None:
+    """Unit-06: Methodology extra field preserved in model_dump."""
+    m = Methodology(method="t-test", package="scipy", ref_paper="doi:xxx")
+    result = m.model_dump(mode="json")
+    assert result["ref_paper"] == "doi:xxx"
+
+
+def test_migrate_metrics_preserves_extra_fields() -> None:
+    """Unit-12: _migrate_metrics works with extra fields present."""
+    data = _minimal_design_data(
+        metrics={"target": "x"},
+        custom="keep",
+    )
+    design = AnalysisDesign(**data)
+    result = design.model_dump(mode="json")
+    assert isinstance(result["metrics"], list)
+    assert len(result["metrics"]) == 1
+    assert result["metrics"][0]["target"] == "x"
+    assert result["custom"] == "keep"
+
+
+def test_infer_intent_preserves_extra_fields_on_chart() -> None:
+    """Unit-13: _infer_intent_from_type works with extra fields present."""
+    spec = ChartSpec(**{"type": "scatter", "annotation": "check R\u00b2"})
+    result = spec.model_dump(mode="json")
+    assert result["intent"] == "correlation"
+    assert result["annotation"] == "check R\u00b2"
+
+
+@pytest.mark.parametrize(
+    "model_cls,kwargs",
+    [
+        (AnalysisDesign, {**_minimal_design_data(), "status": "BOGUS"}),
+        (Metric, {"target": "x", "tier": "BOGUS"}),
+        (ChartSpec, {"intent": "BOGUS"}),
+        (ExplanatoryVariable, {"name": "x", "role": "BOGUS"}),
+    ],
+    ids=["DesignStatus", "MetricTier", "ChartIntent", "VariableRole"],
+)
+def test_extra_allow_still_rejects_invalid_enum(model_cls: type, kwargs: dict) -> None:
+    """Unit-16: extra='allow' still rejects invalid enum values."""
+    with pytest.raises(ValidationError):
+        model_cls(**kwargs)

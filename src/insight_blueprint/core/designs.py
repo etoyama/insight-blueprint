@@ -1,5 +1,6 @@
 """Analysis design CRUD business logic."""
 
+import logging
 import re
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from insight_blueprint.core.validation import validate_id as _validate_id
 from insight_blueprint.models.common import now_jst
 from insight_blueprint.models.design import AnalysisDesign, AnalysisIntent, DesignStatus
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
+
+logger = logging.getLogger(__name__)
 
 THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
 
@@ -130,10 +133,18 @@ class DesignService:
 
         designs = []
         for file_path in files:
-            data = read_yaml(file_path)
-            if not data:
+            try:
+                data = read_yaml(file_path)
+                if not data:
+                    continue
+                design = AnalysisDesign(**data)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping corrupt design file %s: %s",
+                    file_path.name,
+                    exc,
+                )
                 continue
-            design = AnalysisDesign(**data)
             if status is None or design.status == status:
                 designs.append(design)
 

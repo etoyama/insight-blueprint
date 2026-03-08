@@ -788,14 +788,15 @@ def test_knowledge_not_found_returns_empty(client: TestClient) -> None:
     assert data["count"] == 0
 
 
-def test_knowledge_invalid_entries_returns_400(client: TestClient) -> None:
+def test_knowledge_invalid_entries_returns_422(client: TestClient) -> None:
     created = _create_design(client)
     design_id = created["design"]["id"]
     resp = client.post(
         f"/api/designs/{design_id}/knowledge",
         json={"entries": [{"invalid": "data"}]},
     )
-    assert resp.status_code == 400
+    # ValidationError (subclass of ValueError) now returns 422 via validation_error_handler
+    assert resp.status_code == 422
     assert "error" in resp.json()
 
 
@@ -1108,3 +1109,39 @@ class TestReviewBatchAPI:
         comment = resp.json()["batches"][0]["comments"][0]
         assert comment["target_content"] == {"kpi": "CVR"}
         assert comment["target_section"] == "metrics"
+
+
+# ---------------------------------------------------------------------------
+# F2: Corrupt File Isolation — REST API (Integ-02)
+# ---------------------------------------------------------------------------
+
+
+def test_get_design_corrupt_returns_422(client: TestClient, tmp_path: Path) -> None:
+    """Integ-02: GET /api/designs/{id} for corrupt design returns 422."""
+    from insight_blueprint.storage.yaml_store import write_yaml
+
+    # Write corrupt YAML directly to the designs directory
+    corrupt_path = tmp_path / ".insight" / "designs" / "CORRUPT-H01_hypothesis.yaml"
+    write_yaml(
+        corrupt_path,
+        {
+            "id": "CORRUPT-H01",
+            "theme_id": "CORRUPT",
+            "title": "Corrupt Design",
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+            "status": "BOGUS",
+            "metrics": [],
+            "explanatory": [],
+            "chart": [],
+            "source_ids": [],
+            "created_at": "2025-01-01T00:00:00+09:00",
+            "updated_at": "2025-01-01T00:00:00+09:00",
+        },
+    )
+
+    resp = client.get("/api/designs/CORRUPT-H01")
+    assert resp.status_code == 422
+    data = resp.json()
+    assert "error" in data
+    assert "validation error" in data["error"].lower()
