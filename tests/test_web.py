@@ -1145,3 +1145,41 @@ def test_get_design_corrupt_returns_422(client: TestClient, tmp_path: Path) -> N
     data = resp.json()
     assert "error" in data
     assert "validation error" in data["error"].lower()
+
+
+def test_list_designs_with_corrupt_returns_valid_only(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """GET /api/designs with a corrupt file returns only valid designs."""
+    from insight_blueprint.storage.yaml_store import write_yaml
+
+    # Create 2 valid designs via API
+    _create_design(client)
+    _create_design(client, title="Second Design")
+
+    # Write 1 corrupt YAML directly
+    corrupt_path = tmp_path / ".insight" / "designs" / "CORRUPT-H01_hypothesis.yaml"
+    write_yaml(
+        corrupt_path,
+        {
+            "id": "CORRUPT-H01",
+            "theme_id": "CORRUPT",
+            "title": "Corrupt",
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+            "status": "BOGUS",
+            "metrics": [],
+            "explanatory": [],
+            "chart": [],
+            "source_ids": [],
+            "created_at": "2025-01-01T00:00:00+09:00",
+            "updated_at": "2025-01-01T00:00:00+09:00",
+        },
+    )
+
+    resp = client.get("/api/designs")
+    assert resp.status_code == 200
+    designs = resp.json()["designs"]
+    assert len(designs) == 2
+    design_ids = [d["id"] for d in designs]
+    assert "CORRUPT-H01" not in design_ids

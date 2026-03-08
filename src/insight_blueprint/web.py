@@ -62,7 +62,13 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 async def validation_error_handler(
     request: Request, exc: ValidationError
 ) -> JSONResponse:
-    """Convert Pydantic ValidationError to 422 for corrupt design files."""
+    """Convert Pydantic ValidationError to 422 for corrupt design files.
+
+    NOTE: ValidationError is a subclass of ValueError.  FastAPI matches the
+    most specific handler first, so this 422 handler takes priority over the
+    ValueError 400 handler above.  If FastAPI's resolution order ever changes,
+    the test ``test_get_design_corrupt_returns_422`` will catch the regression.
+    """
     return JSONResponse(
         status_code=422,
         content={
