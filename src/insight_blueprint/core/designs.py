@@ -36,12 +36,13 @@ class DesignService:
         hypothesis_background: str,
         parent_id: str | None = None,
         theme_id: str = "DEFAULT",
-        metrics: dict | None = None,
+        metrics: list[dict] | None = None,
         explanatory: list[dict] | None = None,
         chart: list[dict] | None = None,
         next_action: dict | None = None,
         referenced_knowledge: dict[str, list[str]] | None = None,
         analysis_intent: str | AnalysisIntent = AnalysisIntent.confirmatory,
+        methodology: dict | None = None,
     ) -> AnalysisDesign:
         """Create a new analysis design.
 
@@ -56,20 +57,24 @@ class DesignService:
         next_n = self._next_id_number(theme_id)
         design_id = f"{theme_id}-H{next_n:02d}"
 
-        design = AnalysisDesign(
-            id=design_id,
-            theme_id=theme_id,
-            title=title,
-            hypothesis_statement=hypothesis_statement,
-            hypothesis_background=hypothesis_background,
-            analysis_intent=AnalysisIntent(analysis_intent),
-            parent_id=parent_id,
-            metrics=metrics or {},
-            explanatory=explanatory or [],
-            chart=chart or [],
-            next_action=next_action,
-            referenced_knowledge=referenced_knowledge or {},
-        )
+        kwargs: dict = {
+            "id": design_id,
+            "theme_id": theme_id,
+            "title": title,
+            "hypothesis_statement": hypothesis_statement,
+            "hypothesis_background": hypothesis_background,
+            "analysis_intent": AnalysisIntent(analysis_intent),
+            "parent_id": parent_id,
+            "metrics": metrics or [],
+            "explanatory": explanatory or [],
+            "chart": chart or [],
+            "next_action": next_action,
+            "referenced_knowledge": referenced_knowledge or {},
+        }
+        if methodology is not None:
+            kwargs["methodology"] = methodology
+
+        design = AnalysisDesign(**kwargs)
 
         file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
         write_yaml(file_path, design.model_dump(mode="json"))
@@ -98,7 +103,8 @@ class DesignService:
             )
             fields["referenced_knowledge"] = merged_ref
 
-        updated = design.model_copy(update={**fields, "updated_at": now_jst()})
+        merged = {**design.model_dump(mode="json"), **fields, "updated_at": now_jst()}
+        updated = AnalysisDesign.model_validate(merged)
         file_path = self._designs_dir / f"{design_id}_hypothesis.yaml"
         write_yaml(file_path, updated.model_dump(mode="json"))
         return updated

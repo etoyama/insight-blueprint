@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from insight_blueprint.core.designs import DesignService
-from insight_blueprint.models.design import AnalysisIntent, DesignStatus
+from insight_blueprint.models.design import (
+    AnalysisIntent,
+    ChartIntent,
+    DesignStatus,
+    VariableRole,
+)
 
 
 @pytest.fixture
@@ -232,9 +237,11 @@ def test_create_design_with_chart_and_next_action(service: DesignService) -> Non
         next_action=next_action,
         explanatory=explanatory,
     )
-    assert design.chart == chart
+    assert design.chart[0].type == "scatter"
+    assert design.chart[0].description == "外国人比率 vs 犯罪率"
     assert design.next_action == next_action
-    assert design.explanatory == explanatory
+    assert design.explanatory[0].name == "foreign_ratio"
+    assert design.explanatory[0].data_source == "0000010101"
 
 
 def test_update_design_patches_fields_and_updates_timestamp(
@@ -272,7 +279,8 @@ def test_update_design_persists_to_yaml(service: DesignService) -> None:
     service.update_design(design.id, chart=[{"type": "table"}])
     reloaded = service.get_design(design.id)
     assert reloaded is not None
-    assert reloaded.chart == [{"type": "table"}]
+    assert len(reloaded.chart) == 1
+    assert reloaded.chart[0].type == "table"
 
 
 # -- referenced_knowledge tests --
@@ -496,3 +504,100 @@ def test_get_design_returns_analysis_intent(service: DesignService) -> None:
     retrieved = service.get_design("DEFAULT-H01")
     assert retrieved is not None
     assert retrieved.analysis_intent == AnalysisIntent.exploratory
+
+
+# -- Typed field integration tests (verification-design) --
+
+
+def test_create_design_with_untyped_explanatory_gets_default_role(
+    service: DesignService,
+) -> None:
+    """Integ-01: create with no role -> reload -> role=covariate."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+        explanatory=[{"name": "x1", "description": "d"}],
+    )
+    reloaded = service.get_design(design.id)
+    assert reloaded is not None
+    assert reloaded.explanatory[0].role == VariableRole.covariate
+
+
+def test_create_design_with_typed_explanatory_persists_role(
+    service: DesignService,
+) -> None:
+    """Integ-02: create with role=treatment -> reload -> role=treatment."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+        explanatory=[{"name": "x1", "role": "treatment"}],
+    )
+    reloaded = service.get_design(design.id)
+    assert reloaded is not None
+    assert reloaded.explanatory[0].role == VariableRole.treatment
+
+
+def test_create_design_with_legacy_dict_metrics_migrated(
+    service: DesignService,
+) -> None:
+    """Integ-05: create with list[dict] metrics -> reload -> list[Metric]."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+        metrics=[{"target": "y", "aggregation": "mean"}],
+    )
+    reloaded = service.get_design(design.id)
+    assert reloaded is not None
+    assert isinstance(reloaded.metrics, list)
+    assert len(reloaded.metrics) == 1
+    assert reloaded.metrics[0].target == "y"
+
+
+def test_create_design_with_typed_chart_persists_intent(
+    service: DesignService,
+) -> None:
+    """Integ-07: create with intent=trend -> reload -> intent=trend."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+        chart=[{"intent": "trend", "type": "line", "x": "time", "y": "value"}],
+    )
+    reloaded = service.get_design(design.id)
+    assert reloaded is not None
+    assert reloaded.chart[0].intent == ChartIntent.trend
+
+
+def test_create_design_without_methodology_is_none(
+    service: DesignService,
+) -> None:
+    """Integ-08: create without methodology -> None."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+    )
+    assert design.methodology is None
+
+
+def test_update_design_with_methodology(
+    service: DesignService,
+) -> None:
+    """Integ-09: update with methodology dict -> reload -> Methodology object."""
+    design = service.create_design(
+        title="t",
+        hypothesis_statement="s",
+        hypothesis_background="b",
+    )
+    service.update_design(
+        design.id,
+        methodology={"method": "DID", "package": "statsmodels"},
+    )
+    reloaded = service.get_design(design.id)
+    assert reloaded is not None
+    assert reloaded.methodology is not None
+    assert reloaded.methodology.method == "DID"
+    assert reloaded.methodology.package == "statsmodels"

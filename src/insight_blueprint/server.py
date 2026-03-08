@@ -40,12 +40,13 @@ async def create_analysis_design(
     hypothesis_background: str,
     parent_id: str | None = None,
     theme_id: str = "DEFAULT",
-    metrics: dict | None = None,
+    metrics: list[dict] | None = None,
     explanatory: list[dict] | None = None,
     chart: list[dict] | None = None,
     next_action: dict | None = None,
     referenced_knowledge: dict | None = None,
     analysis_intent: str = "confirmatory",
+    methodology: dict | None = None,
 ) -> dict:
     """Create a new analysis design document.
 
@@ -68,9 +69,12 @@ async def create_analysis_design(
             next_action=next_action,
             referenced_knowledge=referenced_knowledge,
             analysis_intent=analysis_intent,
+            methodology=methodology,
         )
     except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to create analysis design due to invalid input."}
 
     return {
         "id": design.id,
@@ -86,12 +90,13 @@ async def update_analysis_design(
     title: str | None = None,
     hypothesis_statement: str | None = None,
     hypothesis_background: str | None = None,
-    metrics: dict | None = None,
+    metrics: list[dict] | None = None,
     explanatory: list[dict] | None = None,
     chart: list[dict] | None = None,
     next_action: dict | None = None,
     referenced_knowledge: dict | None = None,
     analysis_intent: str | None = None,
+    methodology: dict | None = None,
 ) -> dict:
     """Partially update an existing analysis design.
 
@@ -115,6 +120,7 @@ async def update_analysis_design(
             "next_action": next_action,
             "referenced_knowledge": referenced_knowledge,
             "analysis_intent": analysis_intent,
+            "methodology": methodology,
         }.items()
         if v is not None
     }

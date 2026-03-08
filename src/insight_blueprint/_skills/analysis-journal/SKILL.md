@@ -151,6 +151,9 @@ Next: /analysis-reflection {design_id} で振り返りと結論導出
 | `evidence` | Evidence found from data analysis | `{direction: "supports" \| "contradicts"}` |
 | `question` | New question or uncertainty raised | `{priority?: "high" \| "medium" \| "low"}` |
 | `decide` | Method, tool, or approach chosen | `{method: str, package?: str, reason?: str}` |
+
+> **methodology への昇格**: decide イベントで記録した method/package は、analysis-design の methodology フィールドに昇格できる。`update_analysis_design` の `methodology` パラメータで `{method, package, reason}` を渡す。
+
 | `reflect` | Meta-level thinking about the analysis | — |
 | `conclude` | Conclusion drawn from evidence | `{resolves?: event_id}` |
 | `branch` | Fork to alternative hypothesis | `{new_design_id: str, reason?: str}` |

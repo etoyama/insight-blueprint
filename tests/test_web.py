@@ -371,6 +371,37 @@ def test_update_design_with_referenced_knowledge_merges(client: TestClient) -> N
 
 
 # ---------------------------------------------------------------------------
+# Typed field REST API tests (verification-design)
+# ---------------------------------------------------------------------------
+
+
+def test_get_design_returns_typed_fields(client: TestClient) -> None:
+    """Integ-10: POST with typed fields -> GET -> verify typed response."""
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "t",
+            "hypothesis_statement": "s",
+            "hypothesis_background": "b",
+            "explanatory": [{"name": "x1", "role": "treatment"}],
+            "metrics": [{"target": "y", "tier": "guardrail"}],
+            "chart": [{"intent": "correlation", "type": "scatter"}],
+            "methodology": {"method": "OLS"},
+        },
+    )
+    assert resp.status_code == 201
+    design_id = resp.json()["design"]["id"]
+
+    resp = client.get(f"/api/designs/{design_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["explanatory"][0]["role"] == "treatment"
+    assert data["metrics"][0]["tier"] == "guardrail"
+    assert data["chart"][0]["intent"] == "correlation"
+    assert data["methodology"]["method"] == "OLS"
+
+
+# ---------------------------------------------------------------------------
 # Catalog endpoints (17 tests)
 # ---------------------------------------------------------------------------
 

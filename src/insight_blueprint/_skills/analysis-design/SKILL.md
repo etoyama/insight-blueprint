@@ -43,9 +43,10 @@ Interview the user for required fields:
 | `theme_id` | No | Uppercase identifier — defaults to "DEFAULT" | "FP", "TX", "ECON" |
 | `parent_id` | No | Parent design ID if this is derived | "FP-H01" |
 | `analysis_intent` | No | "exploratory", "confirmatory" (default), or "mixed" | "exploratory" |
-| `metrics` | No | Verification metric definition dict | `{target: "crime_rate_per_100k", data_source: {crime: "0000010111"}, grouping: [...], filter: "...", aggregation: "mean", comparison: "..."}` |
-| `explanatory` | No | List of explanatory variable dicts | `[{name: "foreign_ratio", description: "外国人比率", data_source: "0000010101", time_points: "2012-2022"}]` |
-| `chart` | No | List of visualization definition dicts | `[{type: "scatter", description: "FP ratio vs crime rate", x: "foreign_ratio", y: "crime_rate"}]` |
+| `metrics` | No | List of verification metric dicts (tier: "primary" / "secondary" / "guardrail") | `[{target: "crime_rate_per_100k", tier: "primary", data_source: {crime: "0000010111"}, grouping: [...], filter: "...", aggregation: "mean", comparison: "..."}]` |
+| `explanatory` | No | List of explanatory variable dicts (role: "treatment" / "confounder" / "covariate" / "instrumental" / "mediator") | `[{name: "foreign_ratio", description: "外国人比率", role: "treatment", data_source: "0000010101", time_points: "2012-2022"}]` |
+| `chart` | No | List of visualization definition dicts (intent: "distribution" / "correlation" / "trend" / "comparison") | `[{intent: "correlation", type: "scatter", description: "FP ratio vs crime rate", x: "foreign_ratio", y: "crime_rate"}]` |
+| `methodology` | No | Analysis method and package | `{method: "OLS", package: "statsmodels", reason: "線形回帰で相関を検証"}` |
 | `next_action` | No | Branch definition after hypothesis test | `{if_supported: "...", if_rejected: {reason: "...", pivot: "..."}}` |
 
 If the user passed `$ARGUMENTS`, use it as `theme_id` (validate format first).
@@ -59,9 +60,10 @@ create_analysis_design(
     hypothesis_background="<background>",
     theme_id="<theme_id or DEFAULT>",
     parent_id=<"FP-H01" or None>,
-    metrics=<dict or None>,
-    explanatory=<list[dict] or None>,
-    chart=<list[dict] or None>,
+    metrics=<list[dict] or None>,        # each dict: {target, tier?, data_source?, grouping?, filter?, aggregation?, comparison?}
+    explanatory=<list[dict] or None>,    # each dict: {name, description?, role?, data_source?, time_points?}
+    chart=<list[dict] or None>,          # each dict: {intent, type?, description?, x?, y?}
+    methodology=<dict or None>,          # {method, package?, reason?}
     next_action=<dict or None>,
 )
 ```
@@ -97,9 +99,22 @@ Only provided fields are updated; all others remain unchanged.
 | Tool | Purpose | Key Parameters |
 |------|---------|----------------|
 | `list_analysis_designs(status?)` | List existing designs | `status`: in_review \| revision_requested \| analyzing \| supported \| rejected \| inconclusive |
-| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?`, `analysis_intent?` |
-| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `next_action?`, `analysis_intent?` |
+| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `methodology?`, `next_action?`, `analysis_intent?` |
+| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `methodology?`, `next_action?`, `analysis_intent?` |
 | `get_analysis_design(design_id)` | Retrieve a specific design | `design_id`: str (e.g., "FP-H01") |
+
+## Typed Field Values Reference
+
+| Field | Type | Valid Values | Default |
+|-------|------|-------------|---------|
+| `explanatory[].role` | VariableRole | `"treatment"`, `"confounder"`, `"covariate"`, `"instrumental"`, `"mediator"` | `"covariate"` |
+| `metrics[].tier` | MetricTier | `"primary"`, `"secondary"`, `"guardrail"` | `"primary"` |
+| `chart[].intent` | ChartIntent | `"distribution"`, `"correlation"`, `"trend"`, `"comparison"` | inferred from `type` |
+| `methodology.method` | str | free text (required, non-empty) | — |
+| `methodology.package` | str | free text (optional) | `""` |
+| `methodology.reason` | str | free text (optional) | `""` |
+
+**Backward compatibility**: `role`, `tier`, `intent` fields are optional in input. If omitted, defaults are applied automatically.
 
 ## theme_id Rules
 

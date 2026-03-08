@@ -983,3 +983,85 @@ class TestKnowledgeSuggestionMCPTools:
         assert result["referenced_knowledge"] == {
             "hypothesis_statement": ["K-001", "K-002"]
         }
+
+
+# ---------------------------------------------------------------------------
+# Typed field MCP tool tests (verification-design)
+# ---------------------------------------------------------------------------
+
+
+def test_create_analysis_design_with_typed_explanatory(
+    initialized_server: Path,
+) -> None:
+    """Integ-03: create with explanatory with role field, assert no error."""
+    result = asyncio.run(
+        server_module.create_analysis_design(
+            title="t",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+            explanatory=[{"name": "x1", "role": "treatment"}],
+        )
+    )
+    assert "error" not in result
+    assert "id" in result
+
+
+def test_update_analysis_design_with_typed_explanatory(
+    initialized_server: Path,
+) -> None:
+    """Integ-04: update with explanatory with role field, assert no error."""
+    create_result = asyncio.run(
+        server_module.create_analysis_design(
+            title="t",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+        )
+    )
+    design_id = create_result["id"]
+    result = asyncio.run(
+        server_module.update_analysis_design(
+            design_id=design_id,
+            explanatory=[
+                {"name": "x1", "role": "treatment"},
+                {"name": "x2", "role": "confounder"},
+            ],
+        )
+    )
+    assert "error" not in result
+
+
+def test_create_analysis_design_with_metrics_list(
+    initialized_server: Path,
+) -> None:
+    """Integ-06: create with metrics list, assert no error."""
+    result = asyncio.run(
+        server_module.create_analysis_design(
+            title="t",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+            metrics=[{"target": "y", "tier": "primary"}],
+        )
+    )
+    assert "error" not in result
+    assert "id" in result
+
+
+def test_update_analysis_design_with_methodology(
+    initialized_server: Path,
+) -> None:
+    """Integ-11: update with methodology, assert no error."""
+    create_result = asyncio.run(
+        server_module.create_analysis_design(
+            title="t",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+        )
+    )
+    design_id = create_result["id"]
+    result = asyncio.run(
+        server_module.update_analysis_design(
+            design_id=design_id,
+            methodology={"method": "CausalImpact", "package": "tfcausalimpact"},
+        )
+    )
+    assert "error" not in result

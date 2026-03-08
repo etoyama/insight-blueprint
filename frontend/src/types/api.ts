@@ -20,6 +20,54 @@ export type KnowledgeImportance = "high" | "medium" | "low";
 
 export type AnalysisIntent = "exploratory" | "confirmatory" | "mixed";
 
+export type VariableRole =
+  | "treatment"
+  | "confounder"
+  | "covariate"
+  | "instrumental"
+  | "mediator";
+
+export type MetricTier = "primary" | "secondary" | "guardrail";
+
+export type ChartIntent =
+  | "distribution"
+  | "correlation"
+  | "trend"
+  | "comparison";
+
+// New model interfaces for typed design fields
+export interface ExplanatoryVariable {
+  name: string;
+  description: string;
+  role: VariableRole;
+  data_source: string;
+  time_points: string;
+}
+
+export interface Metric {
+  target: string;
+  tier: MetricTier;
+  data_source: Record<string, unknown>;
+  grouping: unknown[];
+  filter: string;
+  aggregation: string;
+  comparison: string;
+}
+
+export interface ChartSpec {
+  intent: ChartIntent;
+  type: string;
+  description: string;
+  x: string;
+  y: string;
+}
+
+export interface Methodology {
+  method: string;
+  package: string;
+  reason: string;
+}
+
 // Model interfaces
 export interface Design {
   id: string;
@@ -30,9 +78,10 @@ export interface Design {
   status: DesignStatus;
   analysis_intent: AnalysisIntent;
   parent_id: string | null;
-  metrics: Record<string, unknown>;
-  explanatory: Record<string, unknown>[];
-  chart: Record<string, unknown>[];
+  metrics: Metric[];
+  explanatory: ExplanatoryVariable[];
+  chart: ChartSpec[];
+  methodology: Methodology | null;
   source_ids: string[];
   next_action: Record<string, unknown> | null;
   referenced_knowledge: Record<string, unknown>[] | null;

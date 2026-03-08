@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from insight_blueprint.models.common import now_jst
 
@@ -27,6 +28,92 @@ class AnalysisIntent(StrEnum):
     mixed = "mixed"
 
 
+class VariableRole(StrEnum):
+    """Causal role of an explanatory variable."""
+
+    treatment = "treatment"
+    confounder = "confounder"
+    covariate = "covariate"
+    instrumental = "instrumental"
+    mediator = "mediator"
+
+
+class MetricTier(StrEnum):
+    """Priority tier of a verification metric."""
+
+    primary = "primary"
+    secondary = "secondary"
+    guardrail = "guardrail"
+
+
+class ChartIntent(StrEnum):
+    """Analysis intent of a chart specification."""
+
+    distribution = "distribution"
+    correlation = "correlation"
+    trend = "trend"
+    comparison = "comparison"
+
+
+class ExplanatoryVariable(BaseModel):
+    """Schema for an explanatory variable with causal role."""
+
+    name: str
+    description: str = ""
+    role: VariableRole = VariableRole.covariate
+    data_source: str = ""
+    time_points: str = ""
+
+
+class Metric(BaseModel):
+    """Schema for a verification metric with priority tier."""
+
+    target: str
+    tier: MetricTier = MetricTier.primary
+    data_source: dict = Field(default_factory=dict)
+    grouping: list = Field(default_factory=list)
+    filter: str = ""
+    aggregation: str = ""
+    comparison: str = ""
+
+
+class ChartSpec(BaseModel):
+    """Schema for a chart specification with analysis intent."""
+
+    intent: ChartIntent
+    type: str = ""
+    description: str = ""
+    x: str = ""
+    y: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _infer_intent_from_type(cls, data: Any) -> Any:
+        """Backward compat: infer intent from type when intent is missing."""
+        if isinstance(data, dict) and "intent" not in data:
+            chart_type = data.get("type", "")
+            type_to_intent = {
+                "scatter": "correlation",
+                "heatmap": "correlation",
+                "bar": "comparison",
+                "table": "comparison",
+                "histogram": "distribution",
+                "box": "distribution",
+                "line": "trend",
+                "area": "trend",
+            }
+            data["intent"] = type_to_intent.get(chart_type, "distribution")
+        return data
+
+
+class Methodology(BaseModel):
+    """Schema for analysis methodology and package."""
+
+    method: str = Field(min_length=1)
+    package: str = ""
+    reason: str = ""
+
+
 class AnalysisDesign(BaseModel):
     """Analysis design document for hypothesis-driven EDA."""
 
@@ -38,11 +125,28 @@ class AnalysisDesign(BaseModel):
     status: DesignStatus = DesignStatus.in_review
     analysis_intent: AnalysisIntent = AnalysisIntent.confirmatory
     parent_id: str | None = None
-    metrics: dict = Field(default_factory=dict)
-    explanatory: list[dict] = Field(default_factory=list)
-    chart: list[dict] = Field(default_factory=list)
+    metrics: list[Metric] = Field(default_factory=list)
+    explanatory: list[ExplanatoryVariable] = Field(default_factory=list)
+    chart: list[ChartSpec] = Field(default_factory=list)
     source_ids: list[str] = Field(default_factory=list)
     next_action: dict | None = None
     referenced_knowledge: dict[str, list[str]] = Field(default_factory=dict)
+    methodology: Methodology | None = None
     created_at: datetime = Field(default_factory=now_jst)
     updated_at: datetime = Field(default_factory=now_jst)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_metrics(cls, data: Any) -> Any:
+        """Convert legacy metrics formats to list[Metric]."""
+        if isinstance(data, dict) and "metrics" in data:
+            m = data["metrics"]
+            if m is None:
+                data["metrics"] = []
+            elif isinstance(m, dict):
+                if not m:  # empty dict {}
+                    data["metrics"] = []
+                elif "target" in m:  # single metric dict
+                    data["metrics"] = [m]
+                # else: unexpected dict structure -> let Pydantic validate
+        return data

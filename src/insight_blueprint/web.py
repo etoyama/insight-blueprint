@@ -89,12 +89,13 @@ class CreateDesignRequest(BaseModel):
     hypothesis_background: str
     parent_id: str | None = None
     theme_id: str = "DEFAULT"
-    metrics: dict | None = None
+    metrics: list[dict] | None = None
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
     next_action: dict | None = None
     referenced_knowledge: dict[str, list[str]] | None = None
     analysis_intent: str = "confirmatory"
+    methodology: dict | None = None
 
 
 class AddCommentRequest(BaseModel):
@@ -117,12 +118,13 @@ class UpdateDesignRequest(BaseModel):
     title: str | None = None
     hypothesis_statement: str | None = None
     hypothesis_background: str | None = None
-    metrics: dict | None = None
+    metrics: list[dict] | None = None
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
     next_action: dict | None = None
     referenced_knowledge: dict[str, list[str]] | None = None
     analysis_intent: str | None = None
+    methodology: dict | None = None
 
 
 class UpdateSourceRequest(BaseModel):
@@ -188,6 +190,7 @@ async def create_design(body: CreateDesignRequest) -> dict:
             next_action=body.next_action,
             referenced_knowledge=body.referenced_knowledge,
             analysis_intent=body.analysis_intent,
+            methodology=body.methodology,
         )
     except ValueError as e:
         raise HTTPException(400, detail=str(e)) from None
@@ -234,6 +237,7 @@ async def update_design(
             "next_action": body.next_action,
             "referenced_knowledge": body.referenced_knowledge,
             "analysis_intent": body.analysis_intent,
+            "methodology": body.methodology,
         }.items()
         if v is not None
     }
