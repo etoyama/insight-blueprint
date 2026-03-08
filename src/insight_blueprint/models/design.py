@@ -19,6 +19,14 @@ class DesignStatus(StrEnum):
     inconclusive = "inconclusive"
 
 
+class AnalysisIntent(StrEnum):
+    """Intent of an analysis design: exploratory, confirmatory, or mixed."""
+
+    exploratory = "exploratory"
+    confirmatory = "confirmatory"
+    mixed = "mixed"
+
+
 class AnalysisDesign(BaseModel):
     """Analysis design document for hypothesis-driven EDA."""
 
@@ -28,6 +36,7 @@ class AnalysisDesign(BaseModel):
     hypothesis_statement: str
     hypothesis_background: str
     status: DesignStatus = DesignStatus.in_review
+    analysis_intent: AnalysisIntent = AnalysisIntent.confirmatory
     parent_id: str | None = None
     metrics: dict = Field(default_factory=dict)
     explanatory: list[dict] = Field(default_factory=list)

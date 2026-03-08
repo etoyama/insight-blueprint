@@ -18,6 +18,8 @@ export type KnowledgeCategory =
 
 export type KnowledgeImportance = "high" | "medium" | "low";
 
+export type AnalysisIntent = "exploratory" | "confirmatory" | "mixed";
+
 // Model interfaces
 export interface Design {
   id: string;
@@ -26,6 +28,7 @@ export interface Design {
   hypothesis_statement: string;
   hypothesis_background: string;
   status: DesignStatus;
+  analysis_intent: AnalysisIntent;
   parent_id: string | null;
   metrics: Record<string, unknown>;
   explanatory: Record<string, unknown>[];

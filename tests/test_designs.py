@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from insight_blueprint.core.designs import DesignService
-from insight_blueprint.models.design import DesignStatus
+from insight_blueprint.models.design import AnalysisIntent, DesignStatus
 
 
 @pytest.fixture
@@ -416,3 +416,83 @@ def test_update_design_invalid_id_raises_error(
 ) -> None:
     with pytest.raises(ValueError, match="Invalid"):
         service.update_design(bad_id, title="x")
+
+
+# -- analysis_intent tests --
+
+
+def test_analysis_intent_enum_members() -> None:
+    members = set(AnalysisIntent.__members__.keys())
+    expected = {"exploratory", "confirmatory", "mixed"}
+    assert members == expected
+
+
+def test_analysis_intent_enum_values() -> None:
+    values = {i.value for i in AnalysisIntent}
+    expected = {"exploratory", "confirmatory", "mixed"}
+    assert values == expected
+
+
+def test_analysis_design_default_analysis_intent_is_confirmatory(
+    service: DesignService,
+) -> None:
+    design = service.create_design(
+        title="Default intent",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+    )
+    assert design.analysis_intent == AnalysisIntent.confirmatory
+
+
+def test_create_design_with_analysis_intent(service: DesignService) -> None:
+    design = service.create_design(
+        title="Exploratory",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        analysis_intent="exploratory",
+    )
+    assert design.analysis_intent == AnalysisIntent.exploratory
+
+
+def test_update_design_analysis_intent(service: DesignService) -> None:
+    design = service.create_design(
+        title="Intent update",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+    )
+    updated = service.update_design(design.id, analysis_intent="mixed")
+    assert updated is not None
+    assert updated.analysis_intent == AnalysisIntent.mixed
+
+
+def test_backward_compat_yaml_without_analysis_intent() -> None:
+    from insight_blueprint.models.design import AnalysisDesign
+
+    yaml_data = {
+        "id": "TEST-H01",
+        "theme_id": "TEST",
+        "title": "Old design",
+        "hypothesis_statement": "stmt",
+        "hypothesis_background": "bg",
+        "status": "in_review",
+        "metrics": {},
+        "explanatory": [],
+        "chart": [],
+        "source_ids": [],
+        "created_at": "2025-01-01T00:00:00+09:00",
+        "updated_at": "2025-01-01T00:00:00+09:00",
+    }
+    design = AnalysisDesign(**yaml_data)
+    assert design.analysis_intent == AnalysisIntent.confirmatory
+
+
+def test_get_design_returns_analysis_intent(service: DesignService) -> None:
+    service.create_design(
+        title="Roundtrip intent",
+        hypothesis_statement="stmt",
+        hypothesis_background="bg",
+        analysis_intent="exploratory",
+    )
+    retrieved = service.get_design("DEFAULT-H01")
+    assert retrieved is not None
+    assert retrieved.analysis_intent == AnalysisIntent.exploratory

@@ -82,10 +82,28 @@ A browser-based dashboard (http://127.0.0.1:3000) provides:
 When you run `insight-blueprint --project <path>`, skill templates are copied to `.claude/skills/` in your project:
 
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
+- `/analysis-journal` -- Record reasoning steps during analysis (observations, evidence, decisions, questions)
+- `/analysis-reflection` -- Structured reflection to draw conclusions or branch hypotheses
 - `/catalog-register` -- Step-by-step data source registration
 - `/data-lineage` -- Track data transformations and export lineage diagrams (Mermaid)
 
 Skills support both English and Japanese trigger phrases.
+
+### Analysis Workflow
+
+Skills chain together to support the full hypothesis-driven analysis lifecycle:
+
+```
+/analysis-design (create hypothesis)
+    ↓
+/analysis-journal (record reasoning: observe → hypothesize → evidence → decide)
+    ↓
+/analysis-reflection (reflect → conclude or branch)
+    ↓
+/catalog-register (register findings as domain knowledge)
+```
+
+Each design has an `analysis_intent` field (`exploratory`, `confirmatory`, or `mixed`) to distinguish whether you're testing a specific hypothesis or exploring data for patterns. The Insight Journal (`.insight/designs/{id}_journal.yaml`) tracks your reasoning process with 8 event types mapped to the Narrative Scaffolding framework (Huang+ IUI 2026).
 
 ## CLI Options
 

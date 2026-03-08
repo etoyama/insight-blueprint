@@ -30,3 +30,4 @@ configuration, not MCP-managed data:
 - `.insight/rules/review_rules.yaml` — review rule definitions
 - `.insight/rules/analysis_rules.yaml` — analysis rule definitions
 - `.insight/rules/extracted_knowledge.yaml` — knowledge seed data
+- `.insight/designs/*_journal.yaml` — Insight Journal (managed by analysis-journal skill)

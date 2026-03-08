@@ -42,6 +42,7 @@ Interview the user for required fields:
 | `hypothesis_background` | Yes | Context and motivation (free-form, multi-line) | Background reasoning |
 | `theme_id` | No | Uppercase identifier — defaults to "DEFAULT" | "FP", "TX", "ECON" |
 | `parent_id` | No | Parent design ID if this is derived | "FP-H01" |
+| `analysis_intent` | No | "exploratory", "confirmatory" (default), or "mixed" | "exploratory" |
 | `metrics` | No | Verification metric definition dict | `{target: "crime_rate_per_100k", data_source: {crime: "0000010111"}, grouping: [...], filter: "...", aggregation: "mean", comparison: "..."}` |
 | `explanatory` | No | List of explanatory variable dicts | `[{name: "foreign_ratio", description: "外国人比率", data_source: "0000010101", time_points: "2012-2022"}]` |
 | `chart` | No | List of visualization definition dicts | `[{type: "scatter", description: "FP ratio vs crime rate", x: "foreign_ratio", y: "crime_rate"}]` |
@@ -86,15 +87,18 @@ Only provided fields are updated; all others remain unchanged.
 ### Step 4: Confirm and Suggest Next Steps
 - Show the returned `id` (e.g., "FP-H01") to the user
 - Confirm the YAML file location: `.insight/designs/FP-H01_hypothesis.yaml`
-- Suggest next steps: refine the hypothesis, add `chart` / `next_action`, or proceed to analysis
+- Suggest next steps:
+  - Refine the hypothesis: add `chart` / `next_action` via `update_analysis_design()`
+  - **Start recording reasoning: `/analysis-journal FP-H01`**
+  - **Review and conclude: `/analysis-reflection FP-H01`**
 
 ## MCP Tool Reference
 
 | Tool | Purpose | Key Parameters |
 |------|---------|----------------|
 | `list_analysis_designs(status?)` | List existing designs | `status`: in_review \| revision_requested \| analyzing \| supported \| rejected \| inconclusive |
-| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
-| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `next_action?` |
+| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?`, `analysis_intent?` |
+| `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `next_action?`, `analysis_intent?` |
 | `get_analysis_design(design_id)` | Retrieve a specific design | `design_id`: str (e.g., "FP-H01") |
 
 ## theme_id Rules

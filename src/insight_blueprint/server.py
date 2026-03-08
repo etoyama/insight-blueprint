@@ -45,6 +45,7 @@ async def create_analysis_design(
     chart: list[dict] | None = None,
     next_action: dict | None = None,
     referenced_knowledge: dict | None = None,
+    analysis_intent: str = "confirmatory",
 ) -> dict:
     """Create a new analysis design document.
 
@@ -66,6 +67,7 @@ async def create_analysis_design(
             chart=chart,
             next_action=next_action,
             referenced_knowledge=referenced_knowledge,
+            analysis_intent=analysis_intent,
         )
     except ValueError as e:
         return {"error": str(e)}
@@ -89,6 +91,7 @@ async def update_analysis_design(
     chart: list[dict] | None = None,
     next_action: dict | None = None,
     referenced_knowledge: dict | None = None,
+    analysis_intent: str | None = None,
 ) -> dict:
     """Partially update an existing analysis design.
 
@@ -111,6 +114,7 @@ async def update_analysis_design(
             "chart": chart,
             "next_action": next_action,
             "referenced_knowledge": referenced_knowledge,
+            "analysis_intent": analysis_intent,
         }.items()
         if v is not None
     }

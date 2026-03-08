@@ -5,7 +5,7 @@ from pathlib import Path
 
 from insight_blueprint.core.validation import validate_id as _validate_id
 from insight_blueprint.models.common import now_jst
-from insight_blueprint.models.design import AnalysisDesign, DesignStatus
+from insight_blueprint.models.design import AnalysisDesign, AnalysisIntent, DesignStatus
 from insight_blueprint.storage.yaml_store import read_yaml, write_yaml
 
 THEME_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*$")
@@ -41,6 +41,7 @@ class DesignService:
         chart: list[dict] | None = None,
         next_action: dict | None = None,
         referenced_knowledge: dict[str, list[str]] | None = None,
+        analysis_intent: str | AnalysisIntent = AnalysisIntent.confirmatory,
     ) -> AnalysisDesign:
         """Create a new analysis design.
 
@@ -61,6 +62,7 @@ class DesignService:
             title=title,
             hypothesis_statement=hypothesis_statement,
             hypothesis_background=hypothesis_background,
+            analysis_intent=AnalysisIntent(analysis_intent),
             parent_id=parent_id,
             metrics=metrics or {},
             explanatory=explanatory or [],
@@ -84,6 +86,9 @@ class DesignService:
         design = self.get_design(design_id)
         if design is None:
             return None
+
+        if "analysis_intent" in fields:
+            fields["analysis_intent"] = AnalysisIntent(fields["analysis_intent"])
 
         # Merge referenced_knowledge: union lists with dedup, preserve existing keys
         if "referenced_knowledge" in fields:
