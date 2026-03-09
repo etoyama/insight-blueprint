@@ -23,6 +23,7 @@ def _resolve_project(project: str | None) -> Path:
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(package_name="insight-blueprint")
 @click.option(
     "--project",
     default=None,

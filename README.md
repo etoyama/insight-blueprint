@@ -102,6 +102,7 @@ Each design has an `analysis_intent` field (`exploratory`, `confirmatory`, or `m
 ```bash
 insight-blueprint --project /path/to/project   # Specify project directory
 insight-blueprint --headless                    # Suppress browser auto-open
+insight-blueprint --version                     # Show version
 insight-blueprint                               # Use current directory
 ```
 
