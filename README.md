@@ -8,45 +8,18 @@
 
 A Python MCP server for hypothesis-driven data analysis. Manage analysis designs, data catalogs, and review workflows through Claude Code or any MCP-compatible client.
 
-## Installation
-
-### From Source (Development)
-
-Requires **Python 3.11+**, **uv**, and **Node.js** (for frontend build).
-
-```bash
-git clone https://github.com/etoyama/insight-blueprint.git
-cd insight-blueprint
-uv sync --all-extras
-
-# Build frontend assets (required for WebUI)
-poe build-frontend
-```
-
-### From PyPI
-
-```bash
-# Zero-install with uvx
-uvx insight-blueprint --project /path/to/analysis
-
-# Or install permanently
-uv tool install insight-blueprint
-```
-
 ## Quick Start
 
 ```bash
-# 1. Start the server for your analysis project
-#    (from source — run from the insight-blueprint repo root)
-uv run insight-blueprint --project /path/to/my-analysis
-
-#    Or install with uvx (no clone needed):
+# Start the server (zero-install)
 uvx insight-blueprint --project /path/to/my-analysis
 
-# 2. The server provides 17 MCP tools for Claude Code.
-#    See "MCP Tools" section below for the full list.
+# Or install permanently
+uv tool install insight-blueprint
+insight-blueprint --project /path/to/my-analysis
 
-# 3. A WebUI dashboard opens automatically at http://127.0.0.1:3000
+# The server provides 17 MCP tools for Claude Code.
+# A WebUI dashboard opens automatically at http://127.0.0.1:3000
 ```
 
 ## Features
@@ -109,8 +82,18 @@ insight-blueprint                               # Use current directory
 
 ## Development
 
+Requires **Python 3.11+**, **uv**, and **Node.js** (for frontend build).
+
 ```bash
-poe all   # Run lint + typecheck + test
+git clone https://github.com/etoyama/insight-blueprint.git
+cd insight-blueprint
+uv sync --all-extras
+
+# Build frontend assets (required for WebUI)
+poe build-frontend
+
+# Run lint + typecheck + test
+poe all
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, code style, and how to submit pull requests.
