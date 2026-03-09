@@ -16,6 +16,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
     "Framework :: FastAPI",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
     "fastmcp>=2.0",
@@ -52,6 +54,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/insight_blueprint"]
+artifacts = ["src/insight_blueprint/static/**"]
+
+[tool.hatch.build.targets.sdist]
 artifacts = ["src/insight_blueprint/static/**"]
 
 # ============================================================
@@ -118,6 +123,18 @@ sequence = ["lint", "typecheck", "test"]
 [tool.poe.tasks.ci]
 sequence = ["lint", "typecheck", "test", "build-frontend"]
 help = "Run the full CI pipeline locally (Python + frontend)"
+
+[tool.poe.tasks.verify-wheel]
+cmd = "uv run python scripts/verify_wheel.py"
+help = "Verify wheel contains frontend assets and py.typed"
+
+[tool.poe.tasks.check-tag-version]
+cmd = "uv run python scripts/check_tag_version.py"
+help = "Check git tag matches pyproject.toml version"
+
+[tool.poe.tasks.release-dry-run]
+sequence = ["build-frontend", {shell = "rm -rf dist/ && uv build"}, "verify-wheel", {shell = "uvx --from twine twine check dist/*"}]
+help = "Full release dry-run: build frontend, build wheel, verify, twine check"
 
 [dependency-groups]
 dev = [
