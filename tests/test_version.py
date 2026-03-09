@@ -55,30 +55,30 @@ class TestVersionFallback:
         __version__ should fall back to '0.0.0+unknown'."""
         from importlib.metadata import PackageNotFoundError
 
-        with patch(
-            "importlib.metadata.version",
-            side_effect=PackageNotFoundError("insight-blueprint"),
-        ):
+        try:
+            with patch(
+                "importlib.metadata.version",
+                side_effect=PackageNotFoundError("insight-blueprint"),
+            ):
+                importlib.reload(insight_blueprint)
+                assert insight_blueprint.__version__ == "0.0.0+unknown"
+        finally:
             importlib.reload(insight_blueprint)
-            assert insight_blueprint.__version__ == "0.0.0+unknown"
-
-        # Restore normal state
-        importlib.reload(insight_blueprint)
 
     def test_version_fallback_is_pep440(self) -> None:
         """The fallback version '0.0.0+unknown' should be PEP 440 compliant."""
         from importlib.metadata import PackageNotFoundError
 
-        with patch(
-            "importlib.metadata.version",
-            side_effect=PackageNotFoundError("insight-blueprint"),
-        ):
+        try:
+            with patch(
+                "importlib.metadata.version",
+                side_effect=PackageNotFoundError("insight-blueprint"),
+            ):
+                importlib.reload(insight_blueprint)
+                fallback = insight_blueprint.__version__
+
+            assert PEP440_PATTERN.match(fallback), (
+                f"Fallback version '{fallback}' is not PEP 440 compliant"
+            )
+        finally:
             importlib.reload(insight_blueprint)
-            fallback = insight_blueprint.__version__
-
-        assert PEP440_PATTERN.match(fallback), (
-            f"Fallback version '{fallback}' is not PEP 440 compliant"
-        )
-
-        # Restore normal state
-        importlib.reload(insight_blueprint)
