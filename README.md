@@ -1,5 +1,6 @@
 # insight-blueprint
 
+[![PyPI](https://img.shields.io/pypi/v/insight-blueprint)](https://pypi.org/project/insight-blueprint/)
 [![CI](https://github.com/etoyama/insight-blueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/etoyama/insight-blueprint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
@@ -23,8 +24,6 @@ poe build-frontend
 
 ### From PyPI
 
-> **Note**: Not yet published. Coming soon.
-
 ```bash
 # Zero-install with uvx
 uvx insight-blueprint --project /path/to/analysis
@@ -40,20 +39,11 @@ uv tool install insight-blueprint
 #    (from source — run from the insight-blueprint repo root)
 uv run insight-blueprint --project /path/to/my-analysis
 
-#    Or install as a global tool so you can run from anywhere:
-uv tool install -e /path/to/insight-blueprint
-insight-blueprint --project /path/to/my-analysis
+#    Or install with uvx (no clone needed):
+uvx insight-blueprint --project /path/to/my-analysis
 
-#    (from PyPI, once published)
-#    uvx insight-blueprint --project /path/to/my-analysis
-
-# 2. The server provides MCP tools for Claude Code:
-#    - create_analysis_design   — Create hypothesis documents
-#    - list_analysis_designs    — Browse existing designs
-#    - get_analysis_design      — Retrieve a specific design
-#    - add_catalog_entry        — Register data sources
-#    - search_catalog           — Search the data catalog
-#    - create_review            — Start a design review
+# 2. The server provides 17 MCP tools for Claude Code.
+#    See "MCP Tools" section below for the full list.
 
 # 3. A WebUI dashboard opens automatically at http://127.0.0.1:3000
 ```
@@ -62,20 +52,22 @@ insight-blueprint --project /path/to/my-analysis
 
 ### MCP Tools
 
-insight-blueprint exposes tools via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI assistants to manage your analysis workflow:
+insight-blueprint exposes 17 tools via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI assistants to manage your analysis workflow:
 
-- **Analysis Design** -- Create, update, and track hypothesis-driven analysis documents stored as YAML files
-- **Data Catalog** -- Register and search data sources (CSV, API, SQL) with schema information
-- **Review Workflow** -- Structured review process for analysis designs
-- **Validation Rules** -- Automated quality checks on designs and catalog entries
+| Category | Tools |
+|----------|-------|
+| **Analysis Design** | `create_analysis_design`, `update_analysis_design`, `get_analysis_design`, `list_analysis_designs` |
+| **Data Catalog** | `add_catalog_entry`, `update_catalog_entry`, `get_table_schema`, `search_catalog` |
+| **Domain Knowledge** | `get_domain_knowledge`, `extract_domain_knowledge`, `save_extracted_knowledge`, `suggest_knowledge_for_design`, `suggest_cautions` |
+| **Review Workflow** | `transition_design_status`, `save_review_comment`, `save_review_batch` |
+| **Project** | `get_project_context` |
 
 ### WebUI Dashboard
 
-A browser-based dashboard (http://127.0.0.1:3000) provides:
+A browser-based dashboard (http://127.0.0.1:3000) with two tabs:
 
-- Overview of all analysis designs and their statuses
-- Data catalog browser
-- Review tracking
+- **Designs** -- Browse analysis designs, view details (overview + history), and track status transitions
+- **Catalog** -- Search domain knowledge, browse data sources, and check cautions
 
 ### Bundled Skills
 
