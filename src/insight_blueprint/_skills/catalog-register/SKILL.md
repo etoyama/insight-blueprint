@@ -1,6 +1,6 @@
 ---
 name: catalog-register
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Guides Claude through discovering data source schemas and registering them
   in the insight-blueprint data catalog. Supports CSV, API, and SQL sources.
@@ -105,8 +105,9 @@ add_catalog_entry(
 2. For **e-Stat** APIs:
    - Use `getMetaInfo` endpoint to discover table structure:
      ```
-     GET {base_url}/app/json/getMetaInfo?appId={api_key}&statsDataId={table_id}
+     GET {base_url}/app/json/getMetaInfo?appId=$API_KEY&statsDataId={table_id}
      ```
+   - **Security**: API keys must come from environment variables. Never hardcode keys in YAML or catalog entries.
    - Parse CLASS_INF to extract column definitions
 3. For **custom APIs**:
    - Ask the user for a sample endpoint
@@ -222,6 +223,15 @@ add_catalog_entry(
 |-------|-------|--------|
 | `"Source 'X' already exists"` | Duplicate source_id | Use `update_catalog_entry` or choose a different ID |
 | `"Invalid source type 'parquet'"` | Unsupported type | Use csv, api, or sql |
+
+## Chaining
+
+| From | To | When |
+|------|-----|------|
+| /analysis-framing | → /catalog-register | Data missing: "必要なデータを登録するなら /catalog-register" |
+| /analysis-reflection | → /catalog-register | Register conclusion as knowledge |
+| /catalog-register | → /analysis-framing | Registration complete, return to framing: "フレーミングに戻るなら /analysis-framing" |
+| /catalog-register | → /analysis-design | Registration complete, continue design: "デザイン作成を続けるなら /analysis-design" |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.
