@@ -1,6 +1,6 @@
 ---
 name: analysis-reflection
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Guides structured reflection on an analysis design using its Insight Journal.
   Helps draw conclusions, identify gaps, and decide whether to conclude, refine, or branch.
@@ -145,7 +145,8 @@ If user chooses to refine:
 | /analysis-journal | → /analysis-reflection | Evidence gathered |
 | /analysis-reflection | → /analysis-journal | Need more evidence or branching |
 | /analysis-reflection | → /catalog-register | Conclusion worth registering as knowledge |
-| /analysis-reflection | → /analysis-design | New derived hypothesis |
+| /analysis-reflection | → /analysis-framing | New hypothesis needed, explore data/direction first: "新しい角度を探すなら /analysis-framing" |
+| /analysis-reflection | → /analysis-design | Derived hypothesis already clear: "派生仮説を作るなら /analysis-design" |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.

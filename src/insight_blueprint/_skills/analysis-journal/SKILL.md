@@ -1,6 +1,6 @@
 ---
 name: analysis-journal
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Records reasoning steps during hypothesis-driven analysis as an Insight Journal.
   Supports observation logging, evidence tracking, method decisions, question management,
@@ -226,6 +226,7 @@ open_questions = [q for q in questions if q.id not in resolved_ids]
 | /analysis-journal | → /analysis-reflection | Evidence gathered: "振り返りと結論は /analysis-reflection {id}" |
 | /analysis-journal | → /analysis-journal | After branch: "分岐先のジャーナル: /analysis-journal {new_id}" |
 | /analysis-reflection | → /analysis-journal | Need more evidence: "追加調査は /analysis-journal {id}" |
+| /data-lineage | → /analysis-journal | Lineage diagram generated: "リネージ結果を証拠として記録するなら /analysis-journal {id}" |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.

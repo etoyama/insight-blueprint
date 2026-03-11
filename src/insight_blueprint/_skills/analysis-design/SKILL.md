@@ -1,6 +1,6 @@
 ---
 name: analysis-design
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Guides Claude through creating analysis design documents for hypothesis-driven EDA.
   Use when the user wants to create, manage, or review analysis designs.
@@ -30,6 +30,40 @@ insight-blueprint MCP tools. Follows the hypothesis-driven EDA workflow.
 Call `list_analysis_designs()` to understand existing designs:
 - Note existing theme IDs (e.g., "FP", "TX")
 - Check if a `parent_id` should be referenced
+
+### Step 1.5: Check for Framing Brief
+
+Check the conversation context for a `## Framing Brief` from analysis-framing.
+
+**Detection rules** (all must be satisfied):
+1. `## Framing Brief` heading exists in conversation
+2. `### テーマ` subsection exists under Framing Brief
+3. `### 推奨方向` subsection exists under Framing Brief
+4. `theme_id:` field exists within the 推奨方向 section
+5. If multiple Framing Briefs exist, use the last (most recent) one
+
+**If valid Framing Brief found:**
+
+Map Brief sections to analysis-design fields as draft values:
+
+| Framing Brief セクション | analysis-design フィールド | マッピング |
+|---|---|---|
+| テーマ | `title` | テーマの1行要約を title の候補として提示 |
+| 利用可能データ | `explanatory`, `metrics` | データソース・カラムから explanatory/metrics の候補を生成 |
+| 既存分析 | `parent_id` | 関連デザイン ID を parent_id の候補として提示 |
+| ギャップ | `hypothesis_background` | ギャップ情報を仮説の背景・動機の下書きに活用 |
+| 推奨方向.仮説の方向性 | `title`, `hypothesis_background` | 方向性から title 候補を生成し、背景の下書きに活用 |
+| 推奨方向.theme_id | `theme_id` | デフォルト値として設定 |
+| 推奨方向.parent_id | `parent_id` | デフォルト値として設定 |
+| 推奨方向.analysis_intent | `analysis_intent` | デフォルト値として設定 |
+| 推奨方向.推奨手法 | `methodology` | `{method: "推奨手法の値", reason: "Framing Brief の推奨"}` としてデフォルト設定 |
+
+Present draft values to user: "Framing Brief の内容でよいか、修正したい点があるか"
+
+Step 2 ではゼロからインタビューせず、draft 値を提示して確認しながら進める。
+
+**If Framing Brief missing or incomplete:**
+Framing Brief がない、または検出条件を満たさない場合は何もしない。Step 2 の通常インタビューフローに進む（後方互換）。不完全な場合はユーザーに通知: "Framing Brief が不完全なため通常フローで進めます"
 
 ### Step 2: Gather Hypothesis Details
 
@@ -129,6 +163,16 @@ Only provided fields are updated; all others remain unchanged.
 |----------------|-------|--------|
 | `{"error": "Invalid theme_id 'fp': must match [A-Z][A-Z0-9]*"}` | Invalid theme_id format | Ask user for a valid uppercase theme_id |
 | `{"error": "Design 'FP-H99' not found"}` | Non-existent design_id | Confirm ID via `list_analysis_designs()` |
+
+## Chaining
+
+| From | To | When |
+|------|-----|------|
+| /analysis-framing | → /analysis-design | Framing Brief 付きでフォワーディング |
+| /analysis-design | → /analysis-journal | デザイン作成後: "推論過程を記録するなら /analysis-journal {id}" |
+| /analysis-design | → /analysis-framing | データ不足で仮説の方向を再検討: "データを探し直すなら /analysis-framing" |
+| /catalog-register | → /analysis-design | データ登録完了後にデザイン作成を続行 |
+| /analysis-reflection | → /analysis-design | 派生仮説が明確な場合 |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.

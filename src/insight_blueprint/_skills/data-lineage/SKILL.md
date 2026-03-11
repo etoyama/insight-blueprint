@@ -1,6 +1,6 @@
 ---
 name: data-lineage
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Track data transformation pipeline lineage in analysis notebooks/scripts.
   Wraps pandas pipe chains with tracked_pipe to record row count changes,
@@ -22,7 +22,13 @@ using `insight_blueprint.lineage`.
 - Exporting Mermaid diagrams from tracked pipelines
 - Refactoring pipelines based on lineage analysis
 
-## Modes
+## When NOT to Use
+
+- Creating or managing analysis designs (-> /analysis-design)
+- Recording reasoning steps (-> /analysis-journal)
+- Registering data sources (-> /catalog-register)
+
+## Workflow
 
 ### Mode A: Setup — `/data-lineage <design_id> setup`
 
@@ -116,8 +122,13 @@ from insight_blueprint.lineage import (
 )
 ```
 
-## Language Rules
+## Chaining
 
-- Respond to users in Japanese
-- Code, function names, and technical identifiers stay in English
-- The `reason` parameter in `tracked_pipe` may be written in Japanese
+| From | To | When |
+|------|-----|------|
+| /data-lineage | → /analysis-journal | Lineage diagram generated: "リネージ結果を証拠として記録するなら /analysis-journal {id}" |
+
+## Language Rules
+- Follow project CLAUDE.md language settings. Default to Japanese if no setting.
+- Code, IDs, tool names, and YAML fields always stay in English.
+- The `reason` parameter in `tracked_pipe` may be written in Japanese.
