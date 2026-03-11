@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-11
+
+### Added
+
+- Analysis Framing skill for structuring analysis scope and approach
+- Unified 6-skill chaining: analysis-design → analysis-framing → analysis-journal → analysis-reflection → catalog-register → data-lineage
+- `--version` flag for CLI version display
+
+### Changed
+
+- Upgraded shadcn from 4.0.0 to 4.0.2
+- Restructured README to prioritize user experience
+
+### CI
+
+- Added Dependabot auto-merge for patch updates
+
 ## [0.1.0] - 2026-03-10
 
 ### Added
@@ -22,5 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML direct edit resilience (extra field preservation + corrupt file isolation)
 - SQLite FTS5 full-text search index
 
-[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/etoyama/insight-blueprint/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/etoyama/insight-blueprint/releases/tag/v0.1.0
