@@ -47,6 +47,7 @@ A browser-based dashboard (http://127.0.0.1:3000) with two tabs:
 
 When you run `insight-blueprint --project <path>`, skill templates are copied to `.claude/skills/` in your project:
 
+- `/analysis-framing` -- Explore available data and existing analyses to frame a hypothesis direction
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
 - `/analysis-journal` -- Record reasoning steps during analysis (observations, evidence, decisions, questions)
 - `/analysis-reflection` -- Structured reflection to draw conclusions or branch hypotheses
@@ -60,12 +61,14 @@ Skills support both English and Japanese trigger phrases.
 Skills chain together to support the full hypothesis-driven analysis lifecycle:
 
 ```
+/analysis-framing (explore data, frame direction)
+    ↓
 /analysis-design (create hypothesis)
     ↓
 /analysis-journal (record reasoning: observe → hypothesize → evidence → decide)
     ↓
 /analysis-reflection (reflect → conclude or branch)
-    ↓
+    ↓ ↗ back to /analysis-framing (new direction needed)
 /catalog-register (register findings as domain knowledge)
 ```
 
