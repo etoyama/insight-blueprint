@@ -10,6 +10,8 @@ export interface CommentableSection {
 export const COMMENTABLE_SECTIONS: readonly CommentableSection[] = [
   { id: "hypothesis_statement", label: "Hypothesis Statement", type: "text" },
   { id: "hypothesis_background", label: "Hypothesis Background", type: "text" },
+  { id: "analysis_intent", label: "Analysis Intent", type: "text" },
+  { id: "methodology", label: "Methodology", type: "json" },
   { id: "metrics", label: "Metrics", type: "json" },
   { id: "explanatory", label: "Explanatory", type: "json" },
   { id: "chart", label: "Chart", type: "json" },

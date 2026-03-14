@@ -906,6 +906,9 @@ class TestSaveReviewBatchTargetSectionValidation:
             "explanatory",
             "chart",
             "next_action",
+            "referenced_knowledge",
+            "methodology",
+            "analysis_intent",
         ],
     )
     def test_valid_target_sections_accepted(
@@ -914,7 +917,7 @@ class TestSaveReviewBatchTargetSectionValidation:
         pending_design: AnalysisDesign,
         section: str,
     ) -> None:
-        """NFR-7: All 6 valid sections are accepted."""
+        """NFR-7: All 9 valid sections are accepted."""
         result = review_service.save_review_batch(
             pending_design.id,
             "supported",

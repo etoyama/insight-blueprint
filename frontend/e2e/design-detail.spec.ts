@@ -67,6 +67,54 @@ test("#5: overview panel displays design fields and metrics", async ({
   await expect(page.getByText("0.95")).toBeVisible();
 });
 
+// #5b: analysis_intent displays as text
+test("#5b: analysis_intent displays in overview panel", async ({ page }) => {
+  const designWithIntent = makeDesign({
+    id: "d-intent",
+    title: "Intent Design",
+    status: "in_review",
+    analysis_intent: "confirmatory",
+  });
+  await mockDesignList(page, [designWithIntent]);
+  await mockDesignDetail(page, designWithIntent);
+  await mockComments(page, designWithIntent.id, []);
+
+  await page.goto("/?tab=designs");
+  await page.getByText("Intent Design").click();
+
+  await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({
+    timeout: 5000,
+  });
+
+  await expect(page.getByText("Analysis Intent")).toBeVisible();
+  await expect(page.getByText("confirmatory")).toBeVisible();
+});
+
+// #5c: methodology displays as JsonTree when set
+test("#5c: methodology displays in overview panel when set", async ({
+  page,
+}) => {
+  const designWithMethodology = makeDesign({
+    id: "d-method",
+    title: "Methodology Design",
+    status: "in_review",
+    methodology: { approach: "regression", tool: "statsmodels" },
+  });
+  await mockDesignList(page, [designWithMethodology]);
+  await mockDesignDetail(page, designWithMethodology);
+  await mockComments(page, designWithMethodology.id, []);
+
+  await page.goto("/?tab=designs");
+  await page.getByText("Methodology Design").click();
+
+  await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({
+    timeout: 5000,
+  });
+
+  await expect(page.getByText("Methodology", { exact: true })).toBeVisible();
+  await expect(page.getByText("regression")).toBeVisible();
+});
+
 // #6: Workflow guide display — verify workflow guide shows for in_review design
 test("#6: workflow guide displays for in_review design", async ({ page }) => {
   await mockDesignList(page, [activeDesign]);
@@ -177,8 +225,8 @@ test.describe("Inline Review Comments", () => {
     await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible({ timeout: 5000 });
     const buttons = page.getByTestId("comment-button");
     await expect(buttons.first()).toBeVisible({ timeout: 5000 });
-    // Should have 7 comment buttons (one per commentable section)
-    await expect(buttons).toHaveCount(7);
+    // Should have 9 comment buttons (one per commentable section)
+    await expect(buttons).toHaveCount(9);
   });
 
   test("comment buttons hidden on non-in_review design", async ({ page }) => {

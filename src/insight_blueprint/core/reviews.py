@@ -46,6 +46,8 @@ ALLOWED_TARGET_SECTIONS: set[str] = {
     "chart",
     "next_action",
     "referenced_knowledge",
+    "methodology",
+    "analysis_intent",
 }
 
 VALID_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
