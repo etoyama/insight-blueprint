@@ -18,7 +18,7 @@ uvx insight-blueprint --project /path/to/my-analysis
 uv tool install insight-blueprint
 insight-blueprint --project /path/to/my-analysis
 
-# The server provides 17 MCP tools for Claude Code.
+# The server provides 18 MCP tools for Claude Code.
 # A WebUI dashboard opens automatically at http://127.0.0.1:3000
 ```
 
@@ -26,14 +26,14 @@ insight-blueprint --project /path/to/my-analysis
 
 ### MCP Tools
 
-insight-blueprint exposes 17 tools via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI assistants to manage your analysis workflow:
+insight-blueprint exposes 18 tools via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI assistants to manage your analysis workflow:
 
 | Category | Tools |
 |----------|-------|
 | **Analysis Design** | `create_analysis_design`, `update_analysis_design`, `get_analysis_design`, `list_analysis_designs` |
 | **Data Catalog** | `add_catalog_entry`, `update_catalog_entry`, `get_table_schema`, `search_catalog` |
 | **Domain Knowledge** | `get_domain_knowledge`, `extract_domain_knowledge`, `save_extracted_knowledge`, `suggest_knowledge_for_design`, `suggest_cautions` |
-| **Review Workflow** | `transition_design_status`, `save_review_comment`, `save_review_batch` |
+| **Review Workflow** | `transition_design_status`, `save_review_comment`, `save_review_batch`, `get_review_comments` |
 | **Project** | `get_project_context` |
 
 ### WebUI Dashboard
@@ -51,6 +51,7 @@ When you run `insight-blueprint --project <path>`, skill templates are copied to
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
 - `/analysis-journal` -- Record reasoning steps during analysis (observations, evidence, decisions, questions)
 - `/analysis-reflection` -- Structured reflection to draw conclusions or branch hypotheses
+- `/analysis-revision` -- Guided revision workflow for addressing review comments
 - `/catalog-register` -- Step-by-step data source registration
 - `/data-lineage` -- Track data transformations and export lineage diagrams (Mermaid)
 
@@ -69,6 +70,7 @@ Skills chain together to support the full hypothesis-driven analysis lifecycle:
     ↓
 /analysis-reflection (reflect → conclude or branch)
     ↓ ↗ back to /analysis-framing (new direction needed)
+    ↕ WebUI review → /analysis-revision (address review comments)
 /catalog-register (register findings as domain knowledge)
 ```
 

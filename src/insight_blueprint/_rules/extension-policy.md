@@ -46,3 +46,4 @@ These files must be registered as exceptions in `_rules/insight-yaml.md`.
 
 Current skill-managed files:
 - `.insight/designs/*_journal.yaml` — Insight Journal (analysis-journal skill)
+- `.insight/designs/*_revision.yaml` — Revision Tracking (analysis-revision skill)

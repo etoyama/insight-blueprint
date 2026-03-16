@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `get_review_comments` MCP tool for reading review batches (closes read/write asymmetry in review workflow)
+- `/analysis-revision` skill for structured revision of review comments with per-comment tracking
+
 ### Changed
 
 - Added methodology and analysis_intent as reviewable sections in WebUI inline comments

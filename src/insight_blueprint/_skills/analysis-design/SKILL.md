@@ -173,6 +173,7 @@ Only provided fields are updated; all others remain unchanged.
 | /analysis-design | → /analysis-framing | データ不足で仮説の方向を再検討: "データを探し直すなら /analysis-framing" |
 | /catalog-register | → /analysis-design | データ登録完了後にデザイン作成を続行 |
 | /analysis-reflection | → /analysis-design | 派生仮説が明確な場合 |
+| /analysis-revision | → /analysis-design | レビュー修正で大きな方針変更が必要な場合 |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.
