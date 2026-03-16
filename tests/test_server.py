@@ -854,6 +854,185 @@ class TestSaveReviewBatchTool:
 
 
 # ---------------------------------------------------------------------------
+# get_review_comments MCP tool tests (analysis-revision Task 1.1)
+# ---------------------------------------------------------------------------
+
+
+class TestGetReviewCommentsTool:
+    """Tests for get_review_comments MCP tool (REQ-1)."""
+
+    def test_get_review_comments_returns_batches(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-01: Returns review batches with correct structure."""
+        design_id = _create_in_review_design()
+        asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=[{"comment": "Fix hypothesis"}],
+            )
+        )
+        result = asyncio.run(server_module.get_review_comments(design_id))
+        assert result["design_id"] == design_id
+        assert result["count"] == 1
+        assert result["batches"][0]["status_after"] == "revision_requested"
+        assert result["batches"][0]["comments"][0]["comment"] == "Fix hypothesis"
+
+    def test_get_review_comments_empty_when_no_reviews(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-02: Returns empty list when no reviews exist."""
+        design_id = _create_in_review_design()
+        result = asyncio.run(server_module.get_review_comments(design_id))
+        assert result["design_id"] == design_id
+        assert result["batches"] == []
+        assert result["count"] == 0
+
+    def test_get_review_comments_invalid_design_id(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-03: Returns error for invalid design_id."""
+        result_empty = asyncio.run(server_module.get_review_comments(""))
+        assert "error" in result_empty
+
+        result_path = asyncio.run(server_module.get_review_comments("../etc/passwd"))
+        assert "error" in result_path
+
+    def test_get_review_comments_corrupted_yaml_returns_empty(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-04: Returns empty list for corrupted YAML (graceful degradation)."""
+        design_id = _create_in_review_design()
+        asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=[{"comment": "Will corrupt"}],
+            )
+        )
+        # Overwrite reviews YAML with garbage
+        reviews_path = (
+            initialized_review_server
+            / ".insight"
+            / "designs"
+            / f"{design_id}_reviews.yaml"
+        )
+        reviews_path.write_text("{{{{invalid yaml: [[[")
+        result = asyncio.run(server_module.get_review_comments(design_id))
+        assert result["batches"] == []
+        assert result["count"] == 0
+        assert "error" not in result
+
+    def test_get_review_comments_sorted_descending(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-05: Multiple batches are sorted by created_at descending."""
+        design_id = _create_in_review_design()
+        # Save batch 1
+        asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=[{"comment": "First batch"}],
+            )
+        )
+        # Transition back to in_review
+        asyncio.run(server_module.transition_design_status(design_id, "in_review"))
+        # Save batch 2
+        asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=[{"comment": "Second batch"}],
+            )
+        )
+        result = asyncio.run(server_module.get_review_comments(design_id))
+        assert result["count"] == 2
+        assert result["batches"][0]["created_at"] >= result["batches"][1]["created_at"]
+
+    def test_get_review_comments_includes_target_fields(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-06: Response includes target_section and target_content."""
+        design_id = _create_in_review_design()
+        asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=[
+                    {
+                        "comment": "Check metrics",
+                        "target_section": "metrics",
+                        "target_content": [{"target": "rev"}],
+                    }
+                ],
+            )
+        )
+        result = asyncio.run(server_module.get_review_comments(design_id))
+        batch = result["batches"][0]
+        assert batch["comments"][0]["target_section"] == "metrics"
+        assert batch["comments"][0]["target_content"] == [{"target": "rev"}]
+
+    def test_get_review_comments_nonexistent_design_id(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-07: Valid format but nonexistent ID returns empty (not error)."""
+        result = asyncio.run(server_module.get_review_comments("NONEXISTENT-H99"))
+        assert result["design_id"] == "NONEXISTENT-H99"
+        assert result["batches"] == []
+        assert result["count"] == 0
+        assert "error" not in result
+
+    def test_get_review_comments_service_exception_returns_error(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Unit-08: Service exception returns error dict."""
+        with patch.object(
+            type(registry.review_service),
+            "list_review_batches",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = asyncio.run(server_module.get_review_comments("ANY-H01"))
+        assert "error" in result
+
+    def test_review_write_then_read_roundtrip(
+        self, initialized_review_server: Path
+    ) -> None:
+        """Integ-01: save_review_batch -> get_review_comments roundtrip."""
+        design_id = _create_in_review_design()
+        comments_data = [
+            {"comment": "Fix hypothesis statement"},
+            {
+                "comment": "Check metrics definition",
+                "target_section": "metrics",
+                "target_content": {"kpi": "CVR"},
+            },
+            {
+                "comment": "Update chart",
+                "target_section": "chart",
+                "target_content": [{"type": "bar"}],
+            },
+        ]
+        write_result = asyncio.run(
+            server_module.save_review_batch(
+                design_id=design_id,
+                status_after="revision_requested",
+                comments=comments_data,
+            )
+        )
+        assert "batch_id" in write_result
+
+        read_result = asyncio.run(server_module.get_review_comments(design_id))
+        assert read_result["count"] == 1
+        read_comments = read_result["batches"][0]["comments"]
+        assert len(read_comments) == 3
+        assert read_comments[0]["comment"] == "Fix hypothesis statement"
+        assert read_comments[1]["comment"] == "Check metrics definition"
+        assert read_comments[2]["comment"] == "Update chart"
+
+
+# ---------------------------------------------------------------------------
 # Knowledge Suggestion MCP tools tests (Task 5.1)
 # ---------------------------------------------------------------------------
 

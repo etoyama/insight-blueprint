@@ -436,6 +436,27 @@ async def save_review_batch(
 
 
 @mcp.tool()
+async def get_review_comments(design_id: str) -> dict:
+    """Get review comments for a design.
+
+    Returns all review batches sorted by created_at descending (newest first).
+    Returns empty list if no reviews exist or file is corrupted.
+    """
+    if err := _validate_design_id(design_id):
+        return err
+    svc = get_review_service()
+    try:
+        batches = svc.list_review_batches(design_id)
+    except Exception:
+        return {"error": "Failed to retrieve review comments"}
+    return {
+        "design_id": design_id,
+        "batches": [b.model_dump(mode="json") for b in batches],
+        "count": len(batches),
+    }
+
+
+@mcp.tool()
 async def extract_domain_knowledge(design_id: str) -> dict:
     """Extract domain knowledge from review comments as preview.
 
