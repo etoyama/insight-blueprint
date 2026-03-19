@@ -1236,6 +1236,10 @@ class TestServerMode:
 
     def test_webui_static_after_sse_mount(self, server_mode_client: TestClient) -> None:
         """Integ-01: GET / returns HTML after SSE mount (static files still work)."""
+        from insight_blueprint.web import _STATIC_DIR
+
+        if not _STATIC_DIR.is_dir():
+            pytest.skip("static directory not built (frontend assets missing)")
         resp = server_mode_client.get("/")
         assert resp.status_code == 200
         assert "text/html" in resp.headers.get("content-type", "")
