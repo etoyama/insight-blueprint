@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from fastmcp import FastMCP
@@ -12,6 +13,8 @@ from insight_blueprint._registry import (
     get_review_service,
     get_rules_service,
 )
+
+logger = logging.getLogger(__name__)
 
 _DESIGN_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 _MAX_HYPOTHESIS_TEXT_LENGTH = 1000
@@ -74,6 +77,7 @@ async def create_analysis_design(
     except ValueError as e:
         return {"error": str(e)}
     except Exception:
+        logger.warning("Failed to create analysis design", exc_info=True)
         return {"error": "Failed to create analysis design due to invalid input."}
 
     return {
@@ -426,6 +430,9 @@ async def save_review_batch(
     except ValueError as e:
         return {"error": str(e)}
     except Exception:
+        logger.warning(
+            "Failed to save review batch for design %s", design_id, exc_info=True
+        )
         return {"error": "Failed to save review batch"}
     if result is None:
         return {"error": f"Design '{design_id}' not found"}
@@ -448,6 +455,9 @@ async def get_review_comments(design_id: str) -> dict:
     try:
         batches = svc.list_review_batches(design_id)
     except Exception:
+        logger.warning(
+            "Failed to retrieve review comments for design %s", design_id, exc_info=True
+        )
         return {"error": "Failed to retrieve review comments"}
     return {
         "design_id": design_id,
@@ -504,6 +514,7 @@ async def save_extracted_knowledge(
     try:
         parsed_entries = [DomainKnowledgeEntry(**e) for e in entries]
     except Exception as e:
+        logger.warning("Invalid entry format for design %s", design_id, exc_info=True)
         return {"error": f"Invalid entry format: {e}"}
     try:
         saved = svc.save_extracted_knowledge(design_id, parsed_entries)
