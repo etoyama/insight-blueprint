@@ -321,6 +321,140 @@ def test_update_design_not_found(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Text field max_length boundary tests (Issue #39)
+# ---------------------------------------------------------------------------
+
+
+def test_create_design_title_at_max_length_succeeds(client: TestClient) -> None:
+    """Title at exactly 200 chars should be accepted."""
+    title = "A" * 200
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": title,
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["design"]["title"] == title
+
+
+def test_create_design_title_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """Title at 201 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "A" * 201,
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_create_design_hypothesis_statement_at_max_length_succeeds(
+    client: TestClient,
+) -> None:
+    """hypothesis_statement at exactly 1000 chars should be accepted."""
+    stmt = "H" * 1000
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "Test",
+            "hypothesis_statement": stmt,
+            "hypothesis_background": "bg",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["design"]["hypothesis_statement"] == stmt
+
+
+def test_create_design_hypothesis_statement_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """hypothesis_statement at 1001 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "Test",
+            "hypothesis_statement": "H" * 1001,
+            "hypothesis_background": "bg",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_create_design_hypothesis_background_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """hypothesis_background at 1001 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "Test",
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "B" * 1001,
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_create_design_empty_title_returns_422(client: TestClient) -> None:
+    """Empty title string should be rejected (min_length=1)."""
+    resp = client.post(
+        "/api/designs",
+        json={
+            "title": "",
+            "hypothesis_statement": "stmt",
+            "hypothesis_background": "bg",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_update_design_title_at_max_length_succeeds(client: TestClient) -> None:
+    """PUT with title at exactly 200 chars should be accepted."""
+    created = _create_design(client)
+    design_id = created["design"]["id"]
+    title = "U" * 200
+    resp = client.put(
+        f"/api/designs/{design_id}",
+        json={"title": title},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["title"] == title
+
+
+def test_update_design_title_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """PUT with title at 201 chars should be rejected with 422."""
+    created = _create_design(client)
+    design_id = created["design"]["id"]
+    resp = client.put(
+        f"/api/designs/{design_id}",
+        json={"title": "U" * 201},
+    )
+    assert resp.status_code == 422
+
+
+def test_update_design_hypothesis_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """PUT with hypothesis_statement at 1001 chars should be rejected with 422."""
+    created = _create_design(client)
+    design_id = created["design"]["id"]
+    resp = client.put(
+        f"/api/designs/{design_id}",
+        json={"hypothesis_statement": "H" * 1001},
+    )
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Design referenced_knowledge via REST API (2 tests)
 # ---------------------------------------------------------------------------
 

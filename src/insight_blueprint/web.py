@@ -22,6 +22,10 @@ from insight_blueprint import __version__
 # Path parameter validation pattern (matches core layer _SAFE_ID_PATTERN)
 _ID_PATTERN = r"[a-zA-Z0-9_-]+"
 
+# Text field length limits (aligned with server.py _MAX_HYPOTHESIS_TEXT_LENGTH)
+_MAX_TITLE_LENGTH = 200
+_MAX_HYPOTHESIS_TEXT_LENGTH = 1000
+
 app = FastAPI(title="insight-blueprint")
 
 # CORS: allow localhost origins only
@@ -103,9 +107,13 @@ async def health() -> dict:
 
 
 class CreateDesignRequest(BaseModel):
-    title: str
-    hypothesis_statement: str
-    hypothesis_background: str
+    title: str = Field(min_length=1, max_length=_MAX_TITLE_LENGTH)
+    hypothesis_statement: str = Field(
+        min_length=1, max_length=_MAX_HYPOTHESIS_TEXT_LENGTH
+    )
+    hypothesis_background: str = Field(
+        min_length=1, max_length=_MAX_HYPOTHESIS_TEXT_LENGTH
+    )
     parent_id: str | None = None
     theme_id: str = "DEFAULT"
     metrics: list[dict] | None = None
@@ -124,19 +132,23 @@ class AddCommentRequest(BaseModel):
 
 
 class AddSourceRequest(BaseModel):
-    source_id: str
-    name: str
+    source_id: str = Field(min_length=1, max_length=_MAX_TITLE_LENGTH)
+    name: str = Field(min_length=1, max_length=_MAX_TITLE_LENGTH)
     type: str
-    description: str
+    description: str = Field(max_length=_MAX_HYPOTHESIS_TEXT_LENGTH)
     connection: dict
     columns: list[dict] | None = None
     tags: list[str] | None = None
 
 
 class UpdateDesignRequest(BaseModel):
-    title: str | None = None
-    hypothesis_statement: str | None = None
-    hypothesis_background: str | None = None
+    title: str | None = Field(default=None, max_length=_MAX_TITLE_LENGTH)
+    hypothesis_statement: str | None = Field(
+        default=None, max_length=_MAX_HYPOTHESIS_TEXT_LENGTH
+    )
+    hypothesis_background: str | None = Field(
+        default=None, max_length=_MAX_HYPOTHESIS_TEXT_LENGTH
+    )
     metrics: list[dict] | None = None
     explanatory: list[dict] | None = None
     chart: list[dict] | None = None
@@ -147,8 +159,10 @@ class UpdateDesignRequest(BaseModel):
 
 
 class UpdateSourceRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=_MAX_TITLE_LENGTH)
+    description: str | None = Field(
+        default=None, max_length=_MAX_HYPOTHESIS_TEXT_LENGTH
+    )
     connection: dict | None = None
     columns: list[dict] | None = None
     tags: list[str] | None = None
