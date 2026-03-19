@@ -1244,3 +1244,125 @@ def test_update_analysis_design_with_methodology(
         )
     )
     assert "error" not in result
+
+
+# ---------------------------------------------------------------------------
+# Headless mode, SSE transport, multi-client tests (Integ-02, Integ-03, Integ-04)
+# ---------------------------------------------------------------------------
+
+
+class TestHeadlessMode:
+    """Integration tests for headless mode: SSE only, no WebUI (Integ-02)."""
+
+    def test_headless_mcp_sse_available(self, tmp_project: Path) -> None:
+        """Integ-02: get_mcp_sse_app() returns a valid ASGI app."""
+        from starlette.testclient import TestClient
+
+        from insight_blueprint.server import get_mcp_sse_app
+
+        registry.design_service = DesignService(tmp_project)
+        catalog_service = CatalogService(tmp_project)
+        catalog_service.rebuild_index()
+        registry.catalog_service = catalog_service
+        registry.review_service = ReviewService(tmp_project, registry.design_service)
+        db_path = tmp_project / ".insight" / "catalog.db"
+        registry.rules_service = RulesService(
+            tmp_project, catalog_service, registry.design_service, db_path
+        )
+
+        sse_app = get_mcp_sse_app()
+        assert callable(sse_app)
+
+        # The SSE app should respond to requests (not 404)
+        with TestClient(sse_app, raise_server_exceptions=False) as client:
+            # POST /messages without valid session should return error, not 404
+            resp = client.post("/messages", json={})
+            assert resp.status_code != 404
+
+    def test_headless_no_webui(self, tmp_project: Path) -> None:
+        """Integ-02: The SSE app does NOT have WebUI routes."""
+        from starlette.testclient import TestClient
+
+        from insight_blueprint.server import get_mcp_sse_app
+
+        registry.design_service = DesignService(tmp_project)
+        catalog_service = CatalogService(tmp_project)
+        catalog_service.rebuild_index()
+        registry.catalog_service = catalog_service
+        registry.review_service = ReviewService(tmp_project, registry.design_service)
+        db_path = tmp_project / ".insight" / "catalog.db"
+        registry.rules_service = RulesService(
+            tmp_project, catalog_service, registry.design_service, db_path
+        )
+
+        sse_app = get_mcp_sse_app()
+        with TestClient(sse_app, raise_server_exceptions=False) as client:
+            # SSE app should NOT serve WebUI routes
+            resp_designs = client.get("/api/designs")
+            assert resp_designs.status_code in (404, 405)
+
+            # SSE app should NOT serve static files at /
+            resp_root = client.get("/")
+            # Either 404 or the SSE app's own response, but NOT HTML
+            content_type = resp_root.headers.get("content-type", "")
+            if resp_root.status_code == 200:
+                assert "text/html" not in content_type
+
+
+class TestSseTransport:
+    """Tests verifying SSE transport configuration (Integ-03)."""
+
+    def test_sse_app_is_valid_asgi(self) -> None:
+        """Integ-03: get_mcp_sse_app() returns a callable ASGI app."""
+        from insight_blueprint.server import get_mcp_sse_app
+
+        sse_app = get_mcp_sse_app()
+        assert callable(sse_app)
+
+    def test_tools_list_via_direct_call(self, tmp_project: Path) -> None:
+        """Integ-03: All tools are registered on the mcp instance."""
+        from insight_blueprint.server import mcp
+
+        registry.design_service = DesignService(tmp_project)
+        catalog_service = CatalogService(tmp_project)
+        catalog_service.rebuild_index()
+        registry.catalog_service = catalog_service
+        registry.review_service = ReviewService(tmp_project, registry.design_service)
+        db_path = tmp_project / ".insight" / "catalog.db"
+        registry.rules_service = RulesService(
+            tmp_project, catalog_service, registry.design_service, db_path
+        )
+
+        tools = asyncio.run(mcp.list_tools())
+        tool_names = sorted(t.name for t in tools)
+        assert len(tool_names) >= 18
+        # Verify key tools are present
+        expected_tools = {
+            "create_analysis_design",
+            "list_analysis_designs",
+            "get_analysis_design",
+            "update_analysis_design",
+            "add_catalog_entry",
+            "search_catalog",
+            "transition_design_status",
+            "save_review_comment",
+            "save_review_batch",
+            "get_review_comments",
+            "get_project_context",
+            "suggest_cautions",
+            "suggest_knowledge_for_design",
+        }
+        assert expected_tools.issubset(set(tool_names))
+
+
+class TestSseMultiClient:
+    """Tests for multiple client independence (Integ-04)."""
+
+    def test_two_clients_can_get_independent_apps(self) -> None:
+        """Integ-04: Two calls to get_mcp_sse_app() return valid apps."""
+        from insight_blueprint.server import get_mcp_sse_app
+
+        app1 = get_mcp_sse_app()
+        app2 = get_mcp_sse_app()
+        assert callable(app1)
+        assert callable(app2)

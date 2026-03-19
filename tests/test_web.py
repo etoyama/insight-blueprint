@@ -1183,3 +1183,92 @@ def test_list_designs_with_corrupt_returns_valid_only(
     assert len(designs) == 2
     design_ids = [d["id"] for d in designs]
     assert "CORRUPT-H01" not in design_ids
+
+
+# ---------------------------------------------------------------------------
+# Server mode integration tests (Integ-01, Integ-05)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def server_mode_client(tmp_path: Path) -> Iterator[TestClient]:
+    """Yield a TestClient with SSE mounted (server mode simulation).
+
+    Wires registry, calls mount_mcp_sse(), then cleans up mounted routes
+    after the test to avoid polluting the module-level app.
+    """
+    from insight_blueprint.server import get_mcp_sse_app
+    from insight_blueprint.web import app, mount_mcp_sse
+
+    init_project(tmp_path)
+    registry.design_service = DesignService(tmp_path)
+    registry.catalog_service = CatalogService(tmp_path)
+    registry.catalog_service.rebuild_index()
+    registry.review_service = ReviewService(tmp_path, registry.design_service)
+    db_path = tmp_path / ".insight" / "catalog.db"
+    registry.rules_service = RulesService(
+        tmp_path, registry.catalog_service, registry.design_service, db_path
+    )
+
+    # Snapshot routes before mounting
+    routes_before = list(app.routes)
+
+    mount_mcp_sse(get_mcp_sse_app())
+
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
+
+    # Restore original routes (remove /mcp and static mounts)
+    app.routes[:] = routes_before
+
+
+class TestServerMode:
+    """Integration tests for server mode: SSE + WebUI coexistence (Integ-01)."""
+
+    def test_mcp_sse_endpoint_responds(self, server_mode_client: TestClient) -> None:
+        """Integ-01: /mcp mount is reachable (not 404)."""
+        # SSE endpoint streams indefinitely so we test a non-streaming
+        # MCP endpoint instead. POST /mcp/messages without a valid session
+        # should return an error (not 404), confirming the mount works.
+        resp = server_mode_client.post("/mcp/messages", json={})
+        # Any status other than 404 means the /mcp mount is active
+        assert resp.status_code != 404
+
+    def test_webui_static_after_sse_mount(self, server_mode_client: TestClient) -> None:
+        """Integ-01: GET / returns HTML after SSE mount (static files still work)."""
+        resp = server_mode_client.get("/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+
+    def test_api_designs_after_sse_mount(self, server_mode_client: TestClient) -> None:
+        """Integ-01: GET /api/designs returns 200 after SSE mount."""
+        resp = server_mode_client.get("/api/designs")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "designs" in data
+        assert "count" in data
+
+
+class TestServerModeRestApi:
+    """Integration tests for REST API with SSE mounted (Integ-05)."""
+
+    def test_existing_api_endpoints_with_sse_mount(
+        self, server_mode_client: TestClient
+    ) -> None:
+        """Integ-05: Spot-check existing API endpoints after SSE mount."""
+        # /api/designs
+        resp = server_mode_client.get("/api/designs")
+        assert resp.status_code == 200
+
+        # /api/catalog/sources
+        resp = server_mode_client.get("/api/catalog/sources")
+        assert resp.status_code == 200
+
+        # /api/health
+        resp = server_mode_client.get("/api/health")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+        # /api/rules/context
+        resp = server_mode_client.get("/api/rules/context")
+        assert resp.status_code == 200

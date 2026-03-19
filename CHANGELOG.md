@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.0] - Unreleased
+
+### Added
+
+- `--mode server` for team deployment: serves WebUI + MCP SSE on the same HTTP port
+- `--mode headless` for lightweight deployment: MCP SSE only (no WebUI)
+- `--host` and `--port` options for server/headless mode (default: 0.0.0.0:4000)
+- `--no-browser` flag to suppress browser auto-open in full mode
+- Concurrent write safety with `threading.Lock` on `write_yaml`
+
+### Deprecated
+
+- `--headless` flag: use `--no-browser` instead (flag still works with deprecation warning)
+
 ## [0.3.0] - 2026-03-17
 
 ### Added
@@ -50,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML direct edit resilience (extra field preservation + corrupt file isolation)
 - SQLite FTS5 full-text search index
 
-[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/etoyama/insight-blueprint/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/etoyama/insight-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/etoyama/insight-blueprint/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/etoyama/insight-blueprint/releases/tag/v0.1.0
