@@ -134,7 +134,7 @@ class AddCommentRequest(BaseModel):
 class AddSourceRequest(BaseModel):
     source_id: str = Field(min_length=1, max_length=_MAX_TITLE_LENGTH)
     name: str = Field(min_length=1, max_length=_MAX_TITLE_LENGTH)
-    type: str
+    type: str = Field(max_length=100)
     description: str = Field(max_length=_MAX_HYPOTHESIS_TEXT_LENGTH)
     connection: dict
     columns: list[dict] | None = None

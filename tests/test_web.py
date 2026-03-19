@@ -455,6 +455,91 @@ def test_update_design_hypothesis_exceeds_max_length_returns_422(
 
 
 # ---------------------------------------------------------------------------
+# AddSource / UpdateSource max_length boundary tests (Issue #39)
+# ---------------------------------------------------------------------------
+
+
+def test_add_source_name_exceeds_max_length_returns_422(client: TestClient) -> None:
+    """AddSourceRequest.name at 201 chars should be rejected with 422."""
+    _create_design(client)
+    resp = client.post(
+        "/api/catalog/sources",
+        json={
+            "source_id": "ml-src",
+            "name": "N" * 201,
+            "type": "csv",
+            "description": "desc",
+            "connection": {},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_add_source_source_id_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """AddSourceRequest.source_id at 201 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/catalog/sources",
+        json={
+            "source_id": "S" * 201,
+            "name": "Source",
+            "type": "csv",
+            "description": "desc",
+            "connection": {},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_add_source_description_exceeds_max_length_returns_422(
+    client: TestClient,
+) -> None:
+    """AddSourceRequest.description at 1001 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/catalog/sources",
+        json={
+            "source_id": "dl-src",
+            "name": "Source",
+            "type": "csv",
+            "description": "D" * 1001,
+            "connection": {},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_add_source_type_exceeds_max_length_returns_422(client: TestClient) -> None:
+    """AddSourceRequest.type at 101 chars should be rejected with 422."""
+    resp = client.post(
+        "/api/catalog/sources",
+        json={
+            "source_id": "tl-src",
+            "name": "Source",
+            "type": "T" * 101,
+            "description": "desc",
+            "connection": {},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_add_source_empty_source_id_returns_422(client: TestClient) -> None:
+    """AddSourceRequest.source_id empty string should be rejected (min_length=1)."""
+    resp = client.post(
+        "/api/catalog/sources",
+        json={
+            "source_id": "",
+            "name": "Source",
+            "type": "csv",
+            "description": "desc",
+            "connection": {},
+        },
+    )
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Design referenced_knowledge via REST API (2 tests)
 # ---------------------------------------------------------------------------
 
