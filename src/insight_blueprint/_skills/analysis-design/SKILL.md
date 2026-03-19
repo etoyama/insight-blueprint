@@ -27,15 +27,11 @@ insight-blueprint MCP tools. Follows the hypothesis-driven EDA workflow.
 
 ### Step 0: User Confirmation Gate
 
-When this skill is invoked by the model (not by the user typing `/analysis-design`),
-confirm with the user before proceeding:
+Before proceeding, confirm with the user:
 
 - Ask: "分析設計を新規作成しますか？"
 - If the user declines, exit gracefully with a brief message and do not proceed
 - If the user confirms, continue to Step 1
-
-This gate prevents unintended design creation when the model invokes the skill
-autonomously during conversation flow.
 
 ### Step 1: Check Current State
 Call `list_analysis_designs()` to understand existing designs:

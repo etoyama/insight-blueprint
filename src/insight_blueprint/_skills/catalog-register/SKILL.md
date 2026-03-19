@@ -28,15 +28,11 @@ in the insight-blueprint catalog via MCP tools.
 
 ### Step 0: User Confirmation Gate
 
-When this skill is invoked by the model (not by the user typing `/catalog-register`),
-confirm with the user before proceeding:
+Before proceeding, confirm with the user:
 
 - Ask: "このソースをカタログに登録しますか？"
 - If the user declines, exit gracefully with a brief message and do not proceed
 - If the user confirms, continue to Step 1
-
-This gate prevents unintended catalog registration when the model invokes the skill
-autonomously during conversation flow.
 
 ### Step 1: Determine Source Type
 
