@@ -6,7 +6,6 @@ description: |
   in the insight-blueprint data catalog. Supports CSV, API, and SQL sources.
   Triggers: "register data source", "add to catalog", "catalog register",
   "データカタログ登録", "ソース登録", "カタログにデータを追加".
-disable-model-invocation: true
 argument-hint: "[source_type: csv|api|sql]"
 ---
 
@@ -26,6 +25,18 @@ in the insight-blueprint catalog via MCP tools.
 - Managing domain knowledge (future SPEC-3 scope)
 
 ## Workflow
+
+### Step 0: User Confirmation Gate
+
+When this skill is invoked by the model (not by the user typing `/catalog-register`),
+confirm with the user before proceeding:
+
+- Ask: "このソースをカタログに登録しますか？"
+- If the user declines, exit gracefully with a brief message and do not proceed
+- If the user confirms, continue to Step 1
+
+This gate prevents unintended catalog registration when the model invokes the skill
+autonomously during conversation flow.
 
 ### Step 1: Determine Source Type
 

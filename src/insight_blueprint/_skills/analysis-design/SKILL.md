@@ -6,7 +6,6 @@ description: |
   Use when the user wants to create, manage, or review analysis designs.
   Triggers: "create analysis design", "hypothesis document", "new hypothesis",
   "分析設計を作りたい", "仮説を立てたい", "新しい仮説", "仮説ドキュメント".
-disable-model-invocation: true
 argument-hint: "[theme_id]"
 ---
 
@@ -25,6 +24,18 @@ insight-blueprint MCP tools. Follows the hypothesis-driven EDA workflow.
 - General EDA discussion without intent to persist a design document
 
 ## Workflow
+
+### Step 0: User Confirmation Gate
+
+When this skill is invoked by the model (not by the user typing `/analysis-design`),
+confirm with the user before proceeding:
+
+- Ask: "分析設計を新規作成しますか？"
+- If the user declines, exit gracefully with a brief message and do not proceed
+- If the user confirms, continue to Step 1
+
+This gate prevents unintended design creation when the model invokes the skill
+autonomously during conversation flow.
 
 ### Step 1: Check Current State
 Call `list_analysis_designs()` to understand existing designs:
