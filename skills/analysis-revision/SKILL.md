@@ -197,8 +197,8 @@ For each item in the tracking file where `status == "open"`:
 
 `.insight/designs/{design_id}_revision.yaml`
 
-This file is skill-managed (not MCP-managed). Direct read/write is allowed
-per the exception in `_rules/insight-yaml.md`.
+This file is skill-managed data, not MCP-managed (see YAML Format Reference
+in analysis-design SKILL.md).
 
 ## Error Handling
 

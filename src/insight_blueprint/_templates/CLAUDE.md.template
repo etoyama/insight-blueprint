@@ -22,8 +22,13 @@ Claude Code skills provide interactive workflows.
 
 | Skill | Trigger | Purpose |
 |-------|---------|---------|
-| `/catalog-register` | Register a data source | Interactive source registration with schema |
+| `/analysis-framing` | Explore data, frame direction | Explore available data and existing analyses to frame a hypothesis direction |
 | `/analysis-design` | Create a hypothesis design | Guided hypothesis document creation |
+| `/analysis-journal` | Record reasoning steps | Record observations, evidence, decisions during analysis |
+| `/analysis-reflection` | Reflect on analysis | Structured reflection to draw conclusions or branch hypotheses |
+| `/analysis-revision` | Address review comments | Guided revision workflow for addressing review comments |
+| `/catalog-register` | Register a data source | Step-by-step data source registration |
+| `/data-lineage` | Track data transformations | Track transformations and export lineage diagrams (Mermaid) |
 
 ### MCP Tools
 

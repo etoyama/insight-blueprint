@@ -80,10 +80,6 @@ This creates a wheel (.whl) in `dist/`.
 Verify that all required files are included:
 
 ```bash
-# Check skills are included
-unzip -l dist/*.whl | grep _skills/
-# Should list all SKILL.md files
-
 # Check frontend assets are included
 unzip -l dist/*.whl | grep static/
 # Should list index.html, JS, CSS files
@@ -91,6 +87,10 @@ unzip -l dist/*.whl | grep static/
 # Check LICENSE is included
 unzip -l dist/*.whl | grep LICENSE
 ```
+
+> **Note**: Skills are no longer bundled in the wheel. They are distributed
+> via the Plugin's `skills/` directory at the repository root and discovered
+> automatically by Claude Code's Plugin system.
 
 ### 4b: Check metadata
 
@@ -103,13 +103,13 @@ Verify these fields are present:
 - `Classifier:` entries (Development Status, License, Python versions)
 - `Project-URL:` entries (Homepage, Repository, Bug Tracker)
 
-### 4c: Check SKILL.md structure
+### 4c: Check Plugin skills structure
 
 ```bash
-# Verify all skills have version field
-for f in $(unzip -l dist/*.whl | grep SKILL.md | awk '{print $4}'); do
+# Verify all skills in the repository root have version field
+for f in skills/*/SKILL.md; do
     echo "=== $f ==="
-    unzip -p dist/*.whl "$f" | head -5
+    head -5 "$f"
 done
 ```
 
@@ -127,18 +127,10 @@ source .venv/bin/activate
 # Install from the local wheel
 pip install /path/to/insight-blueprint/dist/insight_blueprint-*.whl
 
-# Test: Initialize a project and verify skills are copied
+# Test: Initialize a project and verify it starts
 insight-blueprint --project /tmp/insight-blueprint-test --headless &
 SERVER_PID=$!
 sleep 3
-
-# Verify skills were copied
-ls .claude/skills/
-# Should show: analysis-design/ catalog-register/
-
-# Verify skill files
-cat .claude/skills/analysis-design/SKILL.md | head -5
-# Should show frontmatter with name and version
 
 # Verify WebUI is running
 curl -s http://127.0.0.1:3000 | head -5
@@ -181,7 +173,7 @@ PyPI does not allow overwriting existing versions. Bump the version number and r
 Check `pyproject.toml` build configuration:
 - `packages = ["src/insight_blueprint"]` includes Python files
 - `artifacts = ["src/insight_blueprint/static/**"]` includes frontend assets
-- Skills in `src/insight_blueprint/_skills/` are included automatically via the packages path
+- Skills are distributed via the Plugin's `skills/` directory at the repository root (not in the wheel)
 
 ### Frontend assets not included
 

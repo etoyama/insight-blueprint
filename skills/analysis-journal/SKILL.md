@@ -173,8 +173,8 @@ The current phase is inferred from the latest event type:
 
 `.insight/designs/{design_id}_journal.yaml`
 
-This file is skill-managed (not MCP-managed). Direct read/write is allowed
-per the exception in `_rules/insight-yaml.md`.
+This file is skill-managed data, not MCP-managed (see YAML Format Reference
+in analysis-design SKILL.md).
 
 ## Sibling/Tree Queries (No MCP Required)
 

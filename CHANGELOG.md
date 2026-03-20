@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Claude Code Plugin distribution format (`.claude-plugin/plugin.json`, `.mcp.json`)
+- Plugin validation CI job (`plugin-validate`)
+- data-lineage Python package prerequisites check
+- Migration guide in README
+
+### Changed
+
+- Skills moved from `src/insight_blueprint/_skills/` to `skills/` (repository root) for Plugin auto-discovery
+- Rules (`_rules/`) integrated into SKILL.md definitions
+- Extension policy and optional package note added to CLAUDE.md managed section
+
+### Removed
+
+- `upgrade-templates` CLI subcommand
+- Skill/rule copy logic from `storage/project.py` (~400 lines)
 
 ## [0.4.0] - 2026-03-20
 

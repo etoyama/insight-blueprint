@@ -189,7 +189,7 @@ Only provided fields are updated; all others remain unchanged.
 
 ## Workflow Rules
 
-# Hypothesis Design Workflow
+### Hypothesis Design Workflow
 
 ### Status Flow
 
@@ -210,7 +210,7 @@ Skipping states (e.g., draft → supported) is not allowed.
 ### Theme ID Rules
 
 - Every design MUST have a `theme_id` linking it to a research theme.
-- Theme IDs should be short, descriptive identifiers (e.g., `churn-analysis`, `pricing-impact`).
+- Theme IDs must match `[A-Z][A-Z0-9]*` (e.g., `CHURN`, `PRICING`).
 - Use `/analysis-design` skill to create designs with proper theme association.
 
 ### Derived Hypotheses
@@ -221,9 +221,9 @@ Skipping states (e.g., draft → supported) is not allowed.
 
 ## YAML Format Reference
 
-# .insight/ YAML File Operation Rules
+### .insight/ YAML File Operation Rules
 
-### MCP-Only Editing
+#### MCP-Only Editing
 
 All catalog and design YAML files under `.insight/` MUST be edited through
 insight-blueprint MCP tools. Direct file writes are prohibited to maintain
@@ -237,7 +237,7 @@ schema integrity and event consistency.
 
 **Direct read is always OK** — use Read tool or cat freely for analysis.
 
-### Exceptions (Direct Edit Allowed)
+#### Exceptions (Direct Edit Allowed)
 
 These files may be edited directly because they contain user-managed
 configuration, not MCP-managed data:
