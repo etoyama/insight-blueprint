@@ -227,6 +227,7 @@ open_questions = [q for q in questions if q.id not in resolved_ids]
 | /analysis-journal | → /analysis-journal | After branch: "分岐先のジャーナル: /analysis-journal {new_id}" |
 | /analysis-reflection | → /analysis-journal | Need more evidence: "追加調査は /analysis-journal {id}" |
 | /data-lineage | → /analysis-journal | Lineage diagram generated: "リネージ結果を証拠として記録するなら /analysis-journal {id}" |
+| /analysis-revision | → /analysis-journal | Need to investigate before fixing: "調査してから修正するなら /analysis-journal {id}" |
 
 ## Language Rules
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.

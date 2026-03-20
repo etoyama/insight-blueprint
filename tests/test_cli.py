@@ -30,37 +30,6 @@ def test_cli_default_project_uses_cwd(
     assert (tmp_path / ".insight").exists()
 
 
-def test_cli_upgrade_templates_shows_status(tmp_path: Path) -> None:
-    """upgrade-templates subcommand shows template status."""
-    from insight_blueprint.storage.project import init_project
-
-    init_project(tmp_path)
-
-    runner = CliRunner()
-    result = runner.invoke(main, ["--project", str(tmp_path), "upgrade-templates"])
-    assert result.exit_code == 0
-    assert "Skills" in result.output
-    assert "Rules" in result.output
-    assert "up to date" in result.output
-
-
-def test_cli_upgrade_templates_installs_missing(tmp_path: Path) -> None:
-    """upgrade-templates installs templates not yet present."""
-    # Create minimal project without running full init
-    (tmp_path / ".insight").mkdir()
-
-    runner = CliRunner()
-    result = runner.invoke(
-        main,
-        ["--project", str(tmp_path), "upgrade-templates"],
-        input="y\n",
-    )
-    assert result.exit_code == 0
-    assert "not installed" in result.output
-    assert "Upgrade complete" in result.output
-    assert (tmp_path / ".claude" / "skills" / "analysis-design" / "SKILL.md").exists()
-
-
 # ---------------------------------------------------------------------------
 # Task 2.2: TestCliModeDispatch (Unit-01)
 # ---------------------------------------------------------------------------

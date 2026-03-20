@@ -8,19 +8,38 @@
 
 A Python MCP server for hypothesis-driven data analysis. Manage analysis designs, data catalogs, and review workflows through Claude Code or any MCP-compatible client.
 
-## Quick Start
+## Installation
+
+### Recommended: Claude Code Plugin
 
 ```bash
-# Start the server (zero-install)
+# Install the plugin (skills + MCP server definition)
+claude plugin add etoyama/insight-blueprint
+
+# The plugin provides 7 analysis skills and auto-configures the MCP server.
+# A WebUI dashboard opens automatically at http://127.0.0.1:3000
+```
+
+### Alternative: Direct Execution
+
+```bash
+# Start the server without plugin (zero-install)
 uvx insight-blueprint --project /path/to/my-analysis
 
 # Or install permanently
 uv tool install insight-blueprint
 insight-blueprint --project /path/to/my-analysis
-
-# The server provides 18 MCP tools for Claude Code.
-# A WebUI dashboard opens automatically at http://127.0.0.1:3000
 ```
+
+### Optional: Python Package
+
+For data-lineage tracking with `tracked_pipe` in your notebooks/scripts:
+
+```bash
+uv add insight-blueprint
+```
+
+This is optional but recommended for analysis pipeline transparency. MCP tools work without it.
 
 ## Features
 
@@ -45,7 +64,7 @@ A browser-based dashboard (http://127.0.0.1:3000) with two tabs:
 
 ### Bundled Skills
 
-When you run `insight-blueprint --project <path>`, skill templates are copied to `.claude/skills/` in your project:
+The plugin provides 7 analysis skills that are automatically available after installation:
 
 - `/analysis-framing` -- Explore available data and existing analyses to frame a hypothesis direction
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
@@ -127,6 +146,24 @@ insight-blueprint --project /path/to/project --mode headless --port 4000
 
 > **WARNING: No authentication.** Phase 1 does not include authentication.
 > Run the server on a trusted network only, or bind to localhost with `--host 127.0.0.1`.
+
+## Migration Guide (from v0.3.x)
+
+If you previously used insight-blueprint without the plugin system, clean up the old skill copies:
+
+```bash
+# Remove old skill copies (now provided by the plugin)
+rm -rf .claude/skills/analysis-design .claude/skills/analysis-framing \
+       .claude/skills/analysis-journal .claude/skills/analysis-reflection \
+       .claude/skills/analysis-revision .claude/skills/catalog-register \
+       .claude/skills/data-lineage
+
+# Remove old rule copies (now integrated into skill definitions)
+rm -rf .claude/rules/analysis-workflow.md .claude/rules/catalog-workflow.md \
+       .claude/rules/insight-yaml.md .claude/rules/extension-policy.md
+```
+
+The plugin's skills take precedence, so old copies won't cause errors but should be removed to avoid confusion.
 
 ## Development
 

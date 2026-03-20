@@ -74,3 +74,16 @@ jobs:
 
       - name: Check distribution metadata
         run: uvx --from twine twine check dist/*
+
+  plugin-validate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate plugin structure
+        run: |
+          if command -v claude &> /dev/null; then
+            claude plugin validate .
+          else
+            echo "::warning::claude CLI not available, skipping plugin validation"
+          fi

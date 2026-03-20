@@ -119,27 +119,21 @@ def test_init_project_creates_config_with_schema_version(tmp_path: Path) -> None
     assert config["schema_version"] == 1
 
 
-def test_init_project_copies_skills_template_when_absent(tmp_path: Path) -> None:
-    """.claude/skills/analysis-design/ is created on first run."""
+def test_init_project_does_not_copy_skills(tmp_path: Path) -> None:
+    """init_project() no longer copies skills to .claude/skills/."""
     _init_project(tmp_path)
 
-    skill_dir = tmp_path / ".claude" / "skills" / "analysis-design"
-    assert skill_dir.is_dir()
-    assert (skill_dir / "SKILL.md").exists()
+    skills_dir = tmp_path / ".claude" / "skills"
+    assert not skills_dir.exists()
 
 
-def test_init_project_does_not_overwrite_existing_skills(tmp_path: Path) -> None:
-    """Existing .claude/skills/analysis-design/ is not modified on re-run."""
-    # Create existing skills dir with custom content
-    skill_dir = tmp_path / ".claude" / "skills" / "analysis-design"
-    skill_dir.mkdir(parents=True)
-    custom_file = skill_dir / "SKILL.md"
-    custom_file.write_text("custom content")
-
+def test_init_project_does_not_copy_rules(tmp_path: Path) -> None:
+    """init_project() no longer copies rules to .claude/rules/."""
     _init_project(tmp_path)
 
-    # Custom content should be preserved
-    assert custom_file.read_text() == "custom content"
+    # .claude/rules/ should not exist (distinct from .insight/rules/ which does)
+    rules_dir = tmp_path / ".claude" / "rules"
+    assert not rules_dir.exists()
 
 
 def test_init_project_registers_mcp_json_when_absent(tmp_path: Path) -> None:
@@ -223,15 +217,6 @@ def test_init_project_partial_recovery(tmp_path: Path) -> None:
     # Existing artifacts should still be there
     assert (tmp_path / ".insight" / "config.yaml").exists()
     assert (tmp_path / ".insight" / "catalog" / "sources").is_dir()
-
-
-def test_init_project_copies_catalog_register_skill(tmp_path: Path) -> None:
-    """.claude/skills/catalog-register/ is created on first run."""
-    _init_project(tmp_path)
-
-    skill_dir = tmp_path / ".claude" / "skills" / "catalog-register"
-    assert skill_dir.is_dir()
-    assert (skill_dir / "SKILL.md").exists()
 
 
 # === extracted_knowledge.yaml tests (SPEC-3 Task 4.2) ===
@@ -434,3 +419,54 @@ class TestInitProjectMcpRegistration:
             "Should not use SSE transport"
         )
         assert "url" not in server, "Should not have 'url' key (SSE indicator)"
+
+
+# === Plugin distribution: init_project simplified tests ===
+
+
+class TestInitProjectPluginDistribution:
+    """Verify init_project() with plugin-distribution simplifications."""
+
+    def test_init_project_claude_md_has_extension_policy(self, tmp_path: Path) -> None:
+        """CLAUDE.md managed section contains Extension Policy."""
+        _init_project(tmp_path)
+
+        claude_md = tmp_path / "CLAUDE.md"
+        assert claude_md.exists()
+        content = claude_md.read_text()
+        assert "Extension Policy" in content
+
+    def test_init_project_claude_md_has_optional_package_note(
+        self, tmp_path: Path
+    ) -> None:
+        """CLAUDE.md managed section mentions optional Python package."""
+        _init_project(tmp_path)
+
+        claude_md = tmp_path / "CLAUDE.md"
+        assert claude_md.exists()
+        content = claude_md.read_text()
+        assert "Optional" in content
+        assert "Python Package" in content or "uv add insight-blueprint" in content
+
+    def test_init_project_idempotent(self, tmp_path: Path) -> None:
+        """Running init_project() twice produces no duplicates."""
+        _init_project(tmp_path)
+        _init_project(tmp_path)
+
+        # .mcp.json should have exactly one insight-blueprint entry
+        mcp_json = tmp_path / ".mcp.json"
+        with mcp_json.open() as f:
+            config = json.load(f)
+        assert len(config["mcpServers"]) == 1
+
+        # CLAUDE.md should have exactly one managed section
+        claude_md = tmp_path / "CLAUDE.md"
+        content = claude_md.read_text()
+        begin_marker = "<!-- BEGIN insight-blueprint managed section"
+        assert content.count(begin_marker) == 1
+
+    def test_upgrade_templates_command_not_exists(self) -> None:
+        """Click main.commands has no 'upgrade-templates'."""
+        from insight_blueprint.cli import main
+
+        assert "upgrade-templates" not in (main.commands or {})

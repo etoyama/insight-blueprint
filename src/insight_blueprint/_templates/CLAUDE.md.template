@@ -47,3 +47,27 @@ Claude Code skills provide interactive workflows.
 
 - Respond to users in Japanese
 - Code, YAML field names, and tool names stay in English
+
+### Extension Policy
+
+MCP tools and WebUI are considered stable (Fix). Feature extensions are
+delivered through bundled skills and skill chaining.
+
+**MCP Layer** -- Stable CRUD primitives. New tool addition requires strong justification.
+
+**WebUI Layer** -- Fixed scope: design overview, review confirmation, catalog browsing.
+
+**Skill Layer** -- Extension point. All new analysis capabilities are delivered as skills.
+Skills may call existing MCP tools, read/write skill-managed YAML files under `.insight/`,
+chain to other skills, and maintain their own conventions in SKILL.md.
+
+**Skill-Managed Data** -- Skills may directly manage YAML files outside MCP's schema scope:
+- `.insight/designs/*_journal.yaml` -- Insight Journal (analysis-journal skill)
+- `.insight/designs/*_revision.yaml` -- Revision Tracking (analysis-revision skill)
+
+### Optional: Python Package
+
+For data-lineage tracking (`tracked_pipe`), install the Python package:
+`uv add insight-blueprint`
+
+This is optional but recommended for analysis pipeline transparency.

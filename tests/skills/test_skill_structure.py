@@ -1,8 +1,9 @@
 """Structural validation tests for SKILL.md files.
 
-Validates that all 6 bundled skills (analysis-framing, analysis-design,
-analysis-journal, analysis-reflection, catalog-register, data-lineage)
-have correct structure, chaining tables, and inter-skill consistency.
+Validates that all 7 bundled skills (analysis-framing, analysis-design,
+analysis-journal, analysis-reflection, analysis-revision,
+catalog-register, data-lineage) have correct structure, chaining tables,
+and inter-skill consistency.
 
 Test groups:
   Unit-01: TestSkillStructure — required sections, format, versions
@@ -18,7 +19,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import yaml
 
@@ -26,15 +26,14 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-SKILLS_DIR = (
-    Path(__file__).resolve().parents[2] / "src" / "insight_blueprint" / "_skills"
-)
+SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills"
 
 ALL_SKILLS: list[str] = [
     "analysis-framing",
     "analysis-design",
     "analysis-journal",
     "analysis-reflection",
+    "analysis-revision",
     "catalog-register",
     "data-lineage",
 ]
@@ -185,7 +184,7 @@ def _extract_chaining_edges(skill_name: str) -> list[tuple[str, str]]:
 
 
 class TestSkillStructure:
-    """Validate structural correctness of all 6 SKILL.md files."""
+    """Validate structural correctness of all 7 SKILL.md files."""
 
     def test_all_skills_have_required_sections(self) -> None:
         """All 6 skills must have frontmatter + 5 required sections."""
@@ -237,13 +236,25 @@ class TestSkillStructure:
             )
 
     def test_existing_skills_version_bump(self) -> None:
-        """All 5 existing skills must have version == '1.1.0'."""
-        existing_skills = [s for s in ALL_SKILLS if s != "analysis-framing"]
-        for skill_name in existing_skills:
+        """Existing skills have correct versions per their release history."""
+        # Expected versions per skill:
+        # - analysis-framing: 1.0.0 (initial, tested separately)
+        # - analysis-revision: 1.0.0 (initial, added in Issue #44)
+        # - analysis-design, catalog-register: 1.2.0 (rules integrated into SKILL.md)
+        # - analysis-journal, analysis-reflection, data-lineage: 1.1.0
+        expected_versions: dict[str, str] = {
+            "analysis-design": "1.2.0",
+            "catalog-register": "1.2.0",
+            "analysis-journal": "1.1.0",
+            "analysis-reflection": "1.1.0",
+            "analysis-revision": "1.0.0",
+            "data-lineage": "1.1.0",
+        }
+        for skill_name, expected in expected_versions.items():
             text = _read_skill(skill_name)
             fm = parse_frontmatter(text)
-            assert fm.get("version") == "1.1.0", (
-                f"{skill_name} version should be '1.1.0', got {fm.get('version')!r}"
+            assert fm.get("version") == expected, (
+                f"{skill_name} version should be '{expected}', got {fm.get('version')!r}"
             )
 
 
@@ -619,29 +630,8 @@ class TestSkillDeployment:
         path = SKILLS_DIR / "analysis-framing" / "SKILL.md"
         assert path.exists(), f"analysis-framing SKILL.md not found at {path}"
 
-    def test_skills_deploy_includes_analysis_framing(self, tmp_path: Path) -> None:
-        """_copy_skills_template() must deploy analysis-framing/SKILL.md."""
-        from skill_helpers import create_fake_package
-
-        from insight_blueprint.storage.project import _copy_skills_template
-
-        # Create a fake package with analysis-framing included
-        pkg_base = tmp_path / "pkg"
-        skills_map = {name: "1.0.0" for name in ALL_SKILLS}
-        fake_pkg = create_fake_package(pkg_base, skills_map)
-
-        # Create project directory
-        project = tmp_path / "project"
-        project.mkdir()
-        (project / ".claude" / "skills").mkdir(parents=True)
-
-        with patch(
-            "insight_blueprint.storage.project.importlib.resources.files",
-            return_value=fake_pkg,
-        ):
-            _copy_skills_template(project)
-
-        deployed = project / ".claude" / "skills" / "analysis-framing" / "SKILL.md"
-        assert deployed.exists(), (
-            "analysis-framing/SKILL.md was not deployed by _copy_skills_template()"
-        )
+    def test_all_skills_have_skill_md(self) -> None:
+        """All 7 bundled skills have a SKILL.md file at repo root skills/ dir."""
+        for skill_name in ALL_SKILLS:
+            path = SKILLS_DIR / skill_name / "SKILL.md"
+            assert path.exists(), f"{skill_name}/SKILL.md not found at {path}"

@@ -1,0 +1,351 @@
+"""Plugin structure validation tests.
+
+Verifies that the Claude Code Plugin format is correctly configured:
+plugin.json, .mcp.json, skills directory, legacy removal, and README.
+
+Test IDs Unit-01 through Unit-10 map to test-design.md specification.
+"""
+
+import ast
+import json
+import re
+import tomllib
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+ALL_SKILLS = [
+    "analysis-design",
+    "analysis-framing",
+    "analysis-journal",
+    "analysis-reflection",
+    "analysis-revision",
+    "catalog-register",
+    "data-lineage",
+]
+
+SECRET_PATTERNS = re.compile(
+    r"(api[_-]?key|password|secret|token|credential)", re.IGNORECASE
+)
+
+
+# ===========================================================================
+# Unit-01: plugin.json validation
+# ===========================================================================
+
+
+class TestPluginJson:
+    """Unit-01: plugin.json exists and has correct metadata."""
+
+    def test_plugin_json_exists(self) -> None:
+        """plugin.json exists under .claude-plugin/."""
+        assert (REPO_ROOT / ".claude-plugin" / "plugin.json").is_file()
+
+    def test_plugin_json_name(self) -> None:
+        """plugin.json name is 'insight-blueprint'."""
+        data = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+        assert data["name"] == "insight-blueprint"
+
+    def test_plugin_json_version_matches_pyproject(self) -> None:
+        """plugin.json version matches pyproject.toml version."""
+        plugin = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+        with (REPO_ROOT / "pyproject.toml").open("rb") as f:
+            pyproject = tomllib.load(f)
+        assert plugin["version"] == pyproject["project"]["version"]
+
+    def test_plugin_json_has_required_metadata(self) -> None:
+        """plugin.json has description, author, and repository."""
+        data = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+        assert "description" in data
+        assert "author" in data
+        assert "repository" in data
+
+
+# ===========================================================================
+# Unit-02: .mcp.json validation
+# ===========================================================================
+
+
+class TestMcpJson:
+    """Unit-02: .mcp.json exists and defines stdio transport correctly."""
+
+    def test_mcp_json_exists(self) -> None:
+        """.mcp.json exists at repo root."""
+        assert (REPO_ROOT / ".mcp.json").is_file()
+
+    def test_mcp_json_has_insight_blueprint_server(self) -> None:
+        """mcpServers.insight-blueprint is defined."""
+        data = json.loads((REPO_ROOT / ".mcp.json").read_text())
+        assert "insight-blueprint" in data["mcpServers"]
+
+    def test_mcp_json_command_is_uvx(self) -> None:
+        """command is 'uvx'."""
+        data = json.loads((REPO_ROOT / ".mcp.json").read_text())
+        server = data["mcpServers"]["insight-blueprint"]
+        assert server["command"] == "uvx"
+
+    def test_mcp_json_no_mode_flag(self) -> None:
+        """args do not contain '--mode' (stdio guarantee)."""
+        data = json.loads((REPO_ROOT / ".mcp.json").read_text())
+        server = data["mcpServers"]["insight-blueprint"]
+        assert "--mode" not in server["args"]
+
+    def test_mcp_json_has_project_arg(self) -> None:
+        """args contain '--project' and '.'."""
+        data = json.loads((REPO_ROOT / ".mcp.json").read_text())
+        server = data["mcpServers"]["insight-blueprint"]
+        assert "--project" in server["args"]
+        assert "." in server["args"]
+
+    def test_mcp_json_no_secrets(self) -> None:
+        """env does not contain API keys, passwords, or secrets."""
+        data = json.loads((REPO_ROOT / ".mcp.json").read_text())
+        server = data["mcpServers"]["insight-blueprint"]
+        env = server.get("env", {})
+        for key, value in env.items():
+            assert not SECRET_PATTERNS.search(key), f"Suspicious env key: {key}"
+            assert not SECRET_PATTERNS.search(str(value)), (
+                f"Suspicious env value for {key}"
+            )
+
+
+# ===========================================================================
+# Unit-03: Skills directory structure
+# ===========================================================================
+
+
+class TestSkillsDirectory:
+    """Unit-03: All 7 skills exist with correct SKILL.md structure."""
+
+    @pytest.mark.parametrize("skill_name", ALL_SKILLS)
+    def test_all_skills_exist(self, skill_name: str) -> None:
+        """Each skill has a SKILL.md file."""
+        skill_md = REPO_ROOT / "skills" / skill_name / "SKILL.md"
+        assert skill_md.is_file(), f"Missing: skills/{skill_name}/SKILL.md"
+
+    @pytest.mark.parametrize("skill_name", ALL_SKILLS)
+    def test_skill_md_has_frontmatter(self, skill_name: str) -> None:
+        """Each SKILL.md has name and description in frontmatter."""
+        content = (REPO_ROOT / "skills" / skill_name / "SKILL.md").read_text()
+        match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
+        assert match, f"No frontmatter in skills/{skill_name}/SKILL.md"
+        frontmatter = match.group(1)
+        assert re.search(r"^name:", frontmatter, re.MULTILINE), (
+            f"Missing 'name' in frontmatter of {skill_name}"
+        )
+        assert re.search(r"^description:", frontmatter, re.MULTILINE), (
+            f"Missing 'description' in frontmatter of {skill_name}"
+        )
+
+    @pytest.mark.parametrize("skill_name", ALL_SKILLS)
+    def test_skill_md_has_version(self, skill_name: str) -> None:
+        """Each SKILL.md has a version field in frontmatter."""
+        content = (REPO_ROOT / "skills" / skill_name / "SKILL.md").read_text()
+        match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
+        assert match, f"No frontmatter in skills/{skill_name}/SKILL.md"
+        frontmatter = match.group(1)
+        assert re.search(r"^version:", frontmatter, re.MULTILINE), (
+            f"Missing 'version' in frontmatter of {skill_name}"
+        )
+
+
+# ===========================================================================
+# Unit-04: Legacy directory removal
+# ===========================================================================
+
+
+class TestLegacyRemoval:
+    """Unit-04: Old _skills/ and _rules/ directories are removed."""
+
+    def test_old_skills_dir_removed(self) -> None:
+        """src/insight_blueprint/_skills/ does not exist."""
+        assert not (REPO_ROOT / "src" / "insight_blueprint" / "_skills").exists()
+
+    def test_old_rules_dir_removed(self) -> None:
+        """src/insight_blueprint/_rules/ does not exist."""
+        assert not (REPO_ROOT / "src" / "insight_blueprint" / "_rules").exists()
+
+
+# ===========================================================================
+# Unit-05: Code removal (AST-based)
+# ===========================================================================
+
+_DELETED_SKILL_FUNCTIONS = [
+    "_copy_skills_template",
+    "_discover_bundled_skills",
+    "_hash_skill_directory",
+    "_hash_skill_directory_from_traversable",
+    "_collect_traversable_entries",
+    "_copy_skill_tree",
+    "_save_skill_state",
+    "_load_skill_state",
+    "_write_bundled_update",
+    "_get_skill_version_from_traversable",
+    "_parse_version_from_content",
+    "_get_skill_version",
+    "_hash_entries",
+    "_copy_traversable_recursive",
+]
+
+_DELETED_RULES_FUNCTIONS = [
+    "_copy_rules_template",
+    "_discover_bundled_rules",
+]
+
+
+class TestCodeRemoval:
+    """Unit-05: Deleted functions are not defined in project.py (AST check)."""
+
+    @pytest.fixture(scope="class")
+    def project_py_functions(self) -> set[str]:
+        """Parse project.py and return all top-level function names."""
+        source = (
+            REPO_ROOT / "src" / "insight_blueprint" / "storage" / "project.py"
+        ).read_text()
+        tree = ast.parse(source)
+        return {
+            node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+        }
+
+    def test_skills_copy_functions_removed(
+        self, project_py_functions: set[str]
+    ) -> None:
+        """Skill copy functions are not defined in project.py."""
+        for func_name in _DELETED_SKILL_FUNCTIONS:
+            assert func_name not in project_py_functions, (
+                f"{func_name} still defined in project.py"
+            )
+
+    def test_rules_copy_functions_removed(self, project_py_functions: set[str]) -> None:
+        """Rules copy functions are not defined in project.py."""
+        for func_name in _DELETED_RULES_FUNCTIONS:
+            assert func_name not in project_py_functions, (
+                f"{func_name} still defined in project.py"
+            )
+
+
+# ===========================================================================
+# Unit-06: Rules integration into SKILL.md
+# ===========================================================================
+
+
+class TestRulesIntegration:
+    """Unit-06: Rules content is integrated into corresponding SKILL.md."""
+
+    def test_analysis_design_has_workflow_rules(self) -> None:
+        """analysis-design/SKILL.md contains 'Workflow Rules' section."""
+        content = (REPO_ROOT / "skills" / "analysis-design" / "SKILL.md").read_text()
+        assert "## Workflow Rules" in content
+
+    def test_analysis_design_has_yaml_reference(self) -> None:
+        """analysis-design/SKILL.md contains 'YAML Format' content."""
+        content = (REPO_ROOT / "skills" / "analysis-design" / "SKILL.md").read_text()
+        assert "YAML Format" in content
+
+    def test_catalog_register_has_workflow_rules(self) -> None:
+        """catalog-register/SKILL.md contains 'Workflow Rules' section."""
+        content = (REPO_ROOT / "skills" / "catalog-register" / "SKILL.md").read_text()
+        assert "## Workflow Rules" in content
+
+
+# ===========================================================================
+# Unit-07: cli.py legacy import cleanup
+# ===========================================================================
+
+
+class TestCliCleanup:
+    """Unit-07: cli.py has no legacy imports."""
+
+    def test_cli_no_legacy_imports(self) -> None:
+        """cli.py does not import deleted functions."""
+        content = (REPO_ROOT / "src" / "insight_blueprint" / "cli.py").read_text()
+        legacy_names = [
+            "_copy_skills_template",
+            "_copy_rules_template",
+            "_discover_bundled_skills",
+            "_discover_bundled_rules",
+        ]
+        for name in legacy_names:
+            assert name not in content, f"Legacy import '{name}' found in cli.py"
+
+
+# ===========================================================================
+# Unit-08: Test file structure
+# ===========================================================================
+
+
+class TestTestStructure:
+    """Unit-08: Test files are properly organized."""
+
+    def test_plugin_structure_test_exists(self) -> None:
+        """test_plugin_structure.py exists."""
+        assert (REPO_ROOT / "tests" / "test_plugin_structure.py").is_file()
+
+    def test_old_skill_copy_tests_removed(self) -> None:
+        """No test file contains _copy_skills_template test code."""
+        tests_dir = REPO_ROOT / "tests"
+        for test_file in tests_dir.glob("test_*.py"):
+            if test_file.name == "test_plugin_structure.py":
+                continue
+            content = test_file.read_text()
+            assert "_copy_skills_template" not in content, (
+                f"Legacy test code '_copy_skills_template' found in {test_file.name}"
+            )
+
+
+# ===========================================================================
+# Unit-09: data-lineage prerequisites
+# ===========================================================================
+
+
+class TestDataLineagePrerequisites:
+    """Unit-09: data-lineage SKILL.md has prerequisites check."""
+
+    def test_data_lineage_has_prerequisites_check(self) -> None:
+        """data-lineage/SKILL.md has 'Prerequisites Check' section."""
+        content = (REPO_ROOT / "skills" / "data-lineage" / "SKILL.md").read_text()
+        assert "Prerequisites Check" in content
+
+    def test_data_lineage_mentions_uv_add(self) -> None:
+        """data-lineage/SKILL.md mentions 'uv add insight-blueprint'."""
+        content = (REPO_ROOT / "skills" / "data-lineage" / "SKILL.md").read_text()
+        assert "uv add insight-blueprint" in content
+
+
+# ===========================================================================
+# Unit-10: README content
+# ===========================================================================
+
+
+class TestReadme:
+    """Unit-10: README has plugin install, pypi install, optional package, migration."""
+
+    def test_readme_has_plugin_install(self) -> None:
+        """README mentions claude plugin installation command."""
+        content = (REPO_ROOT / "README.md").read_text()
+        content_lower = content.lower()
+        assert (
+            "claude plugin add" in content_lower
+            or "claude plugin install" in content_lower
+        )
+
+    def test_readme_has_pypi_install(self) -> None:
+        """README mentions 'uvx insight-blueprint'."""
+        content = (REPO_ROOT / "README.md").read_text()
+        assert "uvx insight-blueprint" in content
+
+    def test_readme_has_optional_python_package(self) -> None:
+        """README mentions optional Python package."""
+        content = (REPO_ROOT / "README.md").read_text()
+        content_lower = content.lower()
+        assert "optional" in content_lower
+        assert (
+            "python package" in content_lower or "uv add insight-blueprint" in content
+        )
+
+    def test_readme_has_migration_guide(self) -> None:
+        """README mentions migration from .claude/skills/."""
+        content = (REPO_ROOT / "README.md").read_text()
+        assert ".claude/skills/" in content or "migration" in content.lower()

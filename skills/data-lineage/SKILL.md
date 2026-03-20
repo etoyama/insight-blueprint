@@ -28,6 +28,20 @@ using `insight_blueprint.lineage`.
 - Recording reasoning steps (-> /analysis-journal)
 - Registering data sources (-> /catalog-register)
 
+## Prerequisites Check
+
+### Step 0: Python Package Check (MUST run before Step 1)
+
+1. Run: `python -c "from insight_blueprint.lineage import tracked_pipe; print('OK')"`
+2. If output is "OK": proceed to Step 1
+3. If ImportError or command fails:
+   - Ask the user: "data-lineage の tracked_pipe を使うには insight-blueprint Python パッケージが必要です。`uv add insight-blueprint` を実行しますか？（分析パイプラインの透明性追跡に推奨）"
+   - If user approves: run `uv add insight-blueprint`, then re-check import
+   - If user declines: inform user that tracked_pipe features are unavailable, continue with MCP tools only (export/Mermaid diagram generation via MCP is still available)
+   - If install fails: show error, suggest manual install with `pip install insight-blueprint`
+
+> **Note**: MCP tools (Mermaid export, lineage graph generation) work without the Python package. Only `tracked_pipe` in user notebooks/scripts requires the package.
+
 ## Workflow
 
 ### Mode A: Setup — `/data-lineage <design_id> setup`

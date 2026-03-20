@@ -1,6 +1,6 @@
 ---
 name: analysis-design
-version: "1.1.0"
+version: "1.2.0"
 description: |
   Guides Claude through creating analysis design documents for hypothesis-driven EDA.
   Use when the user wants to create, manage, or review analysis designs.
@@ -186,3 +186,65 @@ Only provided fields are updated; all others remain unchanged.
 - Follow project CLAUDE.md language settings. Default to Japanese if no setting.
 - Code, IDs, tool names, and YAML fields always stay in English.
 - Hypothesis text follows the user's language (usually Japanese)
+
+## Workflow Rules
+
+# Hypothesis Design Workflow
+
+### Status Flow
+
+Designs follow a strict status progression:
+
+```
+draft → active → pending_review → supported | rejected | inconclusive
+```
+
+- **draft**: Initial creation. Editable freely.
+- **active**: Hypothesis is being tested. Data collection in progress.
+- **pending_review**: Analysis complete, awaiting peer review.
+- **supported / rejected / inconclusive**: Final disposition after review.
+
+Status transitions MUST use `design_update` MCP tool with valid `status` field.
+Skipping states (e.g., draft → supported) is not allowed.
+
+### Theme ID Rules
+
+- Every design MUST have a `theme_id` linking it to a research theme.
+- Theme IDs should be short, descriptive identifiers (e.g., `churn-analysis`, `pricing-impact`).
+- Use `/analysis-design` skill to create designs with proper theme association.
+
+### Derived Hypotheses
+
+- A design may reference `parent_id` to indicate it derives from another hypothesis.
+- Parent must exist and be in `supported` or `active` status.
+- This creates a hypothesis tree for tracking research lineage.
+
+## YAML Format Reference
+
+# .insight/ YAML File Operation Rules
+
+### MCP-Only Editing
+
+All catalog and design YAML files under `.insight/` MUST be edited through
+insight-blueprint MCP tools. Direct file writes are prohibited to maintain
+schema integrity and event consistency.
+
+**Allowed MCP tools for editing:**
+- `catalog_add_source` / `catalog_update_source` — catalog/sources/*.yaml
+- `design_create` / `design_update` — designs/*.yaml
+- `knowledge_store` / `knowledge_update` — catalog/knowledge/*.yaml
+- `review_add_comment` / `review_submit_batch` — designs/*.yaml (review data)
+
+**Direct read is always OK** — use Read tool or cat freely for analysis.
+
+### Exceptions (Direct Edit Allowed)
+
+These files may be edited directly because they contain user-managed
+configuration, not MCP-managed data:
+
+- `.insight/config.yaml` — project configuration
+- `.insight/rules/review_rules.yaml` — review rule definitions
+- `.insight/rules/analysis_rules.yaml` — analysis rule definitions
+- `.insight/rules/extracted_knowledge.yaml` — knowledge seed data
+- `.insight/designs/*_journal.yaml` — Insight Journal (managed by analysis-journal skill)
+- `.insight/designs/*_revision.yaml` — Revision Tracking (managed by analysis-revision skill)
