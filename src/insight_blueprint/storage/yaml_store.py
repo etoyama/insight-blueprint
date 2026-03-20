@@ -2,9 +2,13 @@
 
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 from ruamel.yaml import YAML
+
+# Module-level lock to serialize concurrent writes (FR-4.4: reads are lock-free).
+_write_lock = threading.Lock()
 
 
 def _make_yaml() -> YAML:
@@ -25,17 +29,18 @@ def read_yaml(path: Path) -> dict:
 
 def write_yaml(path: Path, data: dict) -> None:
     """Write data to YAML atomically (tempfile + os.replace)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    yaml = _make_yaml()
-    # temp file must be in SAME directory as target for atomic os.replace
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            yaml.dump(data, f)
-        os.replace(tmp_path, path)
-    except Exception:
+    with _write_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        yaml = _make_yaml()
+        # temp file must be in SAME directory as target for atomic os.replace
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                yaml.dump(data, f)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise

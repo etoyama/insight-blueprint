@@ -617,10 +617,31 @@ _POLL_INTERVAL_S = 1e-3
 _STARTUP_TIMEOUT_S = 10.0
 _BROWSER_DELAY_S = 1.5
 
-# Mount static files if directory exists
+# Static files directory (mount is deferred to control route ordering)
 _STATIC_DIR = FilePath(__file__).parent / "static"
-if _STATIC_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="static")
+
+
+def _mount_static_files() -> None:
+    """Mount static files at '/' if the directory exists.
+
+    Must be called AFTER any other app.mount() calls because Starlette
+    matches routes in definition order and '/' is a catch-all.
+    """
+    if _STATIC_DIR.is_dir():
+        app.mount(
+            "/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="static"
+        )
+
+
+def mount_mcp_sse(mcp_sse_app: object) -> None:
+    """Mount MCP SSE ASGI app at /mcp, then mount static files.
+
+    Route ordering is critical: /mcp must be registered before the
+    catch-all '/' static mount, otherwise SSE requests would be
+    swallowed by the static file handler.
+    """
+    app.mount("/mcp", mcp_sse_app)  # type: ignore[arg-type]
+    _mount_static_files()
 
 
 class ThreadedUvicorn(uvicorn.Server):
@@ -640,6 +661,9 @@ def start_server(host: str = "127.0.0.1", port: int = 3000) -> int:
     If the requested port is in use, falls back to an OS-assigned port.
     """
     global _server_instance  # noqa: PLW0603
+
+    # Mount static files for full mode (no SSE mount needed)
+    _mount_static_files()
 
     # Suppress uvicorn's use of legacy websockets API (upstream fix pending)
     # See: https://github.com/encode/uvicorn/issues/2483
@@ -690,3 +714,22 @@ def start_server(host: str = "127.0.0.1", port: int = 3000) -> int:
                 return addr[1]
 
     return actual_port
+
+
+def run_server(host: str, port: int) -> None:
+    """Run uvicorn on main thread (server mode). Blocks until shutdown."""
+    import sys
+
+    actual_port = port
+    if port != 0:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind((host, port))
+        except OSError:
+            actual_port = 0
+            print(
+                f"Warning: port {port} in use, falling back to OS-assigned port",
+                file=sys.stderr,
+            )
+
+    uvicorn.run(app, host=host, port=actual_port, log_level="warning")

@@ -323,3 +323,114 @@ def test_init_project_concurrent_safety(tmp_path: Path) -> None:
         config = json.load(f)
     assert "insight-blueprint" in config["mcpServers"]
     assert (tmp_path / "CLAUDE.md").exists()
+
+
+# === write_lock tests (Unit-03: team-server-separation Task 1.2) ===
+
+
+class TestWriteLock:
+    """Verify threading.Lock serializes concurrent write_yaml() calls."""
+
+    def test_concurrent_writes_no_corruption(self, tmp_path: Path) -> None:
+        """2 threads x 100 writes each -- final file is valid YAML."""
+        import threading as _threading
+
+        target = tmp_path / "concurrent.yaml"
+        errors: list[Exception] = []
+
+        def writer(thread_id: int) -> None:
+            for i in range(100):
+                try:
+                    write_yaml(target, {"thread": thread_id, "iteration": i})
+                except Exception as e:
+                    errors.append(e)
+
+        t1 = _threading.Thread(target=writer, args=(1,))
+        t2 = _threading.Thread(target=writer, args=(2,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert errors == [], f"Unexpected errors: {errors}"
+
+        # Final file must be valid YAML with expected structure
+        result = read_yaml(target)
+        assert "thread" in result
+        assert "iteration" in result
+        assert result["thread"] in (1, 2)
+
+    def test_concurrent_writes_no_intermediate_state(self, tmp_path: Path) -> None:
+        """Reader thread never sees incomplete/invalid YAML during writes."""
+        import threading as _threading
+
+        target = tmp_path / "intermediate.yaml"
+        # Seed file so reader always has something
+        write_yaml(target, {"seed": True})
+
+        invalid_reads: list[str] = []
+        stop_event = _threading.Event()
+
+        def writer() -> None:
+            for i in range(200):
+                write_yaml(target, {"counter": i})
+            stop_event.set()
+
+        def reader() -> None:
+            while not stop_event.is_set():
+                try:
+                    data = read_yaml(target)
+                    if not isinstance(data, dict):
+                        invalid_reads.append(f"Not a dict: {data!r}")
+                except Exception as e:
+                    invalid_reads.append(str(e))
+
+        rt = _threading.Thread(target=reader)
+        wt = _threading.Thread(target=writer)
+        rt.start()
+        wt.start()
+        wt.join()
+        stop_event.set()
+        rt.join()
+
+        assert invalid_reads == [], f"Invalid reads detected: {invalid_reads}"
+
+    def test_write_lock_is_module_level(self) -> None:
+        """_write_lock is a module-level threading.Lock instance."""
+        import threading as _threading
+
+        from insight_blueprint.storage import yaml_store as _ys
+
+        assert hasattr(_ys, "_write_lock")
+        assert isinstance(_ys._write_lock, type(_threading.Lock()))
+
+
+# === .mcp.json stdio registration test (Unit-05: team-server-separation Task 5.2) ===
+
+
+class TestInitProjectMcpRegistration:
+    """Verify init_project registers stdio transport in .mcp.json."""
+
+    def test_mcp_json_registers_stdio_transport(self, tmp_path: Path) -> None:
+        """insight-blueprint entry uses stdio (command+args), not SSE."""
+        from insight_blueprint.storage.project import init_project
+
+        init_project(tmp_path)
+
+        mcp_json = tmp_path / ".mcp.json"
+        assert mcp_json.exists()
+
+        with mcp_json.open() as f:
+            config = json.load(f)
+
+        server = config["mcpServers"]["insight-blueprint"]
+
+        # stdio transport must have command and args
+        assert "command" in server, "Missing 'command' key (stdio transport)"
+        assert "args" in server, "Missing 'args' key (stdio transport)"
+
+        # Must NOT have SSE-style keys
+        assert "type" not in server or server.get("type") != "sse", (
+            "Should not use SSE transport"
+        )
+        assert "url" not in server, "Should not have 'url' key (SSE indicator)"

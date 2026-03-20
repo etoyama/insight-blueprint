@@ -80,10 +80,53 @@ Each design has an `analysis_intent` field (`exploratory`, `confirmatory`, or `m
 
 ```bash
 insight-blueprint --project /path/to/project   # Specify project directory
-insight-blueprint --headless                    # Suppress browser auto-open
+insight-blueprint --no-browser                  # Suppress browser auto-open
 insight-blueprint --version                     # Show version
 insight-blueprint                               # Use current directory
 ```
+
+## Team Server Mode
+
+Multiple Claude Code instances can share a single insight-blueprint server via MCP SSE (Server-Sent Events).
+
+### Server mode (WebUI + MCP SSE)
+
+```bash
+insight-blueprint --project /path/to/project --mode server --port 4000
+```
+
+Each Claude Code instance connects by adding to `.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "insight-blueprint": {
+      "type": "sse",
+      "url": "http://<host>:4000/mcp/sse"
+    }
+  }
+}
+```
+
+### Headless mode (MCP SSE only, no WebUI)
+
+```bash
+insight-blueprint --project /path/to/project --mode headless --port 4000
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--mode full` | (default) | stdio MCP + WebUI on localhost:3000. Standard single-user mode |
+| `--mode server` | - | HTTP MCP SSE + WebUI on the same port. For team/multi-client use |
+| `--mode headless` | - | HTTP MCP SSE only (no WebUI). Lightweight deployment |
+| `--host` | `0.0.0.0` | Bind address (server/headless mode only) |
+| `--port` | `4000` | Listen port (server/headless mode only) |
+| `--no-browser` | `false` | Suppress browser auto-open in full mode |
+
+> **WARNING: No authentication.** Phase 1 does not include authentication.
+> Run the server on a trusted network only, or bind to localhost with `--host 127.0.0.1`.
 
 ## Development
 

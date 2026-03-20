@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
 from fastmcp import FastMCP
 
@@ -20,6 +21,11 @@ _DESIGN_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
 _MAX_HYPOTHESIS_TEXT_LENGTH = 1000
 
 mcp = FastMCP("insight-blueprint")
+
+
+def get_mcp_sse_app() -> Any:
+    """Return MCP SSE ASGI app for mounting into FastAPI."""
+    return mcp.http_app(transport="sse")
 
 
 def _validate_design_id(design_id: str) -> dict | None:
