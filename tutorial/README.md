@@ -42,7 +42,7 @@ uv add marimo
 **方法 A: Claude Code Plugin（推奨）**
 
 ```bash
-claude plugin add etoyama/insight-blueprint
+claude plugin install etoyama/insight-blueprint
 ```
 
 **方法 B: 手動設定**
