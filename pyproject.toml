@@ -139,5 +139,8 @@ help = "Full release dry-run: build frontend, build wheel, verify, twine check"
 [dependency-groups]
 dev = [
     "httpx>=0.27",
+    "marimo>=0.21.1",
+    "matplotlib>=3.10.8",
+    "pandas>=3.0.1",
     "ty>=0.0.17",
 ]

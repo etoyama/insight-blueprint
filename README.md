@@ -14,7 +14,7 @@ A Python MCP server for hypothesis-driven data analysis. Manage analysis designs
 
 ```bash
 # Install the plugin (skills + MCP server definition)
-claude plugin add etoyama/insight-blueprint
+claude plugin install etoyama/insight-blueprint
 
 # The plugin provides 7 analysis skills and auto-configures the MCP server.
 # A WebUI dashboard opens automatically at http://127.0.0.1:3000

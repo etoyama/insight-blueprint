@@ -326,10 +326,7 @@ class TestReadme:
         """README mentions claude plugin installation command."""
         content = (REPO_ROOT / "README.md").read_text()
         content_lower = content.lower()
-        assert (
-            "claude plugin add" in content_lower
-            or "claude plugin install" in content_lower
-        )
+        assert "claude plugin install" in content_lower
 
     def test_readme_has_pypi_install(self) -> None:
         """README mentions 'uvx insight-blueprint'."""
