@@ -137,7 +137,7 @@ def _(iced, plt):
     between morning and afternoon.
     """
     _slots = ["morning", "afternoon", "evening"]
-    _fig2, _axes = plt.subplots(1, 3, figsize=(16, 5), sharey=True)
+    _fig, _axes = plt.subplots(1, 3, figsize=(16, 5), sharey=True)
 
     for _ax, _slot in zip(_axes, _slots, strict=True):
         _subset = iced[iced["time_slot"] == _slot]
@@ -152,8 +152,9 @@ def _(iced, plt):
             )
 
     _axes[0].set_ylabel("Revenue (JPY)")
-    _fig2.suptitle("Temperature vs Iced Coffee Revenue — by Time Slot", fontsize=14)
-    _fig2.tight_layout()
+    _fig.suptitle("Temperature vs Iced Coffee Revenue — by Time Slot", fontsize=14)
+    _fig.tight_layout()
+    plt.gcf()
     return
 
 
@@ -188,16 +189,20 @@ def _(mo):
 
 
 @app.cell
-def _(export_lineage_as_mermaid, session):
+def _(export_lineage_as_mermaid, mo, session):
     """Export lineage as Mermaid diagram.
 
     This creates .insight/lineage/DEMO-H01.mmd which the
     /data-lineage skill can visualize.
     """
     mermaid = export_lineage_as_mermaid(session, project_path=".")
-    print("Lineage Mermaid diagram:")
-    print(mermaid)
-    return mermaid
+    mo.vstack(
+        [
+            mo.md("### Data Lineage: DEMO-H01"),
+            mo.mermaid(mermaid),
+        ]
+    )
+    return (mermaid,)
 
 
 if __name__ == "__main__":

@@ -139,6 +139,7 @@ def _(df, plt):
         fontsize=14,
     )
     _fig.tight_layout()
+    plt.gcf()
     return (correlations,)
 
 
@@ -201,16 +202,21 @@ def _(df, plt):
     _ax.set_title("Guardrail: Unit Price by Time Slot")
     _ax.set_xticklabels(_ax.get_xticklabels(), rotation=0)
     _fig3.tight_layout()
+    plt.gcf()
     return
 
 
 @app.cell
-def _(export_lineage_as_mermaid, session):
+def _(export_lineage_as_mermaid, mo, session):
     """Export lineage diagram for DEMO-H02."""
     mermaid = export_lineage_as_mermaid(session, project_path=".")
-    print("Lineage Mermaid diagram:")
-    print(mermaid)
-    return mermaid
+    mo.vstack(
+        [
+            mo.md("### Data Lineage: DEMO-H02"),
+            mo.mermaid(mermaid),
+        ]
+    )
+    return (mermaid,)
 
 
 if __name__ == "__main__":
