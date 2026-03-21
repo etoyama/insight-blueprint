@@ -10,13 +10,13 @@
 | 1 | `/catalog-register` | データソースをカタログに登録 |
 | 2 | `/analysis-framing` | データの探索と仮説方向の決定 |
 | 3 | `/analysis-design` | 仮説設計ドキュメントの作成 |
-| 4 | **marimo notebook** | 実データの分析と可視化 |
-| 5 | `/data-lineage` | データ変換パイプラインの追跡 |
-| 6 | `/analysis-journal` | 推論過程の記録 |
-| 7 | `/analysis-reflection` | 構造化された振り返りと結論 |
-| 8 | `/catalog-register` | 知見のナレッジ登録 |
-| 9 | **WebUI** | レビューコメントの投稿 |
-| 10 | `/analysis-revision` | レビュー指摘への対応 |
+| 4 | **WebUI** | 仮説・手法のレビューコメント投稿 |
+| 5 | `/analysis-revision` | レビュー指摘への対応 |
+| 6 | **marimo notebook** | 実データの分析と可視化 |
+| 7 | `/data-lineage` | データ変換パイプラインの追跡 |
+| 8 | `/analysis-journal` | 推論過程の記録 |
+| 9 | `/analysis-reflection` | 構造化された振り返りと結論 |
+| 10 | `/catalog-register` | 知見のナレッジ登録 |
 
 ## 前提条件
 
@@ -126,8 +126,36 @@ sample_data/sales.csv をカタログに登録して
 | methodology | method: 散布図 + Pearson 相関係数, package: pandas + matplotlib |
 
 > **design_id** (例: `DEMO-H01`) が発行されます。
+> ステータスは `in_review` で作成されます。
 
-### Step 4: marimo notebook で探索的分析
+### Step 4: WebUI で仮説・手法をレビュー
+
+ブラウザで `http://127.0.0.1:3000` を開きます。
+
+1. **Designs タブ** で DEMO-H01 をクリック
+2. **Overview** で仮説と手法の妥当性を確認し、レビューコメントを書く
+   - 例: methodology に「相関係数だけでなく散布図の目視確認も必要では？」
+   - 例: hypothesis_statement に「対象商品をアイスコーヒーだけでなくフラペチーノも含めるべきでは？」
+3. **Review Batch** を送信（verdict: `revision_requested`）
+
+> ステータスが `revision_requested` に変わります。
+
+### Step 5: 指摘への対応
+
+```
+レビューの指摘を確認して対応したい
+```
+
+> `/analysis-revision` スキルが起動します。
+> 各コメントに対して fix / skip / discuss を選択し、
+> 対応完了後にステータスを `in_review` に戻します。
+
+### Step 6: 分析開始への遷移
+
+> WebUI で DEMO-H01 のステータスを `analyzing` に遷移させます。
+> これで分析を実施する準備が整いました。
+
+### Step 7: marimo notebook で探索的分析
 
 ```bash
 marimo edit notebooks/01_explore.py
@@ -144,7 +172,7 @@ marimo edit notebooks/01_explore.py
 > **発見**: 午後は正の相関があるが、午前は通勤需要でホットコーヒーが優勢。
 > 気温効果が時間帯によって変わる。
 
-### Step 5: リネージの確認
+### Step 8: リネージの確認
 
 ```
 DEMO-H01 のデータリネージを見せて
@@ -153,7 +181,7 @@ DEMO-H01 のデータリネージを見せて
 > `/data-lineage` スキルが `.insight/lineage/DEMO-H01.mmd` の Mermaid 図を表示します。
 > 各変換ステップの行数変化が可視化されます。
 
-### Step 6: 推論過程の記録
+### Step 9: 推論過程の記録
 
 ```
 分析の結果を記録して。全体では相関があるが、午前帯だけ逆転していた
@@ -167,7 +195,7 @@ DEMO-H01 のデータリネージを見せて
 >
 > ジャーナルは `.insight/designs/DEMO-H01_journal.yaml` に保存されます。
 
-### Step 7: 振り返りと結論
+### Step 10: 振り返りと結論
 
 ```
 DEMO-H01 を振り返って結論を出したい
@@ -186,7 +214,7 @@ DEMO-H01 を振り返って結論を出したい
 
 ## 2回転目: 検証的分析（DEMO-H02）
 
-### Step 8: 派生仮説の設計
+### Step 11: 派生仮説の設計
 
 ```
 DEMO-H01 の結果から派生仮説を作りたい。
@@ -210,7 +238,7 @@ DEMO-H01 の結果から派生仮説を作りたい。
 
 > **design_id**: `DEMO-H02` が発行されます。
 
-### Step 9: marimo notebook で検証的分析
+### Step 12: marimo notebook で検証的分析
 
 ```bash
 marimo edit notebooks/02_verify.py
@@ -222,7 +250,7 @@ marimo edit notebooks/02_verify.py
 > 4. **ガードレール**: 客単価が時間帯で安定していることを確認
 > 5. **リネージ出力**: `.insight/lineage/DEMO-H02.mmd`
 
-### Step 10: 証拠の記録と結論
+### Step 13: 証拠の記録と結論
 
 ```
 DEMO-H02 の層別分析の結果を記録して。午後は r > 0.3、朝は r < 0.15 で仮説が支持された
@@ -236,7 +264,7 @@ DEMO-H02 を振り返って結論を出したい
 
 > `/analysis-reflection` で **supported** に遷移。
 
-### Step 11: 知見のナレッジ登録
+### Step 14: 知見のナレッジ登録
 
 ```
 「時間帯が気温効果を媒介する」という知見をカタログに登録して
@@ -250,31 +278,6 @@ DEMO-H02 を振り返って結論を出したい
 
 ---
 
-## サイドクエスト: レビューフロー
-
-### Step 12: WebUI でレビュー
-
-ブラウザで `http://127.0.0.1:3000` を開きます。
-
-1. **Designs タブ** で DEMO-H01 をクリック
-2. **Overview** で各セクションのレビューコメントを書く
-   - 例: hypothesis_statement に「対象商品をアイスコーヒーだけでなくフラペチーノも含めるべきでは？」
-3. **Review Batch** を送信（verdict: `revision_requested`）
-
-> ステータスが `revision_requested` に変わります。
-
-### Step 13: 指摘への対応
-
-```
-レビューの指摘を確認して対応したい
-```
-
-> `/analysis-revision` スキルが起動します。
-> 各コメントに対して fix / skip / discuss を選択し、
-> 対応完了後にステータスを `in_review` に戻します。
-
----
-
 ## ワークフロー全体図
 
 ```
@@ -284,7 +287,16 @@ DEMO-H02 を振り返って結論を出したい
 /analysis-framing (データ探索)
     │
     ▼
-/analysis-design (DEMO-H01: exploratory)
+/analysis-design (DEMO-H01: exploratory, status: in_review)
+    │
+    ▼
+WebUI レビュー (仮説・手法の妥当性確認)
+    │
+    ▼
+/analysis-revision (指摘対応 → in_review に戻す)
+    │
+    ▼
+analyzing に遷移
     │
     ▼
 marimo 01_explore.py ─── tracked_pipe ──→ /data-lineage
@@ -295,21 +307,19 @@ marimo 01_explore.py ─── tracked_pipe ──→ /data-lineage
     ▼
 /analysis-reflection (supported, 条件付き)
     │
-    ├──→ /analysis-design (DEMO-H02: confirmatory, parent_id)
-    │        │
-    │        ▼
-    │    marimo 02_verify.py ─── tracked_pipe ──→ /data-lineage
-    │        │
-    │        ▼
-    │    /analysis-journal (evidence, conclude)
-    │        │
-    │        ▼
-    │    /analysis-reflection (supported)
-    │        │
-    │        ▼
-    │    /catalog-register (ナレッジ登録)
-    │
-    └──→ WebUI レビュー → /analysis-revision
+    └──→ /analysis-design (DEMO-H02: confirmatory, parent_id)
+             │
+             ▼
+         marimo 02_verify.py ─── tracked_pipe ──→ /data-lineage
+             │
+             ▼
+         /analysis-journal (evidence, conclude)
+             │
+             ▼
+         /analysis-reflection (supported)
+             │
+             ▼
+         /catalog-register (ナレッジ登録)
 ```
 
 ## データについて
