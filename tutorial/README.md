@@ -39,13 +39,19 @@ uv add marimo
 
 ### 1. insight-blueprint プラグインのインストール
 
-**方法 A: Claude Code Plugin（推奨）**
+**方法 A: ローカルプラグイン（推奨）**
+
+リポジトリをクローンして `--plugin-dir` で起動します:
 
 ```bash
-claude plugin install etoyama/insight-blueprint
+git clone https://github.com/etoyama/insight-blueprint.git
+cd your-analysis-project
+claude --plugin-dir /path/to/insight-blueprint
 ```
 
-**方法 B: 手動設定**
+> スキル（7個）と MCP サーバーが自動的にロードされます。
+
+**方法 B: MCP サーバーのみ（手動設定）**
 
 プロジェクトの `.mcp.json` に以下を追加:
 
@@ -63,6 +69,9 @@ claude plugin install etoyama/insight-blueprint
   }
 }
 ```
+
+> この方法では MCP ツールのみ利用可能です。スキル（`/analysis-design` 等）は
+> 方法 A でプラグインとしてロードする必要があります。
 
 ### 2. プロジェクトの初期化
 
