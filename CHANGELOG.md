@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `/batch-analysis` skill for overnight batch execution of queued analysis designs
+- `batch-prompt.md` headless orchestration prompt with 8-cell notebook contract
+- `next_action` field convention for queue management (`batch_execute` type)
 - Claude Code Plugin distribution format (`.claude-plugin/plugin.json`, `.mcp.json`)
 - Plugin validation CI job (`plugin-validate`)
 - data-lineage Python package prerequisites check

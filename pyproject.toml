@@ -142,5 +142,7 @@ dev = [
     "marimo>=0.21.1",
     "matplotlib>=3.10.8",
     "pandas>=3.0.1",
+    "scikit-learn>=1.8.0",
+    "statsmodels>=0.14.6",
     "ty>=0.0.17",
 ]

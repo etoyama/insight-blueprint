@@ -16,7 +16,7 @@ A Python MCP server for hypothesis-driven data analysis. Manage analysis designs
 # Install the plugin (skills + MCP server definition)
 claude plugin install etoyama/insight-blueprint
 
-# The plugin provides 7 analysis skills and auto-configures the MCP server.
+# The plugin provides 8 analysis skills and auto-configures the MCP server.
 # A WebUI dashboard opens automatically at http://127.0.0.1:3000
 ```
 
@@ -64,7 +64,7 @@ A browser-based dashboard (http://127.0.0.1:3000) with two tabs:
 
 ### Bundled Skills
 
-The plugin provides 7 analysis skills that are automatically available after installation:
+The plugin provides 8 analysis skills that are automatically available after installation:
 
 - `/analysis-framing` -- Explore available data and existing analyses to frame a hypothesis direction
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
@@ -73,6 +73,7 @@ The plugin provides 7 analysis skills that are automatically available after ins
 - `/analysis-revision` -- Guided revision workflow for addressing review comments
 - `/catalog-register` -- Step-by-step data source registration
 - `/data-lineage` -- Track data transformations and export lineage diagrams (Mermaid)
+- `/batch-analysis` -- Overnight batch execution of queued designs (headless notebooks, self-review, journal recording)
 
 Skills support both English and Japanese trigger phrases.
 
@@ -84,10 +85,11 @@ Skills chain together to support the full hypothesis-driven analysis lifecycle:
 /analysis-framing (explore data, frame direction)
     ↓
 /analysis-design (create hypothesis)
+    ↓ (interactive)          ↓ (batch)
+/analysis-journal        /batch-analysis (overnight headless)
+    ↓                        ↓
     ↓
-/analysis-journal (record reasoning: observe → hypothesize → evidence → decide)
-    ↓
-/analysis-reflection (reflect → conclude or branch)
+/analysis-reflection (reflect → conclude or branch)      ← morning review
     ↓ ↗ back to /analysis-framing (new direction needed)
     ↕ WebUI review → /analysis-revision (address review comments)
 /catalog-register (register findings as domain knowledge)
