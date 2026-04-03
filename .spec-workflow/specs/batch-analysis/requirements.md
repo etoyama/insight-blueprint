@@ -33,14 +33,14 @@ batch-analysis は、分析設計書（AnalysisDesign）を複数キューに入
 
 - FR-1.1: AnalysisDesign の `next_action` フィールドに `{"type": "batch_execute"}` を設定することでキューに投入できる
 - FR-1.2: `next_action` に `priority` フィールド（integer）を任意で設定でき、値が小さい順に処理される
-- FR-1.3: バッチ実行完了後、`next_action` は `null` にリセットされる
+- FR-1.3: バッチ実行完了後、`next_action` は `{}` にリセットされる（MCP ツールの制約により null は設定不可。空 dict でクリア済みを表現）
 - FR-1.4: `status` が terminal（supported / rejected / inconclusive）の設計書はキューに入れても処理をスキップする
 
 #### Acceptance Criteria
 
 - AC-1.1: WHEN `update_analysis_design(design_id, next_action={"type": "batch_execute"})` を実行 THEN 設計書の `next_action` が更新される
 - AC-1.2: WHEN バッチ実行時に複数設計書がキューにある THEN `priority` の昇順で処理される（`priority` なしは最後）
-- AC-1.3: WHEN 設計書の処理が完了 THEN `next_action` が `null` にリセットされる
+- AC-1.3: WHEN 設計書の処理が完了 THEN `next_action` が `{}` にリセットされる（MCP 制約により空 dict を使用）
 - AC-1.4: WHEN terminal ステータスの設計書がキューにある THEN スキップされ、summary にスキップ理由が記録される
 
 ### REQ-2: marimo notebook 自動生成
@@ -79,7 +79,7 @@ batch-analysis は、分析設計書（AnalysisDesign）を複数キューに入
 - FR-3.2: 実行結果（session JSON）は `__marimo__/session/` に自動保存される
 - FR-3.3: 実行エラーが発生した場合、エージェントは修正を試みる。修正不能なエラーの場合のみ当該設計書をスキップし、他の設計書の処理を継続する（エラー分離）。具体的には:
   - エージェントが修正可能なエラー（構文エラー、marimo 固有の記法ミス、import エラー等）は marimo 公式ドキュメント（context7 経由）を参照して修正を試み、再実行する
-  - 修正が成功した場合、再発防止のために `.claude/rules/marimo-notebooks.md` に得られた知見を追記する
+  - 修正が成功した場合、再発防止のために `{RUN_DIR}/lessons.md` に得られた知見を記録する（夜間バッチは共有ポリシーファイルを変更しない。人間が朝レビュー時に `.claude/rules/marimo-notebooks.md` へ昇格）
   - 修正を3回試みても解消しないエラーは「修正不能」としてスキップし、summary に詳細を記録する
 - FR-3.4: 実行後、設計書のステータスを `analyzing` に遷移する
 - FR-3.5: notebook 実行前に、設計書の `methodology.package` で指定されたパッケージがインストール済みか確認し、不足している場合は `uv add --dev` で追加する
@@ -88,7 +88,7 @@ batch-analysis は、分析設計書（AnalysisDesign）を複数キューに入
 
 - AC-3.1: WHEN notebook が正常に生成されている THEN `marimo export session` で全セルが実行される
 - AC-3.2: WHEN 1つの notebook でエラーが発生 THEN エージェントが修正を試みる。修正成功なら再実行し、修正不能（3回失敗）なら当該設計書をスキップして次の設計書の処理が続行される
-- AC-3.6: WHEN marimo 固有の記法エラーを修正した THEN `.claude/rules/marimo-notebooks.md` に再発防止の知見が追記される
+- AC-3.6: WHEN marimo 固有の記法エラーを修正した THEN `{RUN_DIR}/lessons.md` に再発防止の知見が記録される（共有ルールへの昇格は人間が朝レビュー時に実施）
 - AC-3.3: WHEN notebook 実行が完了 THEN 設計書のステータスが `analyzing` に遷移する
 - AC-3.4: WHEN 設計書のステータスが `in_review` 以外（例: `analyzing`）THEN ステータス遷移はスキップされる（冪等性）
 - AC-3.5: WHEN `methodology.package` に `statsmodels` が指定され未インストール THEN `uv add --dev statsmodels` が実行されてから notebook 実行に進む

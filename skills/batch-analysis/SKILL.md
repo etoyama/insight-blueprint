@@ -201,12 +201,16 @@ Multiple runs on the same day do not collide. Timestamps are JST.
 ## Launch Command
 
 ```bash
+# Create run directory BEFORE launching (avoids "no such file" on redirect)
+RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN_DIR"
+
 claude -p "$(cat skills/batch-analysis/batch-prompt.md)" \
   --model sonnet \
   --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
   --permission-mode bypassPermissions \
   --max-budget-usd 10 \
-  > .insight/runs/$(date +%Y%m%d_%H%M%S)/session.log 2>&1
+  > "$RUN_DIR/session.log" 2>&1
 ```
 
 **Flag rationale:**

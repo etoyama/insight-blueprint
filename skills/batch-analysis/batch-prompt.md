@@ -787,9 +787,10 @@ def _(raw_df, session, tracked_pipe, mo):
 
 # Cell 4: analysis
 @app.cell
-def _(df_clean, pd, mo):
+def _(df_clean, pd, session, tracked_pipe, mo):
     # ... analysis logic (varies by intent and methodology) ...
-    results = { ... }
+    # Use tracked_pipe for methodology-dependent transformations (matching, splitting, etc.)
+    results = { ... }  # MUST include: hypothesis_direction, observed_direction, confidence_level, decision_reason
     # IMPORTANT: display key results via mo.md()
     _result_text = f"Key result: ..."
     mo.md(_result_text)

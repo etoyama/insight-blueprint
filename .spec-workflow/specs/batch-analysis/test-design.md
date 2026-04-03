@@ -26,7 +26,7 @@
 |-----|---------------------|:-----:|:---:|--------|
 | 1.1 | next_action で batch_execute 設定 | Integ-01 | E2E-01 | next_action が正しく更新される |
 | 1.2 | priority 昇順で処理 | - | E2E-05 | priority=1 が priority=2 より先に処理される |
-| 1.3 | 処理完了後 next_action が null | - | E2E-01 | 処理後の設計書の next_action が null |
+| 1.3 | 処理完了後 next_action が {} | - | E2E-01 | 処理後の設計書の next_action が {} (MCP 制約により空 dict) |
 | 1.4 | terminal status はスキップ | - | E2E-04 | summary にスキップ理由が記録される |
 
 ### REQ-2: marimo notebook 自動生成
@@ -95,7 +95,7 @@
 | ケース | 手順 | 検証内容 | 検証方法 | カバーするAC |
 |--------|------|----------|----------|-------------|
 | `test_queue_set` | 1. `MCP: update_analysis_design(design_id="DEMO-H01", next_action={"type": "batch_execute", "priority": 1})` を実行 | next_action が設定され、list で読み取れる | `MCP: list_analysis_designs()` → 結果から DEMO-H01 の `next_action.type` == `"batch_execute"` を目視確認 | 1.1 |
-| `test_queue_reset` | 1. `MCP: update_analysis_design(design_id="DEMO-H01", next_action=null)` を実行 | next_action が null にリセットされる | `MCP: get_analysis_design(design_id="DEMO-H01")` → `next_action` == `null` を確認 | 1.3 |
+| `test_queue_reset` | 1. `MCP: update_analysis_design(design_id="DEMO-H01", next_action={})` を実行 | next_action が {} にリセットされる | `MCP: get_analysis_design(design_id="DEMO-H01")` → `next_action` == `{}` を確認 | 1.3 |
 
 ---
 
@@ -147,10 +147,10 @@
 | ケース | 手順 | 検証内容 | エラー注入方法 | 検証方法 | カバーするAC |
 |--------|------|----------|--------------|----------|-------------|
 | `test_error_repair_package` | 1. methodology.package に未インストールパッケージを指定した設計書を用意 2. notebook 生成 → `Bash: uv run marimo export session notebook.py` 実行 → ModuleNotFoundError 3. エージェントが `Bash: uv add --dev {package}` 実行 4. 再実行で成功確認 | 修復可能なエラー（パッケージ不足）で uv add --dev → 再実行成功 | methodology.package に未インストールパッケージを指定 | `Bash: uv run marimo export session --force-overwrite notebook.py && echo "EXIT:$?"` → EXIT:0 を確認; `Bash: uv pip list \| grep {package}` → パッケージが存在 | 3.2 |
-| `test_error_repair_marimo_syntax` | 1. `_` prefix なしの変数名を使った notebook を手書きで用意（例: `fig, ax = plt.subplots()` を複数セルに配置し multiple-defs を誘発） 2. `Bash: uv run marimo export session --force-overwrite bad_notebook.py` → multiple-defs エラー確認 3. エージェントに修正を依頼（context7 で marimo docs 参照 → `_` prefix 追加 → 再実行） 4. 修正成功後、`.claude/rules/marimo-notebooks.md` への知見追記を確認 | **marimo 記法エラー**（multiple-defs）の修正 + rules 更新 | 事前に `_` prefix なしの notebook を手書きで用意し `marimo export session` にかけてエラー発生 → Claude Code がこれを修正 → rules 更新を検証 | `Bash: uv run marimo export session --force-overwrite bad_notebook.py && echo "EXIT:$?"` → 修正後 EXIT:0; `Bash: git diff .claude/rules/marimo-notebooks.md` → 差分が存在（知見追記あり）; `Grep: pattern="_fig\|_ax" path="bad_notebook.py"` → `_` prefix 付き変数に修正されていること | **3.6** |
+| `test_error_repair_marimo_syntax` | 1. `_` prefix なしの変数名を使った notebook を手書きで用意（例: `fig, ax = plt.subplots()` を複数セルに配置し multiple-defs を誘発） 2. `Bash: uv run marimo export session --force-overwrite bad_notebook.py` → multiple-defs エラー確認 3. エージェントに修正を依頼（context7 で marimo docs 参照 → `_` prefix 追加 → 再実行） 4. 修正成功後、`{RUN_DIR}/lessons.md` への知見記録を確認 | **marimo 記法エラー**（multiple-defs）の修正 + lessons 記録 | 事前に `_` prefix なしの notebook を手書きで用意し `marimo export session` にかけてエラー発生 → Claude Code がこれを修正 → lessons 記録を検証 | `Bash: uv run marimo export session --force-overwrite bad_notebook.py && echo "EXIT:$?"` → 修正後 EXIT:0; `Bash: ls {RUN_DIR}/lessons.md && echo "EXISTS"` → lessons.md が存在; `Grep: pattern="_fig\|_ax" path="bad_notebook.py"` → `_` prefix 付き変数に修正されていること | **3.6** |
 | `test_error_repair_failure` | 1. 存在しない DB 接続文字列をデータソースに指定した設計書で notebook 生成 2. 3回修正試行 → 全て失敗 3. スキップされ summary に記録 | 修復不能なエラー（3回失敗）でスキップ + summary 記録 | 存在しない DB 接続文字列をデータソースに指定 | `Grep: pattern="Requires Attention\|skip\|error" path="summary.md" -i` → 当該設計書のエラー詳細が記載; `Grep: pattern="3.*attempt\|修正.*3\|retry" path="summary.md" -i` → 修正試行回数の記録あり | 3.2 |
 
-> **設計判断（AC-3.6）**: marimo 記法エラーの再現は、意図的に `_` prefix なしの notebook を手書きで事前に用意し、`marimo export session` でエラーを発生させる。batch-prompt の改変は行わない。修正成功後に `.claude/rules/marimo-notebooks.md` に追記されたことを `git diff` で確認する。
+> **設計判断（AC-3.6）**: marimo 記法エラーの再現は、意図的に `_` prefix なしの notebook を手書きで事前に用意し、`marimo export session` でエラーを発生させる。batch-prompt の改変は行わない。修正成功後に `{RUN_DIR}/lessons.md` に知見が記録されたことを確認する（夜間バッチは共有ルールファイルを変更しない）。
 
 ---
 
@@ -309,7 +309,7 @@
 | 3 | verdict に conclusion + **evidence_summary（発見パターンの列挙）** + open_questions | `Bash: python3 -c "import json, glob; p=glob.glob('.insight/runs/*/DEMO-H01/__marimo__/session/notebook.py.json')[0]; v=str(json.load(open(p))['cells'][6]); assert 'conclusion' in v.lower() or 'open_questions' in v.lower(), 'verdict missing key fields'"` | 2.3 |
 | 4 | journal に observe + evidence + question（conclude なし） | `Grep: pattern="type: observe" path=".insight/designs/DEMO-H01_journal.yaml"` → 1件以上; `Grep: pattern="type: evidence" path=".insight/designs/DEMO-H01_journal.yaml"` → 1件以上; `Grep: pattern="type: conclude" path=".insight/designs/DEMO-H01_journal.yaml"` → 0件 | 4.1, 4.2, 4.5 |
 | 5 | DEMO-H01 の status == analyzing | `MCP: get_analysis_design(design_id="DEMO-H01")` → status == "analyzing" | 3.3 |
-| 6 | DEMO-H01 の next_action == null | `MCP: get_analysis_design(design_id="DEMO-H01")` → next_action == null | 1.3 |
+| 6 | DEMO-H01 の next_action == {} | `MCP: get_analysis_design(design_id="DEMO-H01")` → next_action == {} | 1.3 |
 | 7 | summary.md が存在し、DEMO-H01 の結果が記載 | `Bash: ls .insight/runs/*/summary.md && echo "EXISTS"` → EXISTS; `Grep: pattern="DEMO-H01" path=".insight/runs/*/summary.md"` → 1件以上 | 5.1 |
 | 8 | claude -p が正常終了 | `Bash: echo $?` → 0（claude -p 実行直後に確認） | 6.1 |
 
