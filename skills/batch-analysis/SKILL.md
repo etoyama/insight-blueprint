@@ -1,14 +1,19 @@
 ---
 name: batch-analysis
-version: "1.0.0"
 description: |
-  Overnight batch execution of analysis designs. Queued designs are processed
-  headlessly: marimo notebooks are generated following an 8-cell contract,
-  executed via `marimo export session`, self-reviewed, and results recorded
-  as journal events. A morning summary is generated for human triage.
-  Triggers: "batch", "夜間実行", "バッチ分析", "一括実行", "overnight",
-  "キューに入れて", "朝レビュー用に回して".
+  Overnight batch execution of queued analysis designs. Generates marimo
+  notebooks (8-cell contract), executes headlessly, self-reviews results,
+  records journal events, and produces a morning summary for human triage.
+  Use when: running overnight analysis, processing batch queue, scheduling
+  unattended analysis, reviewing morning results.
+  Triggers: "batch", "バッチ実行して", "バッチ回して", "夜間実行",
+  "バッチ分析", "一括実行", "overnight", "run overnight batch",
+  "キューに入れて", "朝レビュー用に回して", "overnight analysis".
 disable-model-invocation: true
+argument-hint: "[design_id | --all]"
+metadata:
+  version: "1.0.0"
+  author: "etoyama"
 ---
 
 # /batch-analysis -- Overnight Batch Analysis
@@ -20,6 +25,13 @@ and produces a morning review summary.
 
 Based on the Papermill (Netflix) "fixed structure, AI-generated content" approach
 adapted for hypothesis-driven EDA.
+
+### Key Files
+
+| File | Purpose | Consumed by |
+|------|---------|-------------|
+| `SKILL.md` (this file) | Skill definition, contracts, configuration | Claude Code (on skill activation) |
+| `references/batch-prompt.md` | Full orchestration prompt (902 lines) | `claude -p "$(cat ...)"` (headless execution) |
 
 ## When to Use
 - Multiple analysis designs are ready for automated execution
@@ -144,7 +156,7 @@ These rules are mandatory for all generated notebooks. See also
 Where generated notebooks are saved.
 
 **Resolution order** (highest priority first):
-1. Explicit setting in batch-prompt.md
+1. Explicit setting in references/batch-prompt.md
 2. `.insight/config.yaml` key `batch.notebook_dir`
 3. Default: `.insight/runs/YYYYMMDD_HHmmss/{design_id}/`
 
@@ -156,7 +168,7 @@ Where generated notebooks are saved.
 Optional directory for shared utility functions across notebooks.
 
 **Resolution order** (highest priority first):
-1. Explicit setting in batch-prompt.md
+1. Explicit setting in references/batch-prompt.md
 2. `.insight/config.yaml` key `batch.lib_dir`
 3. Default: none (disabled)
 
@@ -205,7 +217,7 @@ Multiple runs on the same day do not collide. Timestamps are JST.
 RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$RUN_DIR"
 
-claude -p "$(cat skills/batch-analysis/batch-prompt.md)" \
+claude -p "$(cat skills/batch-analysis/references/batch-prompt.md)" \
   --model sonnet \
   --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
   --permission-mode bypassPermissions \
