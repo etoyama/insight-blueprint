@@ -402,3 +402,4 @@ sklearn, statsmodels は dev 依存に追加が必要だった（初回は `Modu
 | 2026-03-27 | V5 追加。Max プラン確認（コスト問題解消）、Ollama ハイブリッドテスト（品質不足で現時点非推奨）、A-2 更新（コスト→所要時間）、A-6/A-7 追加 |
 | 2026-03-27 | V5b 追加。haiku が sonnet 同等品質で 5倍速（59秒 vs 294秒）。V6a 追加。PSM（傾向スコアマッチング）が8セルに収まることを確認。A-7 解消、A-8 追加（パッケージ依存） |
 | 2026-03-27 | V5d 追加。Ollama + API ドキュメント注入で tracked_pipe 誤用が完全解消。手動パッチ2箇所（mo 循環依存 + 関数名）で全セル実行成功。Ollama ルートの実用可能性を確認 |
+| 2026-04-03 | 実装完了。SKILL.md (349行) + batch-prompt.md (851行) + テストフィクスチャ (9ファイル) 作成。Integ-01〜11 全 PASS、E2E-01〜06 全 PASS。発見: MCP update_analysis_design で next_action=null 設定不可 → next_action={} で代用。810 既存テスト通過 |
