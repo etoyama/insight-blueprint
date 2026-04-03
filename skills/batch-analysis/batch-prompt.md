@@ -62,7 +62,7 @@ All generated notebooks MUST follow this exact 8-cell structure. Cell structure 
 | 1 | meta | `def _(mo):` | -- | Display design_id, title, hypothesis, intent via `mo.md()` |
 | 2 | data_load | `def _(pd, LineageSession):` | `(raw_df, session, mo)` | CSV/DB read + `LineageSession(name=..., design_id=...)` + `import marimo as mo` |
 | 3 | data_prep | `def _(raw_df, session, tracked_pipe, mo):` | `(df_clean,)` | Methodology-independent preprocessing via `tracked_pipe` |
-| 4 | analysis | `def _(df_clean, pd, mo):` | `(results,)` | Methodology-dependent analysis |
+| 4 | analysis | `def _(df_clean, pd, session, tracked_pipe, mo):` | `(results,)` | Methodology-dependent analysis. Use `tracked_pipe` for data transformations (treatment/control split, matching, resampling) to extend lineage coverage |
 | 5 | viz | `def _(df_clean, results, plt):` | -- | Visualization with `_` prefix variables |
 | 6 | verdict | `def _(results, mo):` | `(verdict,)` | Conclusion + evidence + open questions |
 | 7 | lineage | `def _(session, export_lineage_as_mermaid, mo):` | -- | Mermaid lineage diagram |
@@ -95,13 +95,21 @@ def _(raw_df, session, tracked_pipe, mo):
 
 ### Cell 4 (analysis) -- Intent-Based Behavior
 
+Cell 4 receives `session` and `tracked_pipe` to record methodology-dependent data
+transformations (treatment/control split, matching, resampling) in lineage, extending
+coverage beyond Cell 3's preprocessing.
+
 **exploratory** (analysis_intent == "exploratory"):
 - Pattern search: correlation, distribution, subgroup comparison
 - No pre-defined pass/fail criteria
-- `results` dict contains discovered patterns
+- `results` dict MUST contain structured direction fields
 
 ```python
 results = {
+    "hypothesis_direction": str,      # What the hypothesis predicts (e.g., "positive correlation")
+    "observed_direction": str,        # What was actually observed (e.g., "moderate positive correlation r=0.47")
+    "confidence_level": str,          # "high" | "medium" | "low" | "ambiguous"
+    "decision_reason": str,           # Why the direction was determined this way
     "correlations": {...},
     "subgroup_stats": {...},
     "notable_patterns": [...]
@@ -110,10 +118,14 @@ results = {
 
 **confirmatory** (analysis_intent == "confirmatory"):
 - Evaluate each metric against its acceptance criteria
-- `results` dict contains value + threshold + pass/fail per metric
+- `results` dict MUST contain structured direction fields
 
 ```python
 results = {
+    "hypothesis_direction": str,      # "supported" | "rejected" | "inconclusive"
+    "observed_direction": str,        # Summary of observed values vs thresholds
+    "confidence_level": str,          # "high" | "medium" | "low" | "ambiguous"
+    "decision_reason": str,           # Which ACs passed/failed and why
     "metrics": {
         "ATT": {"value": 1676.9, "threshold": 0, "p_value": 0.0001, "pass": True},
         "SMD_max": {"value": 0.05, "threshold": 0.1, "pass": True}
@@ -122,7 +134,7 @@ results = {
 }
 ```
 
-**IMPORTANT**: Cell 4 must also display key results via `mo.md()`. Dict returns alone do NOT produce text output in session JSON.
+**IMPORTANT**: Cell 4 must also display key results via `mo.md()`. Dict returns alone do NOT produce text output in session JSON. The structured fields (`hypothesis_direction`, `observed_direction`, etc.) are the primary source for journal direction determination — markdown text is display-only.
 
 ### Cell 6 (verdict) -- Verdict Dict Schema
 
@@ -248,11 +260,27 @@ Record start time:
 #### 3d. Package Check (FR-3.5)
 
 If `methodology.package` is specified:
-1. Split by ` + ` to get individual package names (e.g., "sklearn + statsmodels" → ["sklearn", "statsmodels"])
-2. **Validate each name**: must match `^[a-zA-Z0-9_-]+$`. Reject names containing shell metacharacters (`;|&$\`(){}<>!#*?~\\`). Log warning and skip invalid names.
-3. For each valid package: `uv run python -c "import {package}"` via Bash
-4. If ModuleNotFoundError: `uv add --dev {package}` via Bash
-5. Log: "パッケージ追加: {package}"
+
+**Allowed packages** (allowlist — only these may be installed):
+
+| Alias (in methodology.package) | Import name | pip/uv package |
+|------|-------------|----------------|
+| pandas | pandas | pandas |
+| matplotlib | matplotlib | matplotlib |
+| numpy | numpy | numpy |
+| scipy | scipy | scipy |
+| sklearn | sklearn | scikit-learn |
+| statsmodels | statsmodels | statsmodels |
+| seaborn | seaborn | seaborn |
+| plotly | plotly | plotly |
+
+1. Split `methodology.package` by ` + ` to get individual names
+2. For each name, look up in the allowlist above. If not found, **skip and log warning** ("未許可パッケージ: {name} — allowlist にないためスキップ")
+3. For each allowed package: `uv run python -c "import {import_name}"` via Bash
+4. If ModuleNotFoundError: `uv add --dev {pip_package}` via Bash
+5. Log: "パッケージ追加: {pip_package}"
+
+**Never run `uv add` with a package name not in the allowlist.** To add new packages, update the allowlist in SKILL.md and batch-prompt.md.
 
 #### 3e. Generate Notebook
 
@@ -462,9 +490,9 @@ When `marimo export session` fails:
 | FileNotFoundError (data source) | Record `question` journal event ("データソースが見つからない: {path}") -> skip design |
 | MCP connection failure | Log error -> **stop entire batch** (other designs also cannot proceed) |
 
-### Rules Update on Successful Fix
+### Lessons Learned (Run-Local, NOT Global Rules)
 
-When you fix a marimo-specific error (Attempt 1 or 2), append the learned pattern to `.claude/rules/marimo-notebooks.md`:
+When you fix a marimo-specific error (Attempt 1 or 2), record the learned pattern to `{RUN_DIR}/lessons.md` (**NOT** `.claude/rules/marimo-notebooks.md`). Overnight batch runs MUST NOT modify shared policy files.
 
 ```markdown
 ## {Brief problem description}
@@ -480,7 +508,7 @@ When you fix a marimo-specific error (Attempt 1 or 2), append the learned patter
 \```
 ```
 
-Read the existing file first to avoid duplicating already-documented rules.
+The human reviewer will promote relevant lessons to `.claude/rules/marimo-notebooks.md` during the morning review.
 
 ---
 
@@ -517,22 +545,25 @@ for i, cell in enumerate(session_data["cells"]):
 | 4 | analysis | `evidence` | Key statistics (correlation, ATT, p-value, etc.) |
 | 6 | verdict | `evidence` + `question` | conclusion and evidence_summary -> `evidence`; open_questions -> `question` (one event per question) |
 
-### direction Determination (for evidence events)
+### direction Determination (Schema-First, Deterministic)
 
-**confirmatory intent**:
-- Read `verdict.conclusion` or `results.overall`
-- All primary ACs pass -> `direction: supports`
-- Any primary AC fails -> `direction: contradicts`
+Direction is determined from the **structured `results` fields**, NOT from free-text comparison.
 
-**exploratory intent**:
-- Compare `hypothesis_statement` (from design) with `verdict.evidence_summary`
-- Correlation/pattern direction matches hypothesis -> `direction: supports`
-- Opposite direction or null result -> `direction: contradicts`
+**Step 1**: Read `results.confidence_level`
+- If `"ambiguous"`: Do NOT set `direction`. Record a `question` event: `"direction の判定が困難: {results.decision_reason}"`
+- Otherwise proceed to Step 2.
 
-**Ambiguous case**: Do NOT set `direction`. Instead, record an additional `question` event:
-```
-"direction の判定が困難: {reason}"
-```
+**Step 2**: Read `results.hypothesis_direction` and `results.observed_direction`
+- **confirmatory**: `results.hypothesis_direction` is "supported"/"rejected"/"inconclusive"
+  - "supported" -> `direction: supports`
+  - "rejected" -> `direction: contradicts`
+  - "inconclusive" -> no `direction`, record `question` event
+- **exploratory**: Compare `hypothesis_direction` with `observed_direction`
+  - Directions match -> `direction: supports`
+  - Directions oppose -> `direction: contradicts`
+  - Cannot determine -> no `direction`, record `question` event
+
+**Rationale**: `results.decision_reason` provides the audit trail for why the direction was chosen. This eliminates free-text inference noise.
 
 ### Journal YAML Format
 
