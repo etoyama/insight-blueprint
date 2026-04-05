@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "insight-blueprint-marketplace",
+  "owner": {
+    "name": "etoyama"
+  },
+  "metadata": {
+    "description": "Hypothesis-driven EDA platform plugins",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "insight-blueprint",
+      "source": "./",
+      "description": "Hypothesis-driven data analysis workflow and catalog MCP server",
+      "license": "MIT",
+      "keywords": ["analysis", "hypothesis", "data-catalog", "mcp"]
+    }
+  ]
+}

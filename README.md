@@ -13,17 +13,21 @@ A Python MCP server for hypothesis-driven data analysis. Manage analysis designs
 ### Recommended: Claude Code Plugin
 
 ```bash
-# Option 1: From the marketplace
+# Option 1: From the official marketplace
 claude plugin install etoyama/insight-blueprint
 
-# Option 2: From a local clone
+# Option 2: Via custom marketplace (permanent install)
+/plugin marketplace add etoyama/insight-blueprint
+/plugin install insight-blueprint@insight-blueprint-marketplace
+
+# Option 3: From a local clone (session only)
 git clone https://github.com/etoyama/insight-blueprint.git
 claude --plugin-dir ./insight-blueprint
 ```
 
-Both options provide 8 analysis skills and auto-configure the MCP server. A WebUI dashboard opens automatically at http://127.0.0.1:3000.
+All options provide 8 analysis skills and auto-configure the MCP server. A WebUI dashboard opens automatically at http://127.0.0.1:3000.
 
-> **Note:** `--plugin-dir` loads the plugin for the current session. Add it to your shell alias for convenience:
+> **Tip:** Option 3 loads the plugin for the current session only. Add a shell alias for convenience:
 > ```bash
 > alias claude-ib='claude --plugin-dir /path/to/insight-blueprint'
 > ```
