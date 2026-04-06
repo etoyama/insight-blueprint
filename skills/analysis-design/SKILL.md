@@ -87,10 +87,17 @@ Interview the user for required fields:
 | `metrics` | No | List of verification metric dicts (tier: "primary" / "secondary" / "guardrail") | `[{target: "crime_rate_per_100k", tier: "primary", data_source: {crime: "0000010111"}, grouping: [...], filter: "...", aggregation: "mean", comparison: "..."}]` |
 | `explanatory` | No | List of explanatory variable dicts (role: "treatment" / "confounder" / "covariate" / "instrumental" / "mediator") | `[{name: "foreign_ratio", description: "外国人比率", role: "treatment", data_source: "0000010101", time_points: "2012-2022"}]` |
 | `chart` | No | List of visualization definition dicts (intent: "distribution" / "correlation" / "trend" / "comparison") | `[{intent: "correlation", type: "scatter", description: "FP ratio vs crime rate", x: "foreign_ratio", y: "crime_rate"}]` |
-| `methodology` | No | Analysis method and package | `{method: "OLS", package: "statsmodels", reason: "線形回帰で相関を検証"}` |
+| `methodology` | **Yes** | Analysis method and package (must include `method` key) | `{method: "OLS", package: "statsmodels", reason: "線形回帰で相関を検証"}` |
 | `next_action` | No | Branch definition after hypothesis test | `{if_supported: "...", if_rejected: {reason: "...", pivot: "..."}}` |
 
 If the user passed `$ARGUMENTS`, use it as `theme_id` (validate format first).
+
+### Step 2.5: Pre-creation Check
+
+Before calling `create_analysis_design`, verify that `methodology` is NOT null.
+If the interview did not cover methodology, ask now:
+- "What analysis method will you use? (e.g., OLS, t-test, chi-square, DID)"
+- Set `methodology = {method: "<answer>", reason: "<why this method>"}` at minimum.
 
 ### Step 3: Create the Design
 
@@ -99,12 +106,12 @@ create_analysis_design(
     title="<title>",
     hypothesis_statement="<statement>",
     hypothesis_background="<background>",
+    methodology=<dict>,                  # REQUIRED: {method, package?, reason?}
     theme_id="<theme_id or DEFAULT>",
     parent_id=<"FP-H01" or None>,
     metrics=<list[dict] or None>,        # each dict: {target, tier?, data_source?, grouping?, filter?, aggregation?, comparison?}
     explanatory=<list[dict] or None>,    # each dict: {name, description?, role?, data_source?, time_points?}
     chart=<list[dict] or None>,          # each dict: {intent, type?, description?, x?, y?}
-    methodology=<dict or None>,          # {method, package?, reason?}
     next_action=<dict or None>,
 )
 ```
@@ -140,7 +147,7 @@ Only provided fields are updated; all others remain unchanged.
 | Tool | Purpose | Key Parameters |
 |------|---------|----------------|
 | `list_analysis_designs(status?)` | List existing designs | `status`: in_review \| revision_requested \| analyzing \| supported \| rejected \| inconclusive |
-| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `methodology?`, `next_action?`, `analysis_intent?` |
+| `create_analysis_design(...)` | Create new design | `title`, `hypothesis_statement`, `hypothesis_background`, **`methodology`**, `theme_id?`, `parent_id?`, `metrics?`, `explanatory?`, `chart?`, `next_action?`, `analysis_intent?` |
 | `update_analysis_design(...)` | Partially update existing design | `design_id`, `title?`, `hypothesis_statement?`, `hypothesis_background?`, `metrics?`, `explanatory?`, `chart?`, `methodology?`, `next_action?`, `analysis_intent?` |
 | `get_analysis_design(design_id)` | Retrieve a specific design | `design_id`: str (e.g., "FP-H01") |
 
