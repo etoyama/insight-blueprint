@@ -31,7 +31,7 @@ adapted for hypothesis-driven EDA.
 | File | Purpose | Consumed by |
 |------|---------|-------------|
 | `SKILL.md` (this file) | Skill definition, contracts, configuration | Claude Code (on skill activation) |
-| `references/batch-prompt.md` | Full orchestration prompt (902 lines) | `claude -p "$(cat ...)"` (headless execution) |
+| `references/batch-prompt.md` | Full orchestration prompt (902 lines) | `claude -p "$(cat ${CLAUDE_SKILL_DIR}/references/batch-prompt.md)"` (headless execution) |
 
 ## When to Use
 - Multiple analysis designs are ready for automated execution
@@ -217,7 +217,7 @@ Multiple runs on the same day do not collide. Timestamps are JST.
 RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$RUN_DIR"
 
-claude -p "$(cat skills/batch-analysis/references/batch-prompt.md)" \
+claude -p "$(cat ${CLAUDE_SKILL_DIR}/references/batch-prompt.md)" \
   --model sonnet \
   --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
   --permission-mode bypassPermissions \
