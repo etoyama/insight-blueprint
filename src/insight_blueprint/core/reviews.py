@@ -58,7 +58,14 @@ VALID_TRANSITIONS: dict[DesignStatus, set[DesignStatus]] = {
         DesignStatus.rejected,
         DesignStatus.inconclusive,
     },
-    DesignStatus.revision_requested: {DesignStatus.in_review},
+    DesignStatus.revision_requested: {
+        DesignStatus.in_review,
+        DesignStatus.revision_requested,
+        DesignStatus.analyzing,
+        DesignStatus.supported,
+        DesignStatus.rejected,
+        DesignStatus.inconclusive,
+    },
     DesignStatus.analyzing: {DesignStatus.in_review},
     DesignStatus.supported: set(),
     DesignStatus.rejected: set(),
@@ -96,11 +103,17 @@ def _validate_post_review_status(status: str) -> DesignStatus:
     return target_status
 
 
-def _ensure_in_review(design: AnalysisDesign | None, operation: str) -> None:
-    """Raise ValueError if design is not in in_review status."""
-    if design is not None and design.status != DesignStatus.in_review:
+REVIEWABLE_STATUSES: set[DesignStatus] = {
+    DesignStatus.in_review,
+    DesignStatus.revision_requested,
+}
+
+
+def _ensure_reviewable(design: AnalysisDesign | None, operation: str) -> None:
+    """Raise ValueError if design is not in a reviewable status."""
+    if design is not None and design.status not in REVIEWABLE_STATUSES:
         raise ValueError(
-            f"Design must be in 'in_review' status to {operation}, "
+            f"Design must be in reviewable status to {operation}, "
             f"current status: '{design.status}'"
         )
 
@@ -163,7 +176,8 @@ class ReviewService:
         """Save a review comment and transition the design status.
 
         Returns None if design not found.
-        Raises ValueError if design is not in 'in_review' status
+        Raises ValueError if design is not in reviewable status
+        (in_review or revision_requested)
         or if status is not a valid post-review status.
         """
         _validate_id(design_id, "design_id")
@@ -172,7 +186,7 @@ class ReviewService:
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-        _ensure_in_review(design, "save review comment")
+        _ensure_reviewable(design, "save review comment")
 
         # Create comment
         comment_id = f"RC-{uuid.uuid4().hex[:8]}"
@@ -207,7 +221,8 @@ class ReviewService:
         """Save a batch of review comments and transition the design status.
 
         Returns None if design not found.
-        Raises ValueError if design is not in 'in_review' status,
+        Raises ValueError if design is not in reviewable status
+        (in_review or revision_requested),
         status is invalid, or target_section is not in ALLOWED_TARGET_SECTIONS.
         """
         _validate_id(design_id, "design_id")
@@ -229,7 +244,7 @@ class ReviewService:
         design = self._design_service.get_design(design_id)
         if design is None:
             return None
-        _ensure_in_review(design, "save review batch")
+        _ensure_reviewable(design, "save review batch")
 
         # Create batch
         batch_id = f"RB-{uuid.uuid4().hex[:8]}"

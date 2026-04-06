@@ -586,6 +586,38 @@ def test_create_design_without_methodology_is_none(
     assert design.methodology is None
 
 
+def test_create_design_without_methodology_logs_warning(
+    service: DesignService,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#81: create without methodology emits a warning log."""
+    with caplog.at_level(logging.WARNING, logger="insight_blueprint.core.designs"):
+        service.create_design(
+            title="Missing method",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+        )
+    assert any("methodology" in r.message.lower() for r in caplog.records)
+
+
+def test_create_design_with_methodology_no_warning(
+    service: DesignService,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#81: create with methodology does NOT emit a warning."""
+    with caplog.at_level(logging.WARNING, logger="insight_blueprint.core.designs"):
+        service.create_design(
+            title="Has method",
+            hypothesis_statement="s",
+            hypothesis_background="b",
+            methodology={"method": "OLS", "reason": "standard"},
+        )
+    methodology_warnings = [
+        r for r in caplog.records if "methodology" in r.message.lower()
+    ]
+    assert len(methodology_warnings) == 0
+
+
 def test_update_design_with_methodology(
     service: DesignService,
 ) -> None:

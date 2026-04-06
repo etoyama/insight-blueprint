@@ -55,7 +55,7 @@ class TestTransitionStatus:
             ("supported", "in_review"),
             ("rejected", "in_review"),
             ("inconclusive", "in_review"),
-            ("revision_requested", "supported"),
+            ("analyzing", "supported"),
         ],
     )
     def test_invalid_transitions(
@@ -156,19 +156,55 @@ class TestSaveReviewComment:
         assert comment is not None
         assert comment.status_after == DesignStatus.inconclusive
 
-    def test_save_review_comment_on_non_in_review_raises_value_error(
+    def test_save_review_comment_on_revision_requested_succeeds(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """#82: commenting on a revision_requested design succeeds."""
+        # First review: in_review -> revision_requested
+        review_service.save_review_comment(
+            active_design.id, "Needs more data", "revision_requested"
+        )
+        # Re-review directly from revision_requested (no manual transition)
+        comment = review_service.save_review_comment(
+            active_design.id, "Looks good now", "supported"
+        )
+        assert comment is not None
+        assert comment.status_after == DesignStatus.supported
+        reloaded = design_service.get_design(active_design.id)
+        assert reloaded is not None
+        assert reloaded.status == DesignStatus.supported
+
+    def test_save_review_comment_on_terminal_raises_value_error(
         self,
         review_service: ReviewService,
         design_service: DesignService,
     ) -> None:
-        """R2-AC6: commenting on a non-in_review design raises ValueError."""
+        """R2-AC6: commenting on a terminal design raises ValueError."""
         design = design_service.create_design(
             title="Terminal",
             hypothesis_statement="stmt",
             hypothesis_background="bg",
         )
         design_service.update_design(design.id, status=DesignStatus.supported)
-        with pytest.raises(ValueError, match="in_review"):
+        with pytest.raises(ValueError, match="reviewable"):
+            review_service.save_review_comment(design.id, "comment", "supported")
+
+    def test_save_review_comment_on_analyzing_raises_value_error(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+    ) -> None:
+        """#82 review: analyzing state is not reviewable."""
+        design = design_service.create_design(
+            title="Analyzing",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.analyzing)
+        with pytest.raises(ValueError, match="reviewable"):
             review_service.save_review_comment(design.id, "comment", "supported")
 
     def test_save_review_comment_invalid_status_value(
@@ -710,15 +746,59 @@ class TestSaveReviewBatch:
         assert result is not None
         assert result.comments[0].target_content == content
 
-    def test_save_batch_rejects_non_in_review(
+    def test_save_batch_on_revision_requested_succeeds(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """#82: batch review on a revision_requested design succeeds."""
+        # First batch: in_review -> revision_requested
+        review_service.save_review_batch(
+            active_design.id,
+            "revision_requested",
+            [{"comment": "Needs revision"}],
+        )
+        # Re-review directly from revision_requested (no manual transition)
+        result = review_service.save_review_batch(
+            active_design.id,
+            "supported",
+            [{"comment": "Approved after revision"}],
+        )
+        assert result is not None
+        assert result.status_after == DesignStatus.supported
+        reloaded = design_service.get_design(active_design.id)
+        assert reloaded is not None
+        assert reloaded.status == DesignStatus.supported
+
+    def test_save_batch_rejects_terminal_design(
         self,
         review_service: ReviewService,
         non_pending_design: AnalysisDesign,
     ) -> None:
-        """AC: Non-in_review design raises ValueError."""
-        with pytest.raises(ValueError, match="in_review"):
+        """AC: Terminal design raises ValueError."""
+        with pytest.raises(ValueError, match="reviewable"):
             review_service.save_review_batch(
                 non_pending_design.id,
+                "supported",
+                [{"comment": "Should fail"}],
+            )
+
+    def test_save_batch_rejects_analyzing_design(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+    ) -> None:
+        """#82 review: analyzing state is not reviewable for batches."""
+        design = design_service.create_design(
+            title="Analyzing",
+            hypothesis_statement="stmt",
+            hypothesis_background="bg",
+        )
+        design_service.update_design(design.id, status=DesignStatus.analyzing)
+        with pytest.raises(ValueError, match="reviewable"):
+            review_service.save_review_batch(
+                design.id,
                 "supported",
                 [{"comment": "Should fail"}],
             )

@@ -47,6 +47,7 @@ async def create_analysis_design(
     title: str,
     hypothesis_statement: str,
     hypothesis_background: str,
+    methodology: dict | None = None,
     parent_id: str | None = None,
     theme_id: str = "DEFAULT",
     metrics: list[dict] | None = None,
@@ -55,12 +56,15 @@ async def create_analysis_design(
     next_action: dict | None = None,
     referenced_knowledge: dict | None = None,
     analysis_intent: str = "confirmatory",
-    methodology: dict | None = None,
 ) -> dict:
     """Create a new analysis design document.
 
     Creates a YAML file in .insight/designs/ with 'in_review' status.
     theme_id must match [A-Z][A-Z0-9]* pattern (e.g., 'FP', 'TX', 'DEFAULT').
+
+    methodology: Analysis method dict with required 'method' key.
+                 Example: {"method": "OLS", "package": "statsmodels", "reason": "..."}
+                 WARNING: Should rarely be None — methodology is a core design field.
 
     Returns: dict with id, title, status, message
     """
@@ -390,8 +394,9 @@ async def save_review_comment(
 ) -> dict:
     """Save a review comment and transition the design status.
 
-    The design must be in 'in_review' status. Valid post-review statuses:
-    revision_requested, analyzing, supported, rejected, inconclusive.
+    The design must be in reviewable status (in_review or revision_requested).
+    Valid post-review statuses: revision_requested, analyzing, supported,
+    rejected, inconclusive.
 
     Returns: dict with comment_id, design_id, status_after, message
     """
@@ -421,8 +426,9 @@ async def save_review_batch(
 ) -> dict:
     """Save a batch of review comments and transition the design status.
 
-    The design must be in 'in_review' status. Each comment can optionally
-    include target_section and target_content for inline anchoring.
+    The design must be in reviewable status (in_review or revision_requested).
+    Each comment can optionally include target_section and target_content
+    for inline anchoring.
 
     Valid status_after values: revision_requested, analyzing, supported, rejected, inconclusive.
 

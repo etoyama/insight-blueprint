@@ -76,6 +76,8 @@ class DesignService:
         }
         if methodology is not None:
             kwargs["methodology"] = methodology
+        else:
+            logger.warning("create_design called without methodology for '%s'", title)
 
         design = AnalysisDesign(**kwargs)
 
