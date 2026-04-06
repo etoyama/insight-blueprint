@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-06
+
 ### Added
 
 - `/batch-analysis` skill for overnight batch execution of queued analysis designs
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin validation CI job (`plugin-validate`)
 - data-lineage Python package prerequisites check
 - Migration guide in README
+- Custom marketplace for plugin distribution
 
 ### Changed
 
