@@ -198,7 +198,7 @@ Execute the following steps in order. Log progress with markers for traceability
    - `lib_dir`: none (disabled)
 5. **marimo version preflight check**:
    ```bash
-   uv run python -c "import marimo; v = tuple(int(x) for x in marimo.__version__.split('.')); assert v >= (0, 20, 3), f'marimo >= 0.20.3 required for export session (found {marimo.__version__})';"
+   uv run python -c "import re, marimo; m = re.match(r'(\d+)\.(\d+)\.(\d+)', marimo.__version__); assert m and tuple(int(x) for x in m.groups()) >= (0, 20, 3), f'marimo >= 0.20.3 required for export session (found {marimo.__version__})';"
    ```
    If the check fails, log the error and **stop the entire batch** — no design can be processed without `marimo export session`.
 6. Create run directory:
@@ -311,14 +311,17 @@ If `methodology.package` is specified:
    # Coerce BQ-specific types to pandas-standard types
    for col in raw_df.select_dtypes(include=["dbdate", "dbtime"]).columns:
        raw_df[col] = pd.to_datetime(raw_df[col])
-   for col in raw_df.select_dtypes(include=["Int8", "Int16", "Int32", "Int64"]).columns:
+   # Exclude ID/key columns (suffix _id, _key, _code) to avoid precision loss
+   _numeric_cols = [c for c in raw_df.select_dtypes(include=["Int8", "Int16", "Int32", "Int64"]).columns
+                    if not re.search(r'_(id|key|code)$', c, re.IGNORECASE)]
+   for col in _numeric_cols:
        raw_df[col] = raw_df[col].astype("float64")
    ```
-   This prevents downstream errors: `dbdate` breaks `groupby`/`idxmax`, nullable `Int64` breaks numpy ufuncs.
+   This prevents downstream errors: `dbdate` breaks `groupby`/`idxmax`, nullable `Int64` breaks numpy ufuncs. ID/key columns are excluded to avoid float64 precision loss on large integers.
 6. **Data Volume Strategy** (when data_source is a BigQuery table):
    Before generating the analysis query, estimate row count as part of notebook generation:
    1. Build a `COUNT(*)` query from the design's `data_source` + `filter_conditions`
-   2. Execute via `BigQueryAccessor` (< 1 second, negligible cost)
+   2. Execute via `BigQueryAccessor`. If the COUNT fails (permissions, timeout, view complexity), skip estimation and use `direct` strategy as fallback
    3. Include the estimated row count and chosen strategy as a comment in Cell 2: `# Estimated rows: {count} -> strategy: {strategy}`
    4. The strategy is a **hint**, not a hard constraint — the agent chooses the final approach based on `methodology`:
 
@@ -335,7 +338,7 @@ If `methodology.package` is specified:
 cd {notebook_dir} && perl -e 'alarm 600; exec @ARGV' -- uv run marimo export session --force-overwrite notebook.py 2>&1
 ```
 
-The 600-second (10 min) timeout prevents indefinite hangs when marimo fails to exit on cell errors. `perl -e 'alarm ...; exec @ARGV'` is used instead of `timeout` for macOS compatibility (GNU `timeout` is not available by default on macOS). A timeout-killed process enters the error repair loop (Section 5) like any other failure.
+The 600-second (10 min) timeout prevents indefinite hangs when marimo fails to exit on cell errors. `perl -e 'alarm ...; exec @ARGV'` is used instead of `timeout` for macOS compatibility (GNU `timeout` is not available by default on macOS). A timeout-killed process enters the error repair loop (Section 5) like any other failure. **Limitation**: the alarm signal is delivered only to the exec'd process, not to its child process tree. In practice this is sufficient because `marimo export session` hangs are single-process.
 
 Check the result:
 - **Success**: session JSON exists AND cells 2, 3, 4, 6 have `text/markdown` output. Exit code alone is not sufficient (marimo may return exit code 1 with valid output on warnings).
