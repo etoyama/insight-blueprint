@@ -203,9 +203,10 @@ Execute the following steps in order. Log progress with markers for traceability
    If the check fails, log the error and **stop the entire batch** — no design can be processed without `marimo export session`.
 6. Create run directory:
    ```bash
-   RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
+   RUN_DIR="${BATCH_RUN_DIR:-.insight/runs/$(date +%Y%m%d_%H%M%S)}"
    mkdir -p "$RUN_DIR"
    ```
+   If the host project passes `BATCH_RUN_DIR` via environment variable, use it to keep session.log and batch output in the same directory.
 7. Record the `RUN_DIR` path for use throughout the session.
 
 ### Step 1: lib_dir Cataloging (if configured)
@@ -293,7 +294,11 @@ If `methodology.package` is specified:
 2. Create directory: `mkdir -p {notebook_dir}`
 3. If lib_dir is configured:
    - Read `{lib_dir}/CATALOG.md` for available utilities
-   - Add `sys.path.insert(0, "{lib_dir}")` to Cell 0
+   - Add lib_dir to Cell 0 using a **relative path from the notebook location**, not an absolute path:
+     ```python
+     import os as _os
+     sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), _os.path.relpath("{lib_dir}", "{notebook_dir}")))
+     ```
    - Import relevant utility functions
 4. Generate notebook.py following the Cell Contract exactly:
    - Read the design's hypothesis, metrics, explanatory variables, chart specs, methodology, analysis_intent

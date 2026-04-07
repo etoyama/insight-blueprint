@@ -99,6 +99,30 @@ If the interview did not cover methodology, ask now:
 - "What analysis method will you use? (e.g., OLS, t-test, chi-square, DID)"
 - Set `methodology = {method: "<answer>", reason: "<why this method>"}` at minimum.
 
+### Step 2.6: Enrich Methodology with Code Patterns
+
+The batch-analysis LLM (sonnet) generates notebooks from methodology content. Concrete code patterns dramatically improve generation fidelity.
+
+**When `data_source` references a registered catalog source**, auto-generate a code pattern from the catalog schema and include it in `methodology.steps`:
+
+```python
+methodology = {
+    "method": "OLS",
+    "package": "statsmodels",
+    "reason": "線形回帰で相関を検証",
+    "steps": [
+        {
+            "description": "from lib.accessor.bigquery import BigQueryAccessor\nacc = BigQueryAccessor(project_id='lmi-datau-prod')\nraw_df = acc.query_to_dataframe('''\n  SELECT col1, col2, ...\n  FROM `project.dataset.table`\n  WHERE ...\n''')"
+        }
+    ]
+}
+```
+
+**Rules:**
+- If `data_source` is a BQ table: generate `BigQueryAccessor` pattern with actual table name, key columns from schema, and filter conditions
+- If methodology uses a specific library (e.g., lingam, shap, dowhy): include the exact API call with parameter names in a subsequent step
+- If the user provides their own code pattern, use it as-is — do not overwrite
+
 ### Step 3: Create the Design
 
 ```
@@ -161,6 +185,7 @@ Only provided fields are updated; all others remain unchanged.
 | `methodology.method` | str | free text (required, non-empty) | — |
 | `methodology.package` | str | free text (optional) | `""` |
 | `methodology.reason` | str | free text (optional) | `""` |
+| `methodology.steps` | list[dict] | Each dict has `description` (str). Include concrete code patterns for batch LLM fidelity. | `[]` |
 
 **Backward compatibility**: `role`, `tier`, `intent` fields are optional in input. If omitted, defaults are applied automatically.
 
