@@ -196,17 +196,17 @@ Execute the following steps in order. Log progress with markers for traceability
 4. If not found, use defaults:
    - `notebook_dir`: `.insight/runs/YYYYMMDD_HHmmss/{design_id}/`
    - `lib_dir`: none (disabled)
-4. **marimo version preflight check**:
+5. **marimo version preflight check**:
    ```bash
    uv run python -c "import marimo; v = tuple(int(x) for x in marimo.__version__.split('.')); assert v >= (0, 20, 3), f'marimo >= 0.20.3 required for export session (found {marimo.__version__})';"
    ```
    If the check fails, log the error and **stop the entire batch** — no design can be processed without `marimo export session`.
-5. Create run directory:
+6. Create run directory:
    ```bash
    RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
    mkdir -p "$RUN_DIR"
    ```
-6. Record the `RUN_DIR` path for use throughout the session.
+7. Record the `RUN_DIR` path for use throughout the session.
 
 ### Step 1: lib_dir Cataloging (if configured)
 
@@ -327,10 +327,10 @@ If `methodology.package` is specified:
 #### 3f. Execute Notebook
 
 ```bash
-cd {notebook_dir} && timeout 600 uv run marimo export session --force-overwrite notebook.py 2>&1
+cd {notebook_dir} && perl -e 'alarm 600; exec @ARGV' -- uv run marimo export session --force-overwrite notebook.py 2>&1
 ```
 
-The 600-second (10 min) timeout prevents indefinite hangs when marimo fails to exit on cell errors. A timeout-killed process enters the error repair loop (Section 5) like any other failure.
+The 600-second (10 min) timeout prevents indefinite hangs when marimo fails to exit on cell errors. `perl -e 'alarm ...; exec @ARGV'` is used instead of `timeout` for macOS compatibility (GNU `timeout` is not available by default on macOS). A timeout-killed process enters the error repair loop (Section 5) like any other failure.
 
 Check the result:
 - **Success**: session JSON exists AND cells 2, 3, 4, 6 have `text/markdown` output. Exit code alone is not sufficient (marimo may return exit code 1 with valid output on warnings).
