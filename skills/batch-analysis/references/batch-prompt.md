@@ -196,12 +196,17 @@ Execute the following steps in order. Log progress with markers for traceability
 4. If not found, use defaults:
    - `notebook_dir`: `.insight/runs/YYYYMMDD_HHmmss/{design_id}/`
    - `lib_dir`: none (disabled)
-4. Create run directory:
+4. **marimo version preflight check**:
+   ```bash
+   uv run python -c "import marimo; v = tuple(int(x) for x in marimo.__version__.split('.')); assert v >= (0, 20, 3), f'marimo >= 0.20.3 required for export session (found {marimo.__version__})';"
+   ```
+   If the check fails, log the error and **stop the entire batch** — no design can be processed without `marimo export session`.
+5. Create run directory:
    ```bash
    RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
    mkdir -p "$RUN_DIR"
    ```
-5. Record the `RUN_DIR` path for use throughout the session.
+6. Record the `RUN_DIR` path for use throughout the session.
 
 ### Step 1: lib_dir Cataloging (if configured)
 
@@ -295,13 +300,37 @@ If `methodology.package` is specified:
    - Read the table schema (columns, types) from get_table_schema
    - Generate all 8 cells with appropriate content
    - Use the data source file path from catalog for CSV loading
-5. Write the notebook with the Write tool
+5. **BQ Type Coercion** (when Cell 2 uses `BigQueryAccessor.query_to_dataframe()`, not `pd.read_csv()`):
+   Add the following type coercion block in Cell 2, immediately after the query execution:
+   ```python
+   # Coerce BQ-specific types to pandas-standard types
+   for col in raw_df.select_dtypes(include=["dbdate", "dbtime"]).columns:
+       raw_df[col] = pd.to_datetime(raw_df[col])
+   for col in raw_df.select_dtypes(include=["Int8", "Int16", "Int32", "Int64"]).columns:
+       raw_df[col] = raw_df[col].astype("float64")
+   ```
+   This prevents downstream errors: `dbdate` breaks `groupby`/`idxmax`, nullable `Int64` breaks numpy ufuncs.
+6. **Data Volume Strategy** (when data_source is a BigQuery table):
+   Before generating the analysis query, estimate row count as part of notebook generation:
+   1. Build a `COUNT(*)` query from the design's `data_source` + `filter_conditions`
+   2. Execute via `BigQueryAccessor` (< 1 second, negligible cost)
+   3. Include the estimated row count and chosen strategy as a comment in Cell 2: `# Estimated rows: {count} -> strategy: {strategy}`
+   4. The strategy is a **hint**, not a hard constraint — the agent chooses the final approach based on `methodology`:
+
+      | Row count | Strategy hint | Cell 2 guidance |
+      |-----------|---------------|-----------------|
+      | < 1M      | `direct`      | Pull all rows to pandas |
+      | 1M - 10M  | `sample`      | Consider TABLESAMPLE or BQ-side WHERE to reduce rows |
+      | > 10M     | `agg_first`   | Prefer BQ-side GROUP BY / PIVOT / QUALIFY before pull |
+7. Write the notebook with the Write tool
 
 #### 3f. Execute Notebook
 
 ```bash
-cd {notebook_dir} && uv run marimo export session --force-overwrite notebook.py 2>&1
+cd {notebook_dir} && timeout 600 uv run marimo export session --force-overwrite notebook.py 2>&1
 ```
+
+The 600-second (10 min) timeout prevents indefinite hangs when marimo fails to exit on cell errors. A timeout-killed process enters the error repair loop (Section 5) like any other failure.
 
 Check the result:
 - **Success**: session JSON exists AND cells 2, 3, 4, 6 have `text/markdown` output. Exit code alone is not sufficient (marimo may return exit code 1 with valid output on warnings).
