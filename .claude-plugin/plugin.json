@@ -1,6 +1,6 @@
 {
   "name": "insight-blueprint",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Hypothesis-driven data analysis workflow and catalog MCP server",
   "author": { "name": "Eto Yama" },
   "repository": "https://github.com/etoyama/insight-blueprint",
