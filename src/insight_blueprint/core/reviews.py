@@ -203,7 +203,7 @@ class ReviewService:
         existing = read_yaml(reviews_path)
         comments_list = existing.get("comments", [])
         comments_list.append(review_comment.model_dump(mode="json"))
-        write_yaml(reviews_path, {"comments": comments_list})
+        write_yaml(reviews_path, {**existing, "comments": comments_list})
 
         # Transition design status
         self._design_service.update_design(design_id, status=target_status)
