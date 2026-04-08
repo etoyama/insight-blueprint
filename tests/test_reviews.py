@@ -218,6 +218,41 @@ class TestSaveReviewComment:
                 pending_design.id, "comment", "nonexistent_status"
             )
 
+    def test_save_review_comment_preserves_existing_batches(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        pending_design: AnalysisDesign,
+    ) -> None:
+        """Fix #94: save_review_comment must not drop existing batches key."""
+        # First: add a batch review
+        review_service.save_review_batch(
+            pending_design.id,
+            "revision_requested",
+            [
+                {
+                    "target_section": "hypothesis_statement",
+                    "target_content": "Test",
+                    "comment": "Batch comment",
+                }
+            ],
+        )
+        # Re-open for next review cycle
+        design_service.update_design(pending_design.id, status=DesignStatus.in_review)
+
+        # Second: add a single comment — this must NOT drop batches
+        review_service.save_review_comment(
+            pending_design.id, "Single comment", "supported"
+        )
+
+        # Verify both keys survive in the reviews YAML
+        reviews_path = review_service._designs_dir / f"{pending_design.id}_reviews.yaml"
+        data = read_yaml(reviews_path)
+        assert "batches" in data, "batches key was dropped by save_review_comment"
+        assert len(data["batches"]) == 1
+        assert "comments" in data
+        assert len(data["comments"]) == 1
+
     def test_save_review_comment_missing_returns_none(
         self,
         review_service: ReviewService,
@@ -954,6 +989,41 @@ class TestSaveReviewBatch:
         assert result is not None
         batches = review_service.list_review_batches(active_design.id)
         assert len(batches) == 2
+
+    def test_save_batch_preserves_existing_comments(
+        self,
+        review_service: ReviewService,
+        design_service: DesignService,
+        active_design: AnalysisDesign,
+    ) -> None:
+        """Fix #94 symmetric: save_review_batch must not drop existing comments key."""
+        # First: add a single comment -> revision_requested
+        review_service.save_review_comment(
+            active_design.id, "Single comment", "revision_requested"
+        )
+        # Re-open for batch review
+        design_service.update_design(active_design.id, status=DesignStatus.in_review)
+
+        # Second: add a batch review — this must NOT drop comments
+        review_service.save_review_batch(
+            active_design.id,
+            "supported",
+            [
+                {
+                    "target_section": "hypothesis_statement",
+                    "target_content": "Test",
+                    "comment": "Batch comment",
+                }
+            ],
+        )
+
+        # Verify both keys survive
+        reviews_path = review_service._designs_dir / f"{active_design.id}_reviews.yaml"
+        data = read_yaml(reviews_path)
+        assert "comments" in data, "comments key was dropped by save_review_batch"
+        assert len(data["comments"]) == 1
+        assert "batches" in data
+        assert len(data["batches"]) == 1
 
     def test_save_batch_creates_new_file(
         self,

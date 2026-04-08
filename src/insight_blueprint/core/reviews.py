@@ -201,9 +201,11 @@ class ReviewService:
         # Persist comment
         reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
         existing = read_yaml(reviews_path)
-        comments_list = existing.get("comments", [])
-        comments_list.append(review_comment.model_dump(mode="json"))
-        write_yaml(reviews_path, {"comments": comments_list})
+        comments_list = [
+            *existing.get("comments", []),
+            review_comment.model_dump(mode="json"),
+        ]
+        write_yaml(reviews_path, {**existing, "comments": comments_list})
 
         # Transition design status
         self._design_service.update_design(design_id, status=target_status)
@@ -260,8 +262,7 @@ class ReviewService:
         # Persist batch to YAML (atomic write first)
         reviews_path = self._designs_dir / f"{design_id}_reviews.yaml"
         existing = read_yaml(reviews_path)
-        batches_list: list[dict] = existing.get("batches", [])
-        batches_list.append(batch.model_dump(mode="json"))
+        batches_list = [*existing.get("batches", []), batch.model_dump(mode="json")]
         write_yaml(reviews_path, {**existing, "batches": batches_list})
 
         # Transition design status (after YAML write succeeds)
