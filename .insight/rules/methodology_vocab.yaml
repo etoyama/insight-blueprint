@@ -1,0 +1,12 @@
+# Predefined methodology tags (fixed set, 10 types for v1)
+methodology_tags:
+  - correlation_analysis
+  - regression
+  - time_series
+  - classification
+  - clustering
+  - hypothesis_test
+  - descriptive
+  - segmentation
+  - causal_inference
+  - ab_test
