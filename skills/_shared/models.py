@@ -174,6 +174,7 @@ class DesignManifest:
     estimated_rows: int | None
     error_category: str | None
     error_detail: str | None
+    skip_reason: str | None = None
 
 
 @dataclass(frozen=True)
