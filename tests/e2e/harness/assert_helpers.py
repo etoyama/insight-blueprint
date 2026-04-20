@@ -110,7 +110,7 @@ def assert_ndjson_valid(path: str | Path) -> list[dict]:
             try:
                 events.append(json.loads(line))
             except json.JSONDecodeError as e:
-                raise AssertionError(f"Invalid JSON at line {i} of {path}: {e}")
+                raise AssertionError(f"Invalid JSON at line {i} of {path}: {e}") from e
     return events
 
 

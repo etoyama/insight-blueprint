@@ -167,6 +167,39 @@ server.py, web.py  →  core/  →  storage/  →  models/
 - Frontend → `api/client.ts` 経由で REST API にアクセス
 - 型の同期: `types/api.ts` を Python モデルに合わせて手動更新
 
+## Skill Bundle Structure
+
+Skills live under `skills/` and follow their own dependency rules,
+separate from the MCP package (`src/insight_blueprint/`).
+
+```
+skills/
+├── _shared/                     # Shared library for multiple skills
+│   ├── _atomic.py               # Atomic file write helper
+│   ├── config_loader.py         # .insight/config.yaml loader
+│   ├── models.py                # Shared dataclasses and StrEnums
+│   ├── token_manager.py         # Approval token issue / verify
+│   ├── manifest_writer.py       # run.yaml + per-design manifest atomic writes
+│   └── crash_recovery.py        # Incomplete run detection
+├── premortem/                   # /premortem skill (risk evaluation)
+│   ├── SKILL.md
+│   ├── cli.py                   # CLI entry point
+│   └── lib/                     # Internal logic (not imported by other skills)
+│       ├── risk_evaluator.py    # Pure-function decision tree
+│       ├── history_query.py     # Past-run statistics from manifests
+│       └── allowlist_loader.py  # YAML-primary + SKILL.md-fallback loader
+├── batch-analysis/              # /batch-analysis skill (overnight execution)
+│   ├── SKILL.md
+│   ├── launcher.sh              # Bash wrapper (token validation, crash recovery, launch)
+│   └── references/
+│       └── batch-prompt.md      # Full orchestration prompt for headless Claude
+└── ...                          # Other analysis skills
+```
+
+**Dependency direction:** `skills/*` -> `skills/_shared/` -> (no import from `src/insight_blueprint/`).
+Skills never import from the MCP package. Cross-skill imports are prohibited;
+shared logic goes in `skills/_shared/`.
+
 ## Code Size Guidelines
 
 - **File size**: 200-400 行を目安（最大 800 行）

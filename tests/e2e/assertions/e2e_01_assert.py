@@ -58,11 +58,6 @@ def main() -> int:
         assert len(tokens) > 0, "No premortem token found"
         token = load_yaml(tokens[-1])
         skipped = token.get("skipped_designs", [])
-        has_high_skip = any(
-            "high" in str(s.get("risk_at_approval", "")).lower()
-            or "high" in str(s.get("reason", "")).lower()
-            for s in skipped
-        )
         # DES-C should be in skipped due to HIGH risk (>10M rows, no history)
         des_c_skipped = any(s.get("design_id") == "DES-C" for s in skipped)
         assert des_c_skipped, f"DES-C should be skipped, skipped={skipped}"
@@ -150,7 +145,6 @@ def main() -> int:
         token_dir = insight_dir / "premortem"
         tokens = sorted(token_dir.glob("*.yaml"))
         token = load_yaml(tokens[-1])
-        risk_summary = token.get("risk_summary", {})
         # In review mode, approved_by should be "auto" when no HIGH in approved
         approved_by = token.get("approved_by")
         assert approved_by in ("auto", "human"), f"unexpected approved_by={approved_by}"

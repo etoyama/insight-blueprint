@@ -245,6 +245,8 @@ claude -p "$(cat ${CLAUDE_SKILL_DIR}/references/batch-prompt.md)" \
 
 ### Package Allowlist
 
+Primary source: `.insight/rules/package_allowlist.yaml`.
+
 Only these packages may be installed by the batch agent via `uv add --dev`:
 
 | Alias | Import | pip/uv package |

@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import pytest
-from skills.premortem.lib.risk_evaluator import evaluate
 
 from skills._shared.models import (
     HistoryStats,
@@ -21,6 +20,7 @@ from skills._shared.models import (
     RiskLevel,
     SourceChecks,
 )
+from skills.premortem.lib.risk_evaluator import evaluate
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -233,6 +233,37 @@ class TestRiskEvaluatorHardBlock:
         )
         assert result.level == RiskLevel.HIGH
         assert "allowlist_check_failed" in result.flags
+
+    def test_allowlist_yaml_read_failure_produces_none_flag(self) -> None:
+        """Task 7.2: YAML read failure scenario.
+
+        When ``allowlist_loader.load_allowlist`` raises ``AllowlistLoadError``,
+        the caller sets ``allowlist_ok=None``.  This test verifies that the
+        risk_evaluator correctly produces HIGH + allowlist_check_failed for that
+        scenario -- the same path as the test above, but explicitly named for the
+        YAML-failure use case (I-3 improvement).
+        """
+        checks = SourceChecks(
+            source_registered=True,
+            location_ok=True,
+            allowlist_ok=None,
+            estimated_rows=500_000,
+        )
+        result = evaluate(
+            design={"status": "analyzing"},
+            history=_sufficient_history(
+                n=5,
+                median_elapsed_min=10.0,
+                median_estimated_rows=1_000_000.0,
+                success_rate=0.9,
+            ),
+            config=_default_config(),
+            source_checks=checks,
+        )
+        assert result.level == RiskLevel.HIGH
+        assert "allowlist_check_failed" in result.flags
+        # Verify it is flagged as API failure, not HARD_BLOCK
+        assert result.level != RiskLevel.HARD_BLOCK
 
 
 # ---------------------------------------------------------------------------
