@@ -206,7 +206,7 @@ Execute the following steps in order. Log progress with markers for traceability
    RUN_DIR="${BATCH_RUN_DIR:-.insight/runs/$(date +%Y%m%d_%H%M%S)}"
    mkdir -p "$RUN_DIR"
    ```
-   If the host project passes `BATCH_RUN_DIR` via environment variable, use it to keep session.log and batch output in the same directory.
+   If the host project passes `BATCH_RUN_DIR` via environment variable, use it to keep events.jsonl and batch output in the same directory.
 7. Record the `RUN_DIR` path for use throughout the session.
 
 ### Step 1: lib_dir Cataloging (if configured)
@@ -244,6 +244,7 @@ For each design in the sorted queue:
 Check the design's `status`. If terminal (`supported`, `rejected`, `inconclusive`):
 - Log: "スキップ: {design_id} -- terminal ステータス ({status})"
 - Reset next_action: `update_analysis_design(design_id, next_action={})` (empty dict = cleared; MCP tool cannot set to null)
+- Write manifest: `status=skipped`, `skip_reason=terminal_status` (Step 3j-manifest)
 - Record in summary as skipped
 - Continue to next design
 
@@ -332,6 +333,28 @@ If `methodology.package` is specified:
       | > 10M     | `agg_first`   | Prefer BQ-side GROUP BY / PIVOT / QUALIFY before pull |
 7. Write the notebook with the Write tool
 
+#### 3e-manifest. Methodology Tags Selection
+
+After generating the notebook, select 1-3 methodology tags from the predefined
+vocabulary in `.insight/rules/methodology_vocab.yaml`:
+
+```yaml
+# Allowed tags (exhaustive list -- do NOT use tags outside this set):
+# correlation_analysis, regression, time_series, classification, clustering,
+# hypothesis_test, descriptive, segmentation, causal_inference, ab_test
+```
+
+1. Read `.insight/rules/methodology_vocab.yaml` to get the current vocab set
+2. Based on the design's `methodology.method` and notebook content, select 1-3 tags
+3. Store the selected tags for later manifest writing
+
+**Validation**: Tags MUST be from the vocab file. If you select a tag not in the vocab:
+- Retry once: re-read the vocab file and select again
+- If the second attempt also fails: use `[descriptive]` as default, set
+  `error_category=logic`, `error_detail=methodology_tag_selection_failed`,
+  record a `question` journal event: "methodology_tags の自動選択に失敗。vocab 外タグを選択した"
+- Continue to next step (do not skip the design)
+
 #### 3f. Execute Notebook
 
 ```bash
@@ -352,6 +375,21 @@ See Section 4 (Self-Review Protocol).
 
 See Section 6 (Journal Recording).
 
+#### 3h-manifest. Verdict Denormalization
+
+After journal recording, read the verdict from the journal events and copy it
+to the manifest for fast history queries:
+
+1. From the journal events just recorded, extract `direction` (from the
+   `evidence` event with `metadata.direction`) and `confidence_level`
+   (from `results.confidence_level` used during direction determination)
+2. Store as manifest verdict: `{direction: supports|contradicts|question,
+   confidence: high|medium|ambiguous, events_recorded: N}`
+3. This is a denormalized copy -- the journal remains the source of truth
+
+If status is not `success` (error/timeout/skipped), verdict is `null` in
+the manifest.
+
 #### 3i. Status Transition
 
 If the design's current status is `in_review`:
@@ -365,6 +403,45 @@ If status is already `analyzing` or other non-terminal:
 #### 3j. Reset next_action
 
 Call `mcp__insight-blueprint__update_analysis_design(design_id, next_action={})` (empty dict = cleared; MCP tool filters null so use empty dict)
+
+#### 3j-manifest. Write Design Manifest (MANDATORY -- all paths)
+
+**Before** updating the summary, write the per-design manifest. This step is
+MANDATORY for every design outcome: success, error, timeout, skip, or
+incomplete. Never skip manifest writing.
+
+Write to `{RUN_DIR}/{design_id}/manifest.yaml` using atomic write (tempfile + mv):
+
+```bash
+# Pseudocode -- use Write tool in practice
+# Path: {RUN_DIR}/{design_id}/manifest.yaml
+```
+
+**Manifest fields** (see Data Models in design.md for full schema):
+
+- `design_id`, `run_id` (from RUN_DIR basename)
+- `started_at`, `ended_at` (ISO 8601 JST)
+- `design_snapshot`: `{hash, source_ids, intent, methodology}`
+- `methodology_tags`: from Step 3e-manifest (1-3 tags from vocab)
+- `input_profile`: `{estimated_rows, column_count, data_volume_strategy}`
+- `execution`: `{elapsed_min, cost_usd, api_retries, tool_calls, status, error_category, skip_reason}`
+- `verdict`: from Step 3h-manifest (null if not success)
+
+**Status-specific handling**:
+
+| Outcome | status | Additional fields |
+|---------|--------|-------------------|
+| Success | `success` | verdict populated, methodology_tags from vocab |
+| Error (3 repair attempts failed) | `error` | `error_category` set (import/type/logic/data_missing) |
+| Timeout (time budget exceeded) | `timeout` | `error_category: budget_exceeded` or `turn_limit` |
+| Skip (terminal status) | `skipped` | `skip_reason: terminal_status` |
+| Skip (HARD_BLOCK) | `skipped` | `skip_reason: hard_block` |
+| Skip (hash mismatch) | `skipped` | `skip_reason: hash_mismatch` |
+
+**Error/skip path**: Even when a design fails or is skipped, write the manifest
+with whatever information is available. `methodology_tags` may be empty,
+`verdict` is null, but `design_id`, `run_id`, `status`, and timestamps are
+always required.
 
 #### 3k. Incremental Summary Update
 
@@ -514,6 +591,7 @@ When `marimo export session` fails:
 
 **After 3 failures**: Skip this design.
 - Log: "3回修正失敗: {design_id} -- スキップ"
+- **Write manifest**: `status=error`, `error_category` set to the dominant error type (import/type/logic), `methodology_tags` from 3e-manifest if available (Step 3j-manifest)
 - Record in summary under "Requires Attention" with:
   - Error message
   - 3 attempted fixes
@@ -936,5 +1014,5 @@ Use this checklist to confirm all functional requirements are addressed:
 - [ ] FR-6.2: `--allowedTools` whitelist (minimum required)
 - [ ] FR-6.3: `--max-budget-usd` safety valve
 - [ ] FR-6.4: `--model sonnet` for quality
-- [ ] FR-6.5: All logs to `session.log`
+- [ ] FR-6.5: All output to `events.jsonl` (stream-json NDJSON format)
 - [ ] FR-6.6: This prompt contains full orchestration instructions

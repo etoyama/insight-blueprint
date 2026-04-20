@@ -196,9 +196,11 @@ When configured:
 ```
 .insight/runs/                              # Batch execution root
   YYYYMMDD_HHmmss/                          # Per-execution directory (JST)
-    session.log                             # Claude Code session log
+    run.yaml                                # Run-level manifest (status, session_id, token)
+    events.jsonl                            # Claude Code stream-json NDJSON output
     summary.md                              # Morning review summary
     {design_id}/                            # Per-design directory
+      manifest.yaml                         # Per-design execution manifest (atomic write)
       notebook.py                           # Generated marimo notebook
       __marimo__/session/                   # marimo session JSON (auto-generated)
         notebook.py.json                    # Session output
@@ -212,24 +214,34 @@ Multiple runs on the same day do not collide. Timestamps are JST.
 
 ## Launch Command
 
+Use `launcher.sh` for full pre-processing (token validation, crash recovery,
+mode dispatch). The core `claude` invocation is:
+
 ```bash
-# Create run directory BEFORE launching (avoids "no such file" on redirect)
 RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$RUN_DIR"
 
 claude -p "$(cat ${CLAUDE_SKILL_DIR}/references/batch-prompt.md)" \
   --model sonnet \
+  --output-format stream-json \
+  --include-hook-events \
+  --fallback-model sonnet \
+  --max-turns ${BATCH_MAX_TURNS:-200} \
   --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
   --permission-mode bypassPermissions \
-  --max-budget-usd 10 \
-  > "$RUN_DIR/session.log" 2>&1
+  --max-budget-usd ${BATCH_MAX_BUDGET_USD:-10} \
+  > "$RUN_DIR/events.jsonl" 2>&1
 ```
 
 **Flag rationale:**
 - `--model sonnet`: Quality-first for 30min/design self-review (DD-5)
+- `--output-format stream-json`: NDJSON event stream for crash-safe persistence
+- `--include-hook-events`: Capture hook lifecycle events in events.jsonl
+- `--fallback-model sonnet`: Resilient fallback on transient API errors
+- `--max-turns`: Configurable via `BATCH_MAX_TURNS` env var (default 200)
 - `--permission-mode bypassPermissions`: Verified in V1e (no dangerouslySkipPermissions needed)
 - `--allowedTools`: Minimum required tools (MCP + context7 + file tools)
-- `--max-budget-usd 10`: Cost safety valve (prevents runaway API billing). Does NOT limit tool calls or restrict dangerous operations — that is handled by `--allowedTools` and the trusted-analyst assumption
+- `--max-budget-usd`: Configurable via `BATCH_MAX_BUDGET_USD` env var (default 10). Cost safety valve (prevents runaway API billing). Does NOT limit tool calls or restrict dangerous operations — that is handled by `--allowedTools` and the trusted-analyst assumption
 
 ### Package Allowlist
 
@@ -254,9 +266,10 @@ To add a new package, update this allowlist and `batch-prompt.md` simultaneously
 - `bypassPermissions` is acceptable under the trusted-analyst assumption.
 - Overnight runs do NOT modify shared policy files (`.claude/rules/`). Lessons go to `{RUN_DIR}/lessons.md`.
 
-**Pre-launch**: Create the run directory before executing:
+**Pre-launch**: Use `launcher.sh` which handles directory creation, token
+validation, crash recovery, and mode dispatch automatically:
 ```bash
-RUN_DIR=".insight/runs/$(date +%Y%m%d_%H%M%S)" && mkdir -p "$RUN_DIR"
+bash ${CLAUDE_SKILL_DIR}/launcher.sh [--approved-by TOKEN]
 ```
 
 ## Self-Review Protocol
