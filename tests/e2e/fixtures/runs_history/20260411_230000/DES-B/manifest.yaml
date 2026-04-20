@@ -1,0 +1,26 @@
+design_id: DES-B
+run_id: "20260411_230000"
+started_at: "2026-04-11T23:00:00+09:00"
+ended_at: "2026-04-11T23:50:00+09:00"
+design_snapshot:
+  hash: "sha256:bbb333"
+  source_ids:
+    - users_raw
+  intent: confirmatory
+  methodology: "Regression analysis"
+methodology_tags:
+  - regression
+input_profile:
+  estimated_rows: 800000
+  column_count: 15
+  data_volume_strategy: direct
+execution:
+  elapsed_min: 50.0
+  cost_usd: 0.55
+  api_retries: 0
+  status: success
+  error_category: null
+verdict:
+  direction: supports
+  confidence: high
+  events_recorded: 5

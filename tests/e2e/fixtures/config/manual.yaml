@@ -1,0 +1,14 @@
+schema_version: 1
+premortem:
+  time_high_min: 120
+  time_medium_min: 45
+  history_min_samples: 3
+  history_extrapolation_buffer: 1.3
+  success_rate_high_threshold: 0.6
+  static_rows_high: 10000000
+  token_ttl_hours: 24
+batch:
+  automation: manual
+  approved_by_required: false
+  max_turns: 200
+  max_budget_usd: 10

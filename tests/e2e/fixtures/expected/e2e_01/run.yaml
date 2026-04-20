@@ -1,0 +1,8 @@
+run_id: "20260420_230000"
+session_id: "STUB-SESSION-TEST_TOKEN-001"
+started_at: "2026-04-20T23:00:00+09:00"
+ended_at: "2026-04-20T23:00:00+09:00"
+automation_mode: review
+premortem_token: "TEST_TOKEN"
+status: completed
+cost_total_usd: 1.23

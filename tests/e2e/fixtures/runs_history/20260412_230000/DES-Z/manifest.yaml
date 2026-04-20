@@ -1,0 +1,26 @@
+design_id: DES-Z
+run_id: "20260412_230000"
+started_at: "2026-04-12T23:00:00+09:00"
+ended_at: "2026-04-12T23:18:00+09:00"
+design_snapshot:
+  hash: "sha256:zzz111"
+  source_ids:
+    - misc_data
+  intent: exploratory
+  methodology: "Clustering analysis"
+methodology_tags:
+  - clustering
+input_profile:
+  estimated_rows: 300000
+  column_count: 12
+  data_volume_strategy: direct
+execution:
+  elapsed_min: 18.0
+  cost_usd: 0.22
+  api_retries: 0
+  status: success
+  error_category: null
+verdict:
+  direction: supports
+  confidence: medium
+  events_recorded: 4

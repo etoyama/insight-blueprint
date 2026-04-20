@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Stub claude wrapper -- delegates to stub_claude.py
+# Placed on PATH ahead of real claude for E2E tests.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$PROJECT_ROOT" && exec python3 "$PROJECT_ROOT/tests/e2e/stub_claude.py" "$@"

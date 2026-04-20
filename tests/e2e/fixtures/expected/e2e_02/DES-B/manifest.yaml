@@ -1,0 +1,26 @@
+design_id: DES-B
+run_id: "20260420_230000"
+started_at: "2026-04-20T23:00:00+09:00"
+ended_at: "2026-04-20T23:00:00+09:00"
+design_snapshot:
+  hash: "sha256:stub_des_b"
+  source_ids:
+    - users_raw
+  intent: confirmatory
+  methodology: "Regression analysis on users_raw engagement metrics"
+methodology_tags:
+  - regression
+input_profile:
+  estimated_rows: 800000
+  column_count: 15
+  data_volume_strategy: direct
+execution:
+  elapsed_min: 35.0
+  cost_usd: 0.42
+  api_retries: 1
+  status: success
+  error_category: null
+verdict:
+  direction: supports
+  confidence: medium
+  events_recorded: 4
