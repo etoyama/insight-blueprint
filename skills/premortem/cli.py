@@ -355,11 +355,14 @@ def _handle_manual(
 
     # In manual mode, confirm all remaining designs too
     print("\nApprove remaining designs? [y/N]: ", end="", flush=True)
-    if sys.stdin.isatty():
-        confirm = input().strip().lower()
-        if confirm != "y":
-            print("Aborted by user.", file=sys.stderr)
-            return 1
+    if not sys.stdin.isatty():
+        print("\nError: interactive mode requires a TTY", file=sys.stderr)
+        return 1
+
+    confirm = input().strip().lower()
+    if confirm != "y":
+        print("Aborted by user.", file=sys.stderr)
+        return 1
 
     return _issue_token(
         approved=approved,

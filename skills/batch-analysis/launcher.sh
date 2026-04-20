@@ -51,6 +51,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# Override paths via env vars (used by integration tests)
+INSIGHT_BASE_DIR="${INSIGHT_BASE_DIR:-.insight}"
+INSIGHT_CONFIG_PATH="${INSIGHT_CONFIG_PATH:-${INSIGHT_BASE_DIR}/config.yaml}"
+
 # ---------------------------------------------------------------------------
 # Step 1: Config loading
 # ---------------------------------------------------------------------------
@@ -61,7 +65,7 @@ import sys
 sys.path.insert(0, '.')
 from skills._shared.config_loader import load_premortem_config
 from pathlib import Path
-cfg = load_premortem_config(Path('.insight/config.yaml'))
+cfg = load_premortem_config(Path('${INSIGHT_CONFIG_PATH}'))
 print(f'AUTOMATION={cfg.automation}')
 print(f'APPROVED_BY_REQUIRED={str(cfg.approved_by_required).lower()}')
 print(f'BATCH_MAX_TURNS={cfg.max_turns}')
@@ -94,7 +98,8 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 from ruamel.yaml import YAML
 
-refs = detect_incomplete()
+base_dir = Path('${INSIGHT_BASE_DIR}')
+refs = detect_incomplete(base_dir=base_dir)
 if not refs:
     print(json.dumps({'has_incomplete': False}))
     sys.exit(0)
@@ -113,8 +118,8 @@ if not token_id or not session_id:
     sys.exit(0)
 
 now = datetime.now(ZoneInfo('Asia/Tokyo'))
-vr = verify(token_id, now)
-unfinished = unfinished_designs(latest)
+vr = verify(token_id, now, base_dir=base_dir)
+unfinished = unfinished_designs(latest, base_dir=base_dir)
 
 print(json.dumps({
     'has_incomplete': True,
@@ -150,13 +155,15 @@ print(json.dumps({
             python3 -c "
 import sys
 sys.path.insert(0, '.')
+from pathlib import Path
 from skills._shared.crash_recovery import detect_incomplete, unfinished_designs, finalize_incomplete
-refs = detect_incomplete()
+base_dir = Path('${INSIGHT_BASE_DIR}')
+refs = detect_incomplete(base_dir=base_dir)
 if refs:
     latest = refs[0]
-    unfinished = unfinished_designs(latest)
+    unfinished = unfinished_designs(latest, base_dir=base_dir)
     if unfinished:
-        finalize_incomplete(latest.run_id, unfinished, 'token_expired_or_crashed')
+        finalize_incomplete(latest.run_id, unfinished, 'token_expired_or_crashed', base_dir=base_dir)
 " 2>/dev/null || true
         fi
     fi
@@ -182,11 +189,13 @@ else
     token_check=$(python3 -c "
 import sys, json
 sys.path.insert(0, '.')
+from pathlib import Path
 from skills._shared.token_manager import verify
 from datetime import datetime
 from zoneinfo import ZoneInfo
+base_dir = Path('${INSIGHT_BASE_DIR}')
 now = datetime.now(ZoneInfo('Asia/Tokyo'))
-result = verify('$APPROVED_BY', now)
+result = verify('$APPROVED_BY', now, base_dir=base_dir)
 print(json.dumps({'ok': result.ok, 'reason': result.reason}))
 " 2>/dev/null) || true
 
@@ -220,18 +229,20 @@ fi
 if [ -n "$RESUME_SESSION_ID" ] && [ -n "$RESUME_RUN_DIR" ]; then
     RUN_DIR="$RESUME_RUN_DIR"
 else
-    RUN_DIR=".insight/runs/$(_timestamp)"
+    RUN_DIR="${INSIGHT_BASE_DIR}/runs/$(_timestamp)"
     mkdir -p "$RUN_DIR"
 
     python3 -c "
 import sys
 sys.path.insert(0, '.')
+from pathlib import Path
 from skills._shared.manifest_writer import init_run
 init_run(
     run_id='$(basename "$RUN_DIR")',
     session_id=None,
     automation_mode='${AUTOMATION_MODE:-review}',
     token_id='${TOKEN_ID}' if '${TOKEN_ID}' else None,
+    base_dir=Path('${INSIGHT_BASE_DIR}'),
 )
 " 2>/dev/null || echo "WARNING: failed to init run.yaml" >&2
 fi
@@ -301,8 +312,9 @@ if [ -f "$RUN_DIR/events.jsonl" ]; then
         python3 -c "
 import sys
 sys.path.insert(0, '.')
+from pathlib import Path
 from skills._shared.manifest_writer import update_run_session_id
-update_run_session_id('$(basename "$RUN_DIR")', '$SESSION_ID')
+update_run_session_id('$(basename "$RUN_DIR")', '$SESSION_ID', base_dir=Path('${INSIGHT_BASE_DIR}'))
 " 2>/dev/null || echo "WARNING: failed to update session_id in run.yaml" >&2
     fi
 fi
@@ -315,11 +327,13 @@ if [ "${AUTOMATION_MODE:-}" = "auto" ] && [ -n "$TOKEN_ID" ]; then
     has_high=$(python3 -c "
 import sys, json
 sys.path.insert(0, '.')
+from pathlib import Path
 from skills._shared.token_manager import verify
 from datetime import datetime
 from zoneinfo import ZoneInfo
+base_dir = Path('${INSIGHT_BASE_DIR}')
 now = datetime.now(ZoneInfo('Asia/Tokyo'))
-result = verify('$TOKEN_ID', now)
+result = verify('$TOKEN_ID', now, base_dir=base_dir)
 if result.ok and result.token:
     for d in result.token.approved_designs:
         if d.get('risk_at_approval') == 'high':

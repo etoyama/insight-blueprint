@@ -58,6 +58,10 @@ summary.png
 *.log
 logs/
 
+# insight-blueprint runtime state (batch runs, approval tokens)
+.insight/runs/
+.insight/premortem/
+
 # Jupyter
 .ipynb_checkpoints/
 
