@@ -274,6 +274,39 @@ validation, crash recovery, and mode dispatch automatically:
 bash ${CLAUDE_SKILL_DIR}/launcher.sh [--approved-by TOKEN]
 ```
 
+## Crash Recovery
+
+If the overnight run crashes or the machine reboots mid-batch, **re-run
+the same command**. The launcher detects incomplete runs automatically
+and resumes the existing claude session — you do NOT need to re-issue a
+token or invoke any recovery command.
+
+```bash
+# Crash recovery is transparent: same command, same token.
+bash ${CLAUDE_SKILL_DIR}/launcher.sh --approved-by <token_id>
+```
+
+What happens under the hood:
+
+1. `launcher.sh` scans `.insight/runs/*/run.yaml` for non-`completed` runs.
+2. The newest incomplete run is picked. If its `premortem_token` is still
+   valid (TTL unexpired) and a `session_id` was recorded, the launcher
+   verifies each unfinished design's on-disk hash against the token
+   (pre-resume hash check) and re-invokes `claude --resume <session_id>`.
+3. Designs whose YAML was edited mid-batch are marked
+   `status=skipped, skip_reason=hash_mismatch` and not re-processed.
+4. If the token expired, unfinished designs are finalized as
+   `status=incomplete, skip_reason=token_expired_or_crashed`; you then
+   run `/premortem` again to issue a fresh token and start a new batch.
+
+The final state of `run.yaml` after the launcher exits is always one of
+`completed / timeout / incomplete` — the status field is never left as
+`running`. Inspect it with:
+
+```bash
+yq .status .insight/runs/*/run.yaml | tail -5
+```
+
 ## Self-Review Protocol
 
 The core of the 30min/design time budget. After generation and execution,

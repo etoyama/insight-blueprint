@@ -56,6 +56,22 @@ and issues an approval token consumed by `/batch-analysis --approved-by TOKEN`.
    - `token_manager.issue()` writes `.insight/premortem/{TIMESTAMP}.yaml`
    - stdout final line: `Launch with: /batch-analysis --approved-by {token_id}`
 
+## Risk Levels
+
+Every design is classified into one of five levels. The level determines
+what the operator (or automation) should do next.
+
+| Level | Trigger | Operator Action |
+|-------|---------|-----------------|
+| `HARD_BLOCK` | Unregistered source, allowlist violation, or BigQuery location mismatch. | Batch MUST NOT run this design. The `[c]ontinue` option is withheld; use `[s]kip`, `[e]dit` (fix the design), or `[a]bort` (stop the whole batch). |
+| `HIGH` | History median × buffer exceeds `time_high_min` **or** `estimated_rows` exceeds `static_rows_high` **or** success rate over `history_min_samples` samples drops below `success_rate_high_threshold`. | manual mode: operator prompt (s/e/a/c). review mode: batch STOPS (exit 2). auto mode: batch RUNS with a `WARNING: HIGH risk executed without human approval` line appended to `summary.md`. |
+| `MEDIUM` | Extrapolated time between `time_medium_min` and `time_high_min`. | Proceeds automatically in every mode. Logged for visibility. |
+| `LOW` | Nothing above triggered, history is healthy. | Proceeds automatically. The happy path. |
+| `SKIP` | Terminal status (`supported` / `rejected` / `inconclusive`) or `next_action` cleared. | Recorded as skipped with `skip_reason=terminal_status`; never enters the batch queue. |
+
+Thresholds live in `.insight/config.yaml` under `premortem.*` (see
+`.insight/config.example.yaml`). Change them there, not in code.
+
 ## Exit Codes
 
 | Code | Meaning |
