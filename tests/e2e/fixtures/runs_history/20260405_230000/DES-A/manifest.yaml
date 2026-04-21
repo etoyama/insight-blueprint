@@ -1,25 +1,24 @@
 design_id: DES-A
 run_id: "20260405_230000"
+status: completed
 started_at: "2026-04-05T23:00:00+09:00"
 ended_at: "2026-04-05T23:30:00+09:00"
+elapsed_min: 30.0
+cost_usd: 0.35
+api_retries: 0
+error_category:
+estimated_rows: 1500000
 design_snapshot:
   hash: "sha256:aaa222"
   source_ids:
-    - sales_raw
+  - sales_raw
   intent: exploratory
   methodology: "Correlation analysis"
 methodology_tags:
-  - correlation_analysis
+- correlation_analysis
 input_profile:
-  estimated_rows: 1500000
   column_count: 23
   data_volume_strategy: sample
-execution:
-  elapsed_min: 30.0
-  cost_usd: 0.35
-  api_retries: 0
-  status: success
-  error_category: null
 verdict:
   direction: supports
   confidence: high

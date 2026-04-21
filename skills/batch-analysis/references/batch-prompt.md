@@ -387,7 +387,7 @@ to the manifest for fast history queries:
    confidence: high|medium|ambiguous, events_recorded: N}`
 3. This is a denormalized copy -- the journal remains the source of truth
 
-If status is not `success` (error/timeout/skipped), verdict is `null` in
+If status is not `completed` (error/timeout/skipped/incomplete), verdict is `null` in
 the manifest.
 
 #### 3i. Status Transition
@@ -417,21 +417,24 @@ Write to `{RUN_DIR}/{design_id}/manifest.yaml` using atomic write (tempfile + mv
 # Path: {RUN_DIR}/{design_id}/manifest.yaml
 ```
 
-**Manifest fields** (see Data Models in design.md for full schema):
+**Manifest fields** (flat schema — top-level `status`, no `execution.*` subtree; see Data Models in design.md for full schema):
 
 - `design_id`, `run_id` (from RUN_DIR basename)
+- `status`: top-level, one of `completed / skipped / error / timeout / incomplete` (ManifestStatus enum)
 - `started_at`, `ended_at` (ISO 8601 JST)
-- `design_snapshot`: `{hash, source_ids, intent, methodology}`
+- `elapsed_min`, `cost_usd`, `api_retries`, `tool_calls`: top-level execution metrics
+- `error_category`, `error_detail`, `skip_reason`: top-level failure metadata (null when not applicable)
+- `estimated_rows`: top-level
+- `design_snapshot`: `{hash, source_ids, intent, methodology}` (nested grouping retained)
 - `methodology_tags`: from Step 3e-manifest (1-3 tags from vocab)
-- `input_profile`: `{estimated_rows, column_count, data_volume_strategy}`
-- `execution`: `{elapsed_min, cost_usd, api_retries, tool_calls, status, error_category, skip_reason}`
-- `verdict`: from Step 3h-manifest (null if not success)
+- `input_profile`: `{column_count, data_volume_strategy}` (nested grouping retained; `estimated_rows` moved to top-level)
+- `verdict`: from Step 3h-manifest (null when status != completed)
 
-**Status-specific handling**:
+**Status-specific handling** (status is always top-level):
 
-| Outcome | status | Additional fields |
-|---------|--------|-------------------|
-| Success | `success` | verdict populated, methodology_tags from vocab |
+| Outcome | status | Additional top-level fields |
+|---------|--------|-----------------------------|
+| Completed | `completed` | verdict populated, methodology_tags from vocab |
 | Error (3 repair attempts failed) | `error` | `error_category` set (import/type/logic/data_missing) |
 | Timeout (time budget exceeded) | `timeout` | `error_category: budget_exceeded` or `turn_limit` |
 | Skip (terminal status) | `skipped` | `skip_reason: terminal_status` |

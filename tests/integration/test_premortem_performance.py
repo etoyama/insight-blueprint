@@ -41,8 +41,14 @@ def _create_history_manifests(
         data = {
             "design_id": design_id,
             "run_id": run_id,
+            "status": "completed",
             "started_at": f"2026-03-{1 + i:02d}T23:00:00+09:00",
             "ended_at": f"2026-03-{1 + i:02d}T23:20:00+09:00",
+            "elapsed_min": 15.0 + (i % 5),
+            "cost_usd": 0.20,
+            "api_retries": 0,
+            "error_category": None,
+            "estimated_rows": 1_000_000,
             "design_snapshot": {
                 "hash": f"sha256:perf{i:04d}",
                 "source_ids": [source_id],
@@ -51,16 +57,8 @@ def _create_history_manifests(
             },
             "methodology_tags": ["descriptive"],
             "input_profile": {
-                "estimated_rows": 1_000_000,
                 "column_count": 20,
                 "data_volume_strategy": "sample",
-            },
-            "execution": {
-                "elapsed_min": 15.0 + (i % 5),
-                "cost_usd": 0.20,
-                "api_retries": 0,
-                "status": "success",
-                "error_category": None,
             },
             "verdict": {
                 "direction": "supports",

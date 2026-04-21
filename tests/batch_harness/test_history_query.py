@@ -27,9 +27,9 @@ def _write_manifest(
     source_ids: list[str],
     elapsed_min: float,
     estimated_rows: int,
-    status: str = "success",
+    status: str = "completed",
 ) -> Path:
-    """Helper to create a manifest.yaml fixture."""
+    """Helper to create a manifest.yaml fixture (flat schema, top-level status)."""
     manifest_dir = base / run_name / design_id
     manifest_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_dir / "manifest.yaml"
@@ -37,18 +37,14 @@ def _write_manifest(
     data = {
         "design_id": design_id,
         "run_id": run_name,
+        "status": status,
+        "elapsed_min": elapsed_min,
+        "estimated_rows": estimated_rows,
         "design_snapshot": {
             "source_ids": source_ids,
             "hash": "sha256:fake",
             "intent": "exploratory",
             "methodology": "test",
-        },
-        "execution": {
-            "elapsed_min": elapsed_min,
-            "status": status,
-        },
-        "input_profile": {
-            "estimated_rows": estimated_rows,
         },
     }
     with manifest_path.open("w") as f:
@@ -136,14 +132,14 @@ class TestHistoryQueryNoSqlite:
         assert result.median_estimated_rows == 2500.0  # (2000 + 3000) / 2
 
     def test_success_rate_from_status(self, tmp_path: Path) -> None:
-        """t4: 3 runs, 2 success + 1 error -> success_rate ~0.667."""
+        """t4: 3 runs, 2 completed + 1 error -> success_rate ~0.667."""
         runs_dir = tmp_path / "runs"
 
         _write_manifest(
-            runs_dir, "run1", "DES-001", ["src"], 10.0, 1000, status="success"
+            runs_dir, "run1", "DES-001", ["src"], 10.0, 1000, status="completed"
         )
         _write_manifest(
-            runs_dir, "run2", "DES-002", ["src"], 20.0, 2000, status="success"
+            runs_dir, "run2", "DES-002", ["src"], 20.0, 2000, status="completed"
         )
         _write_manifest(
             runs_dir, "run3", "DES-003", ["src"], 30.0, 3000, status="error"

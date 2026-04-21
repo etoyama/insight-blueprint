@@ -80,21 +80,23 @@ def query(
 
         total_count += 1
 
-        # Collect elapsed_min
-        execution = data.get("execution", {})
-        elapsed = execution.get("elapsed_min")
+        # Collect elapsed_min (top-level per flat contract)
+        elapsed = data.get("elapsed_min")
         if elapsed is not None:
             elapsed_values.append(float(elapsed))
 
-        # Collect estimated_rows
-        input_profile = data.get("input_profile", {})
-        est_rows = input_profile.get("estimated_rows")
+        # Collect estimated_rows (top-level per flat contract)
+        est_rows = data.get("estimated_rows")
+        if est_rows is None:
+            # Backward-compat: older manifests may still have input_profile.estimated_rows
+            input_profile = data.get("input_profile", {})
+            est_rows = input_profile.get("estimated_rows")
         if est_rows is not None:
             rows_values.append(float(est_rows))
 
-        # Count successes
-        status = execution.get("status", "")
-        if status == "success":
+        # Count successes (top-level status, "completed" enum)
+        status = data.get("status", "")
+        if status == "completed":
             success_count += 1
 
     # Compute aggregates
