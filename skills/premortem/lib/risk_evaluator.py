@@ -122,11 +122,27 @@ def _evaluate_with_history(
     source_checks: SourceChecks,
 ) -> RiskDecision:
     """Extrapolation-based risk when history is sufficient."""
-    assert history.median_elapsed_min is not None
-    assert history.median_estimated_rows is not None
-    assert history.success_rate is not None
+    if history.median_elapsed_min is None:
+        raise ValueError(
+            "median_elapsed_min must not be None when history is sufficient"
+        )
+    if history.median_estimated_rows is None:
+        raise ValueError(
+            "median_estimated_rows must not be None when history is sufficient"
+        )
+    if history.success_rate is None:
+        raise ValueError("success_rate must not be None when history is sufficient")
 
     estimated_rows = source_checks.estimated_rows or 0
+
+    # Q1: guard against zero median_estimated_rows to prevent ZeroDivisionError
+    if history.median_estimated_rows == 0.0:
+        return RiskDecision(
+            level=RiskLevel.HIGH,
+            reasons=["median_estimated_rows is zero; extrapolation not possible"],
+            flags=["history_uninformative"],
+            extrapolated_time_min=None,
+        )
 
     extrapolated = (
         history.median_elapsed_min

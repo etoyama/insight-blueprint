@@ -600,3 +600,70 @@ class TestRiskEvaluatorApiFailure:
             source_checks=checks,
         )
         assert result.level == RiskLevel.HARD_BLOCK
+
+
+# ---------------------------------------------------------------------------
+# Q1: zero median_estimated_rows must not raise ZeroDivisionError
+# ---------------------------------------------------------------------------
+
+
+class TestRiskEvaluatorZeroMedian:
+    """Q1: history with median_estimated_rows=0.0 must not crash."""
+
+    def test_zero_median_history_does_not_raise(self) -> None:
+        """Feed history with median_estimated_rows=0.0, expect no exception."""
+        history = HistoryStats(
+            n=5,
+            median_elapsed_min=30.0,
+            median_estimated_rows=0.0,
+            success_rate=1.0,
+        )
+        # Must not raise ZeroDivisionError
+        result = evaluate(
+            design={"status": "analyzing"},
+            history=history,
+            config=_default_config(),
+            source_checks=_good_source_checks(estimated_rows=1_000_000),
+        )
+        assert result.level in {RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW}
+
+    def test_zero_median_history_flags_uninformative(self) -> None:
+        """Confirm the flag signals why extrapolation was skipped."""
+        history = HistoryStats(
+            n=5,
+            median_elapsed_min=30.0,
+            median_estimated_rows=0.0,
+            success_rate=1.0,
+        )
+        result = evaluate(
+            design={"status": "analyzing"},
+            history=history,
+            config=_default_config(),
+            source_checks=_good_source_checks(estimated_rows=1_000_000),
+        )
+        assert "history_uninformative" in result.flags
+
+
+# ---------------------------------------------------------------------------
+# Q2: assert replaced with ValueError for -O safety
+# ---------------------------------------------------------------------------
+
+
+class TestRiskEvaluatorAssertReplacement:
+    """Q2: runtime invariants must raise ValueError, not AssertionError."""
+
+    def test_invalid_input_raises_value_error_not_assertion(self) -> None:
+        """Trigger the condition that used to assert, confirm ValueError."""
+        history = HistoryStats(
+            n=5,
+            median_elapsed_min=None,  # violates invariant
+            median_estimated_rows=1_000_000.0,
+            success_rate=1.0,
+        )
+        with pytest.raises(ValueError):
+            evaluate(
+                design={"status": "analyzing"},
+                history=history,
+                config=_default_config(),
+                source_checks=_good_source_checks(),
+            )
