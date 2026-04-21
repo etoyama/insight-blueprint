@@ -58,9 +58,14 @@ summary.png
 *.log
 logs/
 
-# insight-blueprint runtime state (batch runs, approval tokens)
+# insight-blueprint runtime state (batch runs, approval tokens, per-clone stubs)
 .insight/runs/
 .insight/premortem/
+.insight/.sqlite/
+.insight/config.yaml
+.insight/rules/analysis_rules.yaml
+.insight/rules/review_rules.yaml
+.insight/rules/extracted_knowledge.yaml
 
 # Jupyter
 .ipynb_checkpoints/
