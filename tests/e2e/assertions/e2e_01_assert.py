@@ -95,7 +95,7 @@ def main() -> int:
         manifest_c = run_dir / "DES-C" / "manifest.yaml"
         if manifest_c.exists():
             m = load_yaml(manifest_c)
-            status = m.get("execution", {}).get("status") or m.get("status")
+            status = m.get("status")
             assert status == "skipped", f"DES-C status={status}, expected=skipped"
         # DES-C may not have a manifest if stub didn't produce one (skipped at premortem)
         # This is acceptable -- skipped designs may not get a run manifest

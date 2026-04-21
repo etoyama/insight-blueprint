@@ -70,10 +70,9 @@ def main() -> int:
         manifest_b = run_dir / "DES-B" / "manifest.yaml"
         assert_file_exists(manifest_b, "DES-B manifest after resume")
         m = load_yaml(manifest_b)
-        exec_data = m.get("execution", {})
-        status = exec_data.get("status") or m.get("status")
-        assert status == "success", f"DES-B status={status}, expected=success"
-        ended = m.get("ended_at") or exec_data.get("ended_at")
+        status = m.get("status")
+        assert status == "completed", f"DES-B status={status}, expected=completed"
+        ended = m.get("ended_at")
         assert ended is not None, "DES-B has no ended_at"
 
     check("3: DES-B manifest success", assert_3)
