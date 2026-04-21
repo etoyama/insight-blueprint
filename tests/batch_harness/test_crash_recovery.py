@@ -220,7 +220,6 @@ class TestCrashRecoveryFinalize:
     def test_finalize_writes_manifest_incomplete(self, tmp_path: Path) -> None:
         """t1: Manifest is written with status=incomplete."""
         from skills._shared.crash_recovery import finalize_incomplete
-
         from skills._shared.manifest_writer import init_run
 
         _write_vocab(tmp_path)
@@ -243,7 +242,6 @@ class TestCrashRecoveryFinalize:
     def test_skip_reason_recorded(self, tmp_path: Path) -> None:
         """t2: skip_reason is written in manifest."""
         from skills._shared.crash_recovery import finalize_incomplete
-
         from skills._shared.manifest_writer import init_run
 
         _write_vocab(tmp_path)
@@ -264,7 +262,6 @@ class TestCrashRecoveryFinalize:
     def test_run_yaml_status_updated(self, tmp_path: Path) -> None:
         """t3: run.yaml status is updated to incomplete."""
         from skills._shared.crash_recovery import finalize_incomplete
-
         from skills._shared.manifest_writer import init_run
 
         _write_vocab(tmp_path)

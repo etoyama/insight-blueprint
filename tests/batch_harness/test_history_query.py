@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from ruamel.yaml import YAML
+
 from skills.premortem.lib.history_query import query
 
 
