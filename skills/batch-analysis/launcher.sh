@@ -47,6 +47,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ---------------------------------------------------------------------------
+# S1 guard: validate --approved-by format before any interpolation
+# ---------------------------------------------------------------------------
+if [ -n "$APPROVED_BY" ]; then
+    if ! [[ "$APPROVED_BY" =~ ^[0-9]{8}_[0-9]{6}$ ]]; then
+        echo "Invalid --approved-by format: expected YYYYMMDD_HHMMSS, got '$APPROVED_BY'" >&2
+        exit 1
+    fi
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"

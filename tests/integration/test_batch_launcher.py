@@ -683,3 +683,61 @@ class TestBatchPhaseBWithToken:
             insight_base_dir=insight_root,
         )
         assert "Phase A transitional" not in result.stderr
+
+
+# =========================================================================
+# S1: --approved-by shell injection validation
+# =========================================================================
+
+
+class TestBatchApprovedByInjection:
+    """S1: launcher.sh must reject malformed --approved-by tokens."""
+
+    def test_launcher_rejects_malformed_approved_by_token(
+        self,
+        insight_root: Path,
+        config_review_a: Path,
+        stub_claude_env: None,
+    ) -> None:
+        """Malicious shell command in --approved-by must be rejected
+        by format validation BEFORE reaching any Python interpreter."""
+        result = run_launcher(
+            ["--approved-by", "evil; rm -rf /"],
+            cwd=insight_root.parent,
+            insight_base_dir=insight_root,
+        )
+        assert result.returncode == 1
+        # Must be caught by format guard, not by downstream token lookup
+        stderr_lower = result.stderr.lower()
+        assert "invalid --approved-by format" in stderr_lower
+
+    def test_launcher_rejects_approved_by_with_quotes(
+        self,
+        insight_root: Path,
+        config_review_a: Path,
+        stub_claude_env: None,
+    ) -> None:
+        """Python injection via quote escape must exit 1."""
+        result = run_launcher(
+            ["--approved-by", "a'; __import__('os'); #"],
+            cwd=insight_root.parent,
+            insight_base_dir=insight_root,
+        )
+        assert result.returncode == 1
+
+    def test_launcher_accepts_valid_token_format(
+        self,
+        insight_root: Path,
+        config_review_a: Path,
+        stub_claude_env: None,
+    ) -> None:
+        """Well-formed token_id passes format validation."""
+        token_id = create_valid_token(insight_root, token_id="20260421_080000")
+        result = run_launcher(
+            ["--approved-by", token_id],
+            cwd=insight_root.parent,
+            insight_base_dir=insight_root,
+        )
+        # Should not fail due to format validation (may fail for other reasons
+        # but must NOT exit 1 with "invalid format" message)
+        assert "invalid" not in result.stderr.lower() or result.returncode == 0
