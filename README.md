@@ -43,6 +43,17 @@ uv tool install insight-blueprint
 insight-blueprint --project /path/to/my-analysis
 ```
 
+### Updating
+
+When a new version is published, run the following from within Claude Code to pull the latest plugin (auto-update is off by default for third-party marketplaces):
+
+```bash
+/plugin marketplace update insight-blueprint-marketplace
+/plugin update insight-blueprint@insight-blueprint-marketplace
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 ### Optional: Python Package
 
 For data-lineage tracking with `tracked_pipe` in your notebooks/scripts:
@@ -76,7 +87,7 @@ A browser-based dashboard (http://127.0.0.1:3000) with two tabs:
 
 ### Bundled Skills
 
-The plugin provides 8 analysis skills that are automatically available after installation:
+The plugin provides 9 analysis skills that are automatically available after installation:
 
 - `/analysis-framing` -- Explore available data and existing analyses to frame a hypothesis direction
 - `/analysis-design` -- Guided workflow for creating hypothesis documents
@@ -86,6 +97,7 @@ The plugin provides 8 analysis skills that are automatically available after ins
 - `/catalog-register` -- Step-by-step data source registration
 - `/data-lineage` -- Track data transformations and export lineage diagrams (Mermaid)
 - `/batch-analysis` -- Overnight batch execution of queued designs (headless notebooks, self-review, journal recording)
+- `/premortem` -- Pre-flight risk evaluation of queued designs with approval token issuance (gates `/batch-analysis`)
 
 Skills support both English and Japanese trigger phrases.
 

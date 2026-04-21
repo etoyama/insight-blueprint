@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-21
+
+### Added
+
+- New skill `/premortem` — pre-flight risk evaluation with approval token issuance (#117)
+- `spec-workflow` MCP server registered in `.mcp.json` (#118)
+
+### Changed
+
+- Batch analysis harness hardened for overnight stability (#117)
+  - Flat manifest status contract with `completed` state (was nested `execution.status`)
+  - 2-stage design hash verification for safe resume after crash
+  - Launcher-owned `finalize_run` for consistent lifecycle termination
+  - Hash mismatch detection in claude step + stub env toggles
+  - User-facing documentation for risk levels, `.insight/config.example.yaml`, crash recovery
+
+### Fixed
+
+- `uv.lock` self-reference version out of sync with `pyproject.toml` (#119)
+
+### Chore
+
+- Ignore per-clone runtime stubs under `.insight/` (#120)
+
+## [0.4.2] - [0.4.4]
+
+Version bumps and maintenance releases. See git history for details:
+`git log v0.4.1..v0.4.4 --oneline`.
+
 ## [0.4.1] - 2026-04-06
 
 ### Added
@@ -88,7 +117,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML direct edit resilience (extra field preservation + corrupt file isolation)
 - SQLite FTS5 full-text search index
 
-[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/etoyama/insight-blueprint/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/etoyama/insight-blueprint/compare/v0.4.4...v0.5.0
+[0.4.1]: https://github.com/etoyama/insight-blueprint/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/etoyama/insight-blueprint/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/etoyama/insight-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/etoyama/insight-blueprint/compare/v0.1.0...v0.2.0
