@@ -80,10 +80,8 @@ class TestBatchHashMismatch:
         config_review_a: Path,
         stub_claude_env: None,
     ) -> None:
-        """When design hash doesn't match, stub_claude writes a skipped manifest.
-
-        In the real flow, the batch agent checks hash and writes the manifest.
-        For integration testing, we verify token creation with hash works.
+        """STUB_HASH_CHECK=mismatch -> manifest top-level status=skipped,
+        skip_reason=hash_mismatch (AC-3).
         """
         token_id = create_valid_token(
             insight_root,
@@ -96,11 +94,21 @@ class TestBatchHashMismatch:
                 }
             ],
         )
-        # Verify token exists with the design entry
-        token_path = insight_root / "premortem" / f"{token_id}.yaml"
-        with token_path.open("r") as f:
+        result = run_launcher(
+            ["--approved-by", token_id],
+            cwd=insight_root.parent,
+            insight_base_dir=insight_root,
+            env_override={"STUB_HASH_CHECK": "mismatch"},
+        )
+        assert result.returncode == 0
+
+        # Locate the single manifest written by the stub
+        manifests = list((insight_root / "runs").rglob("DES-MISMATCH/manifest.yaml"))
+        assert len(manifests) == 1, f"expected 1 manifest, got {manifests}"
+        with manifests[0].open("r") as f:
             data = yaml.load(f)
-        assert data["approved_designs"][0]["design_hash"] == "sha256:wrong_hash_value"
+        assert data["status"] == "skipped"
+        assert data["skip_reason"] == "hash_mismatch"
 
     def test_hash_match_proceeds_normally(
         self,
@@ -341,29 +349,39 @@ class TestBatchBudgetExhaustion:
         config_review_a: Path,
         stub_claude_env: None,
     ) -> None:
-        """Budget exceeded -> stub exits with non-0, run completes.
-
-        Full budget detection requires real claude. We verify the launcher
-        handles stub claude exit gracefully.
+        """STUB_BUDGET_EXCEEDED -> claude exits 124 -> launcher Step 9 writes
+        run.yaml status=timeout (AC-4).
         """
         token_id = create_valid_token(
             insight_root,
             approved_designs=[
                 {
-                    "design_id": "DES-BUDGET",
-                    "design_hash": "sha256:budget",
+                    "design_id": "DES-BUDGET-A",
+                    "design_hash": "sha256:b1",
                     "risk_at_approval": "low",
                     "est_min": 10.0,
-                }
+                },
+                {
+                    "design_id": "DES-BUDGET-B",
+                    "design_hash": "sha256:b2",
+                    "risk_at_approval": "low",
+                    "est_min": 10.0,
+                },
             ],
         )
         result = run_launcher(
             ["--approved-by", token_id],
             cwd=insight_root.parent,
             insight_base_dir=insight_root,
+            env_override={"STUB_BUDGET_EXCEEDED": "1"},
         )
-        # Launcher catches claude exit and continues
         assert result.returncode == 0
+
+        run_yamls = list((insight_root / "runs").rglob("run.yaml"))
+        assert len(run_yamls) >= 1
+        with run_yamls[-1].open("r") as f:
+            data = yaml.load(f)
+        assert data.get("status") == "timeout"
 
     def test_turn_limit_manifest_status_timeout(
         self,
@@ -371,24 +389,40 @@ class TestBatchBudgetExhaustion:
         config_review_a: Path,
         stub_claude_env: None,
     ) -> None:
-        """Turn limit similarly handled by launcher."""
+        """Turn limit is indistinguishable from budget at the launcher layer
+        (both surface as exit 124). Use the same STUB_BUDGET_EXCEEDED toggle
+        to assert run.yaml status=timeout (AC-4).
+        """
         token_id = create_valid_token(
             insight_root,
             approved_designs=[
                 {
-                    "design_id": "DES-TURNS",
-                    "design_hash": "sha256:turns",
+                    "design_id": "DES-TURN-A",
+                    "design_hash": "sha256:t1",
                     "risk_at_approval": "low",
                     "est_min": 10.0,
-                }
+                },
+                {
+                    "design_id": "DES-TURN-B",
+                    "design_hash": "sha256:t2",
+                    "risk_at_approval": "low",
+                    "est_min": 10.0,
+                },
             ],
         )
         result = run_launcher(
             ["--approved-by", token_id],
             cwd=insight_root.parent,
             insight_base_dir=insight_root,
+            env_override={"STUB_BUDGET_EXCEEDED": "1"},
         )
         assert result.returncode == 0
+
+        run_yamls = list((insight_root / "runs").rglob("run.yaml"))
+        assert len(run_yamls) >= 1
+        with run_yamls[-1].open("r") as f:
+            data = yaml.load(f)
+        assert data.get("status") == "timeout"
 
     @pytest.mark.skip(
         reason="requires full claude session to verify cross-design resume"

@@ -239,6 +239,34 @@ If queue is empty, generate an empty summary and exit.
 
 For each design in the sorted queue:
 
+#### 3-pre. Design Hash Verification (AC-3.3 claude-side leg)
+
+Before any per-design work, confirm that the on-disk design YAML has not been
+edited since `/premortem` approval. Combined with `launcher.sh`'s
+pre-resume verification (G1.4), this ensures every design is hash-checked
+exactly once before execution.
+
+1. Read `{INSIGHT_BASE_DIR}/premortem/{token_id}.yaml` (`token_id` comes
+   from `run.yaml.premortem_token`). Find the entry where
+   `design_id` matches the current design and read its `design_hash`.
+2. Compute the design's current hash via the shared helper (the canonical
+   fields are hypothesis, intent, methodology, source_ids, metrics,
+   acceptance_criteria):
+   ```bash
+   uv run python -c "
+   import json, sys
+   from skills._shared.token_manager import compute_design_hash
+   design = json.loads(sys.stdin.read())
+   print(compute_design_hash(design))
+   " <<< '<json-payload-from-get_analysis_design>'
+   ```
+3. If the hashes differ:
+   - Log: "スキップ: {design_id} -- design_hash mismatch"
+   - Write manifest via Step 3j-manifest with `status=skipped`,
+     `skip_reason=hash_mismatch` (top-level keys per the flat schema).
+   - Reset `next_action` (Step 3j) and continue to the next design.
+4. If the hashes match, proceed to Step 3a.
+
 #### 3a. Terminal Status Check
 
 Check the design's `status`. If terminal (`supported`, `rejected`, `inconclusive`):

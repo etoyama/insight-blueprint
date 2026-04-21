@@ -4,9 +4,16 @@
 Reads an approval token, writes deterministic events.jsonl and copies
 expected fixture outputs to the run directory. No randomness, no network.
 
+Env var overrides (for integration testing):
+  STUB_HASH_CHECK=mismatch     -- every design written as status=skipped,
+                                  skip_reason=hash_mismatch (no fixture copy).
+  STUB_BUDGET_EXCEEDED=1       -- emit partial events and exit 124 so the
+                                  launcher maps the run to status=timeout.
+
 Exit codes:
-  0   -- all approved designs processed
+  0   -- all approved designs processed (normal / hash_mismatch paths)
   2   -- budget limit (not used in current scenarios)
+  124 -- simulated budget/turn timeout (STUB_BUDGET_EXCEEDED)
   137 -- simulated kill (STUB_KILL_AFTER_DESIGNS)
 """
 
@@ -81,6 +88,20 @@ def _kill_after() -> int | None:
     return None
 
 
+def _hash_check_mode() -> str | None:
+    """Return STUB_HASH_CHECK mode ('mismatch') or None."""
+    val = os.environ.get("STUB_HASH_CHECK")
+    if val == "mismatch":
+        return "mismatch"
+    return None
+
+
+def _budget_exceeded() -> bool:
+    """True when STUB_BUDGET_EXCEEDED is set to a truthy value."""
+    val = os.environ.get("STUB_BUDGET_EXCEEDED", "")
+    return val.lower() in {"1", "true", "yes"}
+
+
 # ---------------------------------------------------------------------------
 # Token loading
 # ---------------------------------------------------------------------------
@@ -120,11 +141,29 @@ def main() -> int:
     fixtures = _fixtures_dir()
     scenario = _scenario()
     kill_after = _kill_after()
+    hash_check = _hash_check_mode()
+    budget_exceeded = _budget_exceeded()
 
-    # Determine token_id from --approved-by or from launcher env
+    # Determine token_id from --approved-by, run.yaml (launcher-written), or
+    # default to legacy mode. Real claude reads the token via Read tool while
+    # following batch-prompt.md; the stub mirrors that by picking up
+    # run.yaml.premortem_token the launcher wrote during Step 4 (init_run).
     token_id = args.approved_by
     if token_id is None:
-        # In Phase A legacy mode, no token -- still produce output
+        rd_env = os.environ.get("RUN_DIR")
+        if rd_env:
+            rd_path = Path(rd_env)
+            if not rd_path.is_absolute():
+                rd_path = Path(os.getcwd()) / rd_path
+            candidate = rd_path / "run.yaml"
+            if candidate.exists():
+                with candidate.open("r", encoding="utf-8") as f:
+                    existing = yaml.load(f) or {}
+                tid = existing.get("premortem_token")
+                if tid:
+                    token_id = tid
+    if token_id is None:
+        # Phase A legacy mode, no token -- still produce output
         token_id = "NONE"
 
     # Determine run_id -- use RUN_DIR env if available
@@ -215,6 +254,64 @@ def main() -> int:
                 )
                 ef.flush()
                 return 137
+
+            # Simulated budget/turn exhaustion — emit partial result and exit 124
+            # so the launcher's Step 9 maps the run to status=timeout (AC-4).
+            if budget_exceeded and designs_completed >= 1:
+                _write_event(
+                    ef,
+                    {
+                        "type": "result",
+                        "status": "interrupted",
+                        "subtype": "error_max_turns",
+                        "total_cost_usd": 0.42 * designs_completed,
+                        "timestamp": FIXED_NOW_ISO,
+                    },
+                )
+                ef.flush()
+                return 124
+
+            # Hash mismatch simulation — write a skipped manifest for this
+            # design (no fixture copy) so crash_recovery / history_query see
+            # status=skipped, skip_reason=hash_mismatch (AC-3).
+            if hash_check == "mismatch":
+                dst_dir = run_dir / design_id
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                skip_manifest = {
+                    "design_id": design_id,
+                    "run_id": run_id,
+                    "status": "skipped",
+                    "skip_reason": "hash_mismatch",
+                    "design_hash": entry.get("design_hash", ""),
+                    "started_at": FIXED_NOW_ISO,
+                    "ended_at": FIXED_NOW_ISO,
+                    "elapsed_min": 0.0,
+                    "cost_usd": 0.0,
+                    "api_retries": 0,
+                    "error_category": None,
+                    "methodology_tags": [],
+                    "verdict": None,
+                }
+                skip_out = YAML()
+                skip_out.preserve_quotes = True
+                with (dst_dir / "manifest.yaml").open("w", encoding="utf-8") as mf:
+                    skip_out.dump(skip_manifest, mf)
+
+                _write_event(
+                    ef,
+                    {
+                        "type": "tool_use",
+                        "content_block": {
+                            "tool": "batch_skip",
+                            "design_id": design_id,
+                        },
+                        "design_id": design_id,
+                        "skip_reason": "hash_mismatch",
+                        "timestamp": FIXED_NOW_ISO,
+                    },
+                )
+                designs_completed += 1
+                continue
 
             # tool_use event for this design
             _write_event(
