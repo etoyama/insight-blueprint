@@ -1,0 +1,18 @@
+id: DES-A
+hypothesis: "Sales volume correlates with time slot distribution"
+intent: exploratory
+methodology: "Correlation analysis between sales_raw and time_slot"
+source_ids:
+  - sales_raw
+metrics:
+  - name: correlation_coefficient
+    target: "> 0.5"
+acceptance_criteria:
+  - condition: "correlation > 0.5"
+    action: supports
+status: analyzing
+next_action:
+  type: batch_execute
+created_at: "2026-04-15T10:00:00+09:00"
+updated_at: "2026-04-18T15:00:00+09:00"
+review_history: []

@@ -1,0 +1,11 @@
+# Package allowlist for batch-analysis skill
+# Primary source of truth; skills/batch-analysis/SKILL.md table is a fallback mirror
+allowed_packages:
+  pandas: pandas
+  matplotlib: matplotlib
+  numpy: numpy
+  scipy: scipy
+  sklearn: scikit-learn
+  statsmodels: statsmodels
+  seaborn: seaborn
+  plotly: plotly

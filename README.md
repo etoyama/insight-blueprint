@@ -109,6 +109,44 @@ Skills chain together to support the full hypothesis-driven analysis lifecycle:
 
 Each design has an `analysis_intent` field (`exploratory`, `confirmatory`, or `mixed`) to distinguish whether you're testing a specific hypothesis or exploring data for patterns. The Insight Journal (`.insight/designs/{id}_journal.yaml`) tracks your reasoning process with 8 event types mapped to the Narrative Scaffolding framework (Huang+ IUI 2026).
 
+## Overnight Operation
+
+Batch analysis runs overnight via a two-step workflow: risk evaluation
+followed by headless execution.
+
+### Workflow
+
+```
+/premortem --queued --yes --mode review
+    ↓ (exit 0: token issued)
+    ↓ (exit 2: HIGH detected, human triage needed)
+/batch-analysis --approved-by TOKEN
+    ↓
+Morning review: summary.md + /analysis-reflection per design
+```
+
+### Automation Modes
+
+| Mode | HIGH Risk Handling | Human Interaction |
+|------|-------------------|-------------------|
+| `manual` | Interactive prompt for every design | Required |
+| `review` | Blocks on HIGH (exit 2), auto-approves LOW/MEDIUM | Only when HIGH detected |
+| `auto` | Includes HIGH in approved set with warning | None |
+
+Set the mode in `.insight/config.yaml` under `batch.automation` (default: `review`).
+
+### Phased Rollout of `--approved-by`
+
+The `--approved-by TOKEN` argument is introduced in two phases:
+
+- **Phase A** (`batch.approved_by_required: false`): Omitting the flag prints a
+  warning and runs in legacy mode. Existing workflows are not broken.
+- **Phase B** (`batch.approved_by_required: true`): Omitting the flag causes
+  exit 1. All batch runs must go through `/premortem` first.
+
+Transition from Phase A to Phase B by setting `approved_by_required: true` in
+`.insight/config.yaml` when your team is ready.
+
 ## CLI Options
 
 ```bash

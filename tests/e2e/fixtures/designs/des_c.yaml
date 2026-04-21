@@ -1,0 +1,18 @@
+id: DES-C
+hypothesis: "Large-scale transaction patterns reveal seasonal anomalies"
+intent: exploratory
+methodology: "Time series decomposition on large_table transactions"
+source_ids:
+  - large_table
+metrics:
+  - name: anomaly_count
+    target: "> 10"
+acceptance_criteria:
+  - condition: "anomaly_count > 10"
+    action: supports
+status: analyzing
+next_action:
+  type: batch_execute
+created_at: "2026-04-16T11:00:00+09:00"
+updated_at: "2026-04-19T08:00:00+09:00"
+review_history: []

@@ -1,0 +1,18 @@
+id: DES-B
+hypothesis: "User retention improves with feature engagement score"
+intent: confirmatory
+methodology: "Regression analysis on users_raw engagement metrics"
+source_ids:
+  - users_raw
+metrics:
+  - name: r_squared
+    target: "> 0.6"
+acceptance_criteria:
+  - condition: "r_squared > 0.6"
+    action: supports
+status: analyzing
+next_action:
+  type: batch_execute
+created_at: "2026-04-14T09:00:00+09:00"
+updated_at: "2026-04-17T12:00:00+09:00"
+review_history: []
