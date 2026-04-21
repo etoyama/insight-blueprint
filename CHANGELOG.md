@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-21
+
+### Fixed
+
+- Remove `$schema` field from `.claude-plugin/marketplace.json` to restore plugin skill loading (#123)
+  - Claude Code's marketplace validator rejected `$schema` as an Unrecognized key,
+    causing the runtime to treat the plugin as disabled even when enabled in settings
+  - This blocked all insight-blueprint skills (`analysis-design`, `analysis-framing`,
+    `catalog-register`, `premortem`, etc.) from loading into the available skills list
+
 ## [0.5.0] - 2026-04-21
 
 ### Added
