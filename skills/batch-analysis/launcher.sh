@@ -160,6 +160,75 @@ print(json.dumps({
             RESUME_SESSION_ID="$session_id"
             RESUME_RUN_DIR=".insight/runs/$run_id"
             echo "Will resume session: $session_id" >&2
+
+            # G1.4: Pre-resume design hash verification.
+            # For each unfinished design, recompute the hash from the on-disk
+            # design yaml and compare with the token's stored hash. Mismatch
+            # means the design was edited mid-run; mark it skipped so the
+            # resumed claude session does not re-process it.
+            local token_id_for_hash
+            token_id_for_hash=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token_id',''))")
+            python3 -c "
+import sys
+sys.path.insert(0, '.')
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+from ruamel.yaml import YAML
+from skills._shared.crash_recovery import detect_incomplete, unfinished_designs
+from skills._shared.token_manager import (
+    verify,
+    verify_design_hash,
+    compute_design_hash,
+)
+from skills._shared.manifest_writer import write_design_manifest
+from skills._shared.models import DesignManifest
+
+base_dir = Path('${INSIGHT_BASE_DIR}')
+now = datetime.now(ZoneInfo('Asia/Tokyo'))
+refs = detect_incomplete(base_dir=base_dir)
+if not refs:
+    sys.exit(0)
+latest = refs[0]
+unfinished = unfinished_designs(latest, base_dir=base_dir)
+if not unfinished:
+    sys.exit(0)
+
+vr = verify('${token_id_for_hash}', now, base_dir=base_dir)
+if not vr.ok or vr.token is None:
+    sys.exit(0)
+
+yaml = YAML(typ='safe')
+for design_id in unfinished:
+    design_path = base_dir / 'designs' / f'{design_id}.yaml'
+    if not design_path.exists():
+        continue
+    with design_path.open('r', encoding='utf-8') as f:
+        design_data = yaml.load(f)
+    if not isinstance(design_data, dict):
+        continue
+    current_hash = compute_design_hash(design_data)
+    if verify_design_hash(vr.token, design_id, current_hash):
+        continue
+    # Hash mismatch: write skipped manifest so claude resume skips this design
+    manifest = DesignManifest(
+        run_id=latest.run_id,
+        design_id=design_id,
+        design_hash=current_hash,
+        status='skipped',
+        methodology_tags=[],
+        verdict=None,
+        started_at=now.isoformat(),
+        ended_at=now.isoformat(),
+        elapsed_min=None,
+        estimated_rows=None,
+        error_category=None,
+        error_detail=None,
+        skip_reason='hash_mismatch',
+    )
+    write_design_manifest(latest.run_id, design_id, manifest, base_dir=base_dir)
+    print(f'Pre-resume hash mismatch for {design_id}: marked skipped', file=sys.stderr)
+" 2>&1 | grep -v "^$" >&2 || true
         else
             echo "Token expired or no session_id, finalizing incomplete run: $run_id" >&2
             python3 -c "
@@ -265,6 +334,7 @@ export RUN_DIR
 
 CLAUDE_SKILL_DIR="$SCRIPT_DIR"
 
+claude_exit=0
 if [ -n "$RESUME_SESSION_ID" ]; then
     echo "Resuming session: $RESUME_SESSION_ID" >&2
     claude -p "$(cat "${CLAUDE_SKILL_DIR}/references/batch-prompt.md")" \
@@ -277,7 +347,7 @@ if [ -n "$RESUME_SESSION_ID" ]; then
         --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
         --permission-mode bypassPermissions \
         --max-budget-usd "${BATCH_MAX_BUDGET_USD}" \
-        >> "$RUN_DIR/events.jsonl" 2>&1 || true
+        >> "$RUN_DIR/events.jsonl" 2>&1 || claude_exit=$?
 else
     claude -p "$(cat "${CLAUDE_SKILL_DIR}/references/batch-prompt.md")" \
         --model sonnet \
@@ -288,8 +358,9 @@ else
         --allowedTools "mcp__insight-blueprint__list_analysis_designs,mcp__insight-blueprint__get_analysis_design,mcp__insight-blueprint__get_table_schema,mcp__insight-blueprint__update_analysis_design,mcp__insight-blueprint__transition_design_status,mcp__insight-blueprint__search_catalog,mcp__context7__resolve-library-id,mcp__context7__query-docs,Read,Write,Bash,Glob,Grep" \
         --permission-mode bypassPermissions \
         --max-budget-usd "${BATCH_MAX_BUDGET_USD}" \
-        > "$RUN_DIR/events.jsonl" 2>&1 || true
+        > "$RUN_DIR/events.jsonl" 2>&1 || claude_exit=$?
 fi
+export claude_exit
 
 # ---------------------------------------------------------------------------
 # Step 7: Extract session_id from events.jsonl
@@ -358,5 +429,56 @@ print('no')
     fi
 fi
 
-echo "Batch execution complete. Run directory: $RUN_DIR" >&2
+# ---------------------------------------------------------------------------
+# Step 9: Finalize run.yaml (launcher-owned lifecycle close)
+# ---------------------------------------------------------------------------
+
+case "${claude_exit:-0}" in
+    0)   FINAL_STATUS="completed" ;;
+    124) FINAL_STATUS="timeout" ;;
+    *)   FINAL_STATUS="incomplete" ;;
+esac
+
+TOTAL_COST=$(python3 -c "
+import json
+total = 0.0
+try:
+    with open('$RUN_DIR/events.jsonl', 'r') as f:
+        for line in f:
+            try:
+                evt = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if evt.get('type') == 'result':
+                c = evt.get('total_cost_usd')
+                if c is not None:
+                    total = float(c)
+except FileNotFoundError:
+    pass
+print(total)
+" 2>/dev/null || echo "0.0")
+
+python3 -c "
+import sys
+sys.path.insert(0, '.')
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+from skills._shared.manifest_writer import finalize_run
+from skills._shared.models import RunStatus
+
+now = datetime.now(ZoneInfo('Asia/Tokyo'))
+try:
+    finalize_run(
+        '$(basename "$RUN_DIR")',
+        RunStatus('${FINAL_STATUS}'),
+        float('${TOTAL_COST}'),
+        now,
+        base_dir=Path('${INSIGHT_BASE_DIR}'),
+    )
+except Exception as e:
+    print(f'WARNING: finalize_run failed: {e}', file=sys.stderr)
+" 2>&1 | grep -v "^$" >&2 || true
+
+echo "Batch execution complete. Run directory: $RUN_DIR (status: ${FINAL_STATUS})" >&2
 exit 0
