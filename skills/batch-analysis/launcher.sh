@@ -339,7 +339,7 @@ if [ -n "$RESUME_SESSION_ID" ]; then
     echo "Resuming session: $RESUME_SESSION_ID" >&2
     claude -p "$(cat "${CLAUDE_SKILL_DIR}/references/batch-prompt.md")" \
         --model sonnet \
-        --output-format stream-json \
+        --output-format stream-json --verbose \
         --include-hook-events \
         --fallback-model sonnet \
         --max-turns "${BATCH_MAX_TURNS}" \
@@ -351,7 +351,7 @@ if [ -n "$RESUME_SESSION_ID" ]; then
 else
     claude -p "$(cat "${CLAUDE_SKILL_DIR}/references/batch-prompt.md")" \
         --model sonnet \
-        --output-format stream-json \
+        --output-format stream-json --verbose \
         --include-hook-events \
         --fallback-model sonnet \
         --max-turns "${BATCH_MAX_TURNS}" \
