@@ -49,6 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("-p", "--prompt", dest="prompt", nargs="?", default=None)
     p.add_argument("--approved-by", dest="approved_by", default=None)
     p.add_argument("--output-format", dest="output_format", default="text")
+    p.add_argument("--verbose", action="store_true")
     p.add_argument("--include-hook-events", action="store_true")
     p.add_argument("--fallback-model", default=None)
     p.add_argument("--max-turns", type=int, default=200)
